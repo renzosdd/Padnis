@@ -14,6 +14,9 @@ import ManageRoles from './components/ManageRoles';
 import { useAuth } from './contexts/AuthContext';
 import { useNotification } from './contexts/NotificationContext';
 
+// Replace with your actual Render backend URL after deployment
+const BACKEND_URL = 'https://padnis-backend.onrender.com';
+
 const theme = createTheme({
   palette: {
     primary: { main: '#1976d2' },
@@ -73,7 +76,7 @@ const App = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
       console.log('Fetching players with token:', token);
-      const response = await axios.get('/api/players', {
+      const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
@@ -90,7 +93,7 @@ const App = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching tournaments with token:', token || 'No token (spectator mode)');
-      const response = await axios.get('/api/tournaments', {
+      const response = await axios.get(`${BACKEND_URL}/api/tournaments`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 10000,
       });
@@ -108,7 +111,7 @@ const App = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
       console.log('Fetching users with token:', token);
-      const response = await axios.get('/api/users', {
+      const response = await axios.get(`${BACKEND_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Users fetched:', response.data);

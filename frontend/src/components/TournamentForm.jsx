@@ -81,7 +81,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       const p1 = i < byes ? ordered[i] : ordered[i];
       const p2 = i < byes ? { player1: null, name: 'BYE' } : ordered[firstRoundSize - 1 - i];
       matches.push({ player1: p1, player2: p2, result: { sets: [], winner: null } });
-    } // Cierre correcto del bucle for
+    }
     return [{ round: 1, matches }];
   };
 
@@ -109,7 +109,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         creator: user._id,
         draft: isDraft,
       };
-      const response = await axios.post('http://localhost:5001/api/tournaments', tournament, {
+      const response = await axios.post('https://padnis-backend.onrender.com/api/tournaments', tournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!isDraft) onCreateTournament(response.data);
@@ -275,7 +275,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       </Box>
     );
   };
-
+  
   const Step3 = () => (
     <Box>
       <FormControl fullWidth margin="normal">

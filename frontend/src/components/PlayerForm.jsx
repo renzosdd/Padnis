@@ -28,7 +28,7 @@ const PlayerForm = ({ onRegisterPlayer, onUpdatePlayer, onPlayerAdded }) => {
     e.preventDefault();
     if (firstName && lastName) {
       try {
-        const response = await axios.post('http://localhost:5001/api/players', {
+        const response = await axios.post('https://padnis-backend.onrender.com/api/players', {
           firstName,
           lastName,
           email,
@@ -48,7 +48,7 @@ const PlayerForm = ({ onRegisterPlayer, onUpdatePlayer, onPlayerAdded }) => {
         setRacketBrand('');
         setOpenModal(false);
         addNotification('Jugador registrado con éxito', 'success');
-        if (onPlayerAdded) onPlayerAdded(); // Llama al callback para refrescar la lista
+        if (onPlayerAdded) onPlayerAdded();
       } catch (error) {
         console.error('Error registering player:', error);
         addNotification(error.response?.data?.message || 'Error al registrar jugador', 'error');

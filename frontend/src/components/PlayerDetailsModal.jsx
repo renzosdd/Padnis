@@ -5,7 +5,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Button, Box, Typography, Table, TableBody, TableCell, TableHead, TableRow, Chip } from '@mui/material';
 
 const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
-  const [open, setOpen] = useState(true); // Siempre abierto al montarse
+  const [open, setOpen] = useState(true);
   const [firstName, setFirstName] = useState(player.firstName);
   const [lastName, setLastName] = useState(player.lastName);
   const [email, setEmail] = useState(player.email || '');
@@ -25,7 +25,7 @@ const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
   const handleSave = async () => {
     try {
       const response = await axios.put(
-        `http://localhost:5001/api/players/${player.playerId}`,
+        `https://padnis-backend.onrender.com/api/players/${player.playerId}`,
         { firstName, lastName, email, phone, photo, dominantHand, racketBrand, userId, active },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
@@ -41,7 +41,7 @@ const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
   const handleDeactivate = async () => {
     try {
       const response = await axios.put(
-        `http://localhost:5001/api/players/${player.playerId}`,
+        `https://padnis-backend.onrender.com/api/players/${player.playerId}`,
         { ...player, active: 'No' },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
@@ -58,7 +58,7 @@ const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
   const handleRestore = async () => {
     try {
       const response = await axios.put(
-        `http://localhost:5001/api/players/${player.playerId}`,
+        `https://padnis-backend.onrender.com/api/players/${player.playerId}`,
         { ...player, active: 'Yes' },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
