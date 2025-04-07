@@ -73,7 +73,7 @@ const App = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
       console.log('Fetching players with token:', token);
-      const response = await axios.get('/api/players', { // Ruta relativa
+      const response = await axios.get('/api/players', {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
@@ -90,7 +90,7 @@ const App = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching tournaments with token:', token || 'No token (spectator mode)');
-      const response = await axios.get('/api/tournaments', { // Ruta relativa
+      const response = await axios.get('/api/tournaments', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 10000,
       });
@@ -108,7 +108,7 @@ const App = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
       console.log('Fetching users with token:', token);
-      const response = await axios.get('/api/users', { // Ruta relativa
+      const response = await axios.get('/api/users', {
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Users fetched:', response.data);
