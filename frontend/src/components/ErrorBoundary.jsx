@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { Box, Typography } from '@mui/material';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -16,7 +17,12 @@ class ErrorBoundary extends Component {
 
   render() {
     if (this.state.hasError) {
-      return <h1>Algo salió mal. Por favor, recarga la página.</h1>;
+      return (
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Typography variant="h5">Algo salió mal</Typography>
+          <Typography>Por favor, recarga la página.</Typography>
+        </Box>
+      );
     }
     return this.props.children;
   }

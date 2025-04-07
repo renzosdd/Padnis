@@ -1,26 +1,22 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { TextField, Button, Box } from '@mui/material';
 
-const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
+const RegisterForm = ({ onSwitchToLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
   const { addNotification } = useNotification();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5001/api/auth/login', { username, password });
-      localStorage.setItem('token', response.data.token);
-      login(response.data.username, response.data.role);
-      addNotification('Inicio de sesión exitoso', 'success');
-      if (onLoginSuccess) onLoginSuccess(); // Llama al callback para cerrar el Dialog
+      await axios.post('http://localhost:5001/api/auth/register', { username, password });
+      addNotification('Usuario registrado con éxito', 'success');
+      onSwitchToLogin();
     } catch (error) {
-      console.error('Error logging in from frontend:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Error al iniciar sesión';
+      console.error('Error registering user from frontend:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error al registrar usuario';
       addNotification(errorMessage, 'error');
     }
   };
@@ -43,11 +39,11 @@ const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
         margin="normal"
       />
       <Box sx={{ mt: 2 }}>
-        <Button variant="contained" color="primary" type="submit" sx={{ mr: 1 }}>Iniciar sesión</Button>
-        <Button variant="text" onClick={onSwitchToRegister}>¿No tienes cuenta? Regístrate</Button>
+        <Button variant="contained" color="primary" type="submit" sx={{ mr: 1 }}>Registrarse</Button>
+        <Button variant="text" onClick={onSwitchToLogin}>¿Ya tienes cuenta? Inicia sesión</Button>
       </Box>
     </Box>
   );
 };
 
-export default LoginForm;
+export default RegisterForm;

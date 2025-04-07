@@ -1,26 +1,26 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { AppBar, Toolbar, Typography, Button } from '@mui/material';
 
 const NavBar = () => {
-  const { user, logout } = useAuth();
+  const { user, role, logout } = useAuth();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    logout();
+  };
 
   return (
-    <nav>
-      <div className="nav-wrapper teal">
-        <a href="#" className="brand-logo" style={{ marginLeft: '20px' }}>
-          Padnis
-        </a>
+    <AppBar position="static">
+      <Toolbar>
+        <Typography variant="h6" sx={{ flexGrow: 1 }}>Padnis</Typography>
         {user && (
-          <ul className="right">
-            <li>
-              <a href="#" onClick={logout}>
-                Cerrar sesión ({user})
-              </a>
-            </li>
-          </ul>
+          <Button color="inherit" onClick={handleLogout}>
+            Cerrar sesión ({user} - {role})
+          </Button>
         )}
-      </div>
-    </nav>
+      </Toolbar>
+    </AppBar>
   );
 };
 
