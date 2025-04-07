@@ -11,8 +11,15 @@ const Tournament = require('./models/Tournament');
 
 const app = express();
 
+// Configurar strictQuery para evitar la advertencia de Mongoose
+mongoose.set('strictQuery', false);
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://padnis-frontend.onrender.com', // Reemplaza con tu URL de frontend real
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Conexión a MongoDB
@@ -87,7 +94,7 @@ app.post('/api/register', async (req, res) => {
     const user = new User({
       username,
       password: hashedPassword,
-      role: 'player', // Rol por defecto
+      role: 'player',
     });
     await user.save();
     console.log('User registered successfully:', { username, role: user.role });

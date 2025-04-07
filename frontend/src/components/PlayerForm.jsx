@@ -28,7 +28,7 @@ const PlayerForm = ({ onRegisterPlayer, onUpdatePlayer, onPlayerAdded }) => {
     e.preventDefault();
     if (firstName && lastName) {
       try {
-        const response = await axios.post('https://padnis-backend.onrender.com/api/players', {
+        const response = await axios.post('https://padnis.onrender.com/api/players', {
           firstName,
           lastName,
           email,

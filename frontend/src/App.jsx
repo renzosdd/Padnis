@@ -15,7 +15,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useNotification } from './contexts/NotificationContext';
 
 // Replace with your actual Render backend URL after deployment
-const BACKEND_URL = 'https://padnis-backend.onrender.com';
+const BACKEND_URL = 'https://padnis.onrender.com';
 
 const theme = createTheme({
   palette: {

@@ -25,7 +25,7 @@ const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
   const handleSave = async () => {
     try {
       const response = await axios.put(
-        `https://padnis-backend.onrender.com/api/players/${player.playerId}`,
+        `https://padnis.onrender.com/api/players/${player.playerId}`,
         { firstName, lastName, email, phone, photo, dominantHand, racketBrand, userId, active },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
@@ -41,7 +41,7 @@ const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
   const handleDeactivate = async () => {
     try {
       const response = await axios.put(
-        `https://padnis-backend.onrender.com/api/players/${player.playerId}`,
+        `https://padnis.onrender.com/api/players/${player.playerId}`,
         { ...player, active: 'No' },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
@@ -58,7 +58,7 @@ const PlayerDetailsModal = ({ player, users, onUpdate, onClose }) => {
   const handleRestore = async () => {
     try {
       const response = await axios.put(
-        `https://padnis-backend.onrender.com/api/players/${player.playerId}`,
+        `https://padnis.onrender.com/api/players/${player.playerId}`,
         { ...player, active: 'Yes' },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );

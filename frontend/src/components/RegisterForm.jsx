@@ -11,7 +11,7 @@ const RegisterForm = ({ onSwitchToLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('https://padnis-backend.onrender.com/api/register', { username, password });
+      await axios.post('https://padnis.onrender.com/api/register', { username, password });
       addNotification('Usuario registrado con éxito', 'success');
       onSwitchToLogin();
     } catch (error) {

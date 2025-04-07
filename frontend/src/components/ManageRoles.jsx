@@ -17,7 +17,7 @@ const ManageRoles = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('https://padnis-backend.onrender.com/api/users', {
+      const response = await axios.get('https://padnis.onrender.com/api/users', {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setUsers(response.data);
@@ -30,7 +30,7 @@ const ManageRoles = () => {
     e.preventDefault();
     try {
       await axios.put(
-        `https://padnis-backend.onrender.com/api/users/${selectedUser}/role`,
+        `https://padnis.onrender.com/api/users/${selectedUser}/role`,
         { role: newRole },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );

@@ -109,7 +109,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         creator: user._id,
         draft: isDraft,
       };
-      const response = await axios.post('https://padnis-backend.onrender.com/api/tournaments', tournament, {
+      const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!isDraft) onCreateTournament(response.data);

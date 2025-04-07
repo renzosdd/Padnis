@@ -13,7 +13,7 @@ const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('https://padnis-backend.onrender.com/api/login', { username, password });
+      const response = await axios.post('https://padnis.onrender.com/api/login', { username, password });
       localStorage.setItem('token', response.data.token);
       login(response.data.username, response.data.role);
       addNotification('Inicio de sesión exitoso', 'success');
