@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../models/User');
-
 mongoose.connect(process.env.MONGO_URI);
 
 const authenticateToken = (req) => {
