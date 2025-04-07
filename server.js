@@ -22,24 +22,29 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Conexión a MongoDB
+// Conexión a MongoDB con verificación
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  }).then(() => console.log('Connected to MongoDB'))
+    .catch(err => {
+      console.error('MongoDB connection error:', err);
+      process.exit(1); // Detiene el servidor si no se conecta a MongoDB
+    });
 
 // Middleware de autenticación
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Acceso denegado' });
-  jwt.verify(token, process.env.JWT_SECRET || 'secret_key', (err, user) => {
-    if (err) return res.status(403).json({ message: 'Token inválido' });
-    req.user = user;
-    next();
-  });
-};
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ message: 'Acceso denegado' });
+    try {
+      const user = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+      req.user = user;
+      next();
+    } catch (err) {
+      return res.status(403).json({ message: 'Token inválido' });
+    }
+  };
 
 const isAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Requiere rol de admin' });
@@ -235,20 +240,32 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/tournaments', async (req, res) => {
-  try {
-    const token = req.headers['authorization']?.split(' ')[1];
-    const user = token ? jwt.verify(token, process.env.JWT_SECRET || 'secret_key') : null;
-    const { status } = req.query;
-    const query = { draft: false };
-    if (status) query.status = status;
-    if (user && user.role !== 'admin') query.$or = [{ creator: user._id }, { status: { $ne: 'Pendiente' } }];
-    const tournaments = await Tournament.find(query).populate('creator', 'username');
-    res.json(tournaments);
-  } catch (error) {
-    console.error('Error fetching tournaments:', error);
-    res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
-  }
-});
+    try {
+      const token = req.headers['authorization']?.split(' ')[1];
+      let user = null;
+      if (token) {
+        try {
+          user = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+        } catch (err) {
+          console.log('Invalid token, proceeding as spectator');
+        }
+      }
+      const { status } = req.query;
+      const query = { draft: false };
+      if (status) query.status = status;
+      if (user && user.role !== 'admin') {
+        query.$or = [
+          { creator: user._id },
+          { status: { $ne: 'Pendiente' } }
+        ];
+      }
+      const tournaments = await Tournament.find(query).populate('creator', 'username');
+      res.json(tournaments);
+    } catch (error) {
+      console.error('Error fetching tournaments:', error);
+      res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
+    }
+  });
 
 app.get('/api/tournaments/:id', authenticateToken, async (req, res) => {
   try {
