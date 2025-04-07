@@ -16,9 +16,9 @@ import { useNotification } from './contexts/NotificationContext';
 
 const theme = createTheme({
   palette: {
-    primary: { main: '#1976d2' }, // Azul cancha
-    secondary: { main: '#424242' }, // Gris carbón
-    accent: { main: '#c0ca33' },  // Verde lima
+    primary: { main: '#1976d2' },
+    secondary: { main: '#424242' },
+    accent: { main: '#c0ca33' },
     background: { default: '#fff', paper: '#f5f5f5' },
   },
   typography: { fontFamily: 'Roboto, sans-serif' },
@@ -43,7 +43,7 @@ const App = () => {
   const [error, setError] = useState(null);
   const players = useSelector(state => state.players.list);
   const dispatch = useDispatch();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm')); // < 600px
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     console.log('App useEffect triggered with user:', user, 'role:', role);
@@ -73,7 +73,7 @@ const App = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
       console.log('Fetching players with token:', token);
-      const response = await axios.get('http://localhost:5001/api/players', {
+      const response = await axios.get('/api/players', { // Ruta relativa
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000,
       });
@@ -90,7 +90,7 @@ const App = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching tournaments with token:', token || 'No token (spectator mode)');
-      const response = await axios.get('http://localhost:5001/api/tournaments', {
+      const response = await axios.get('/api/tournaments', { // Ruta relativa
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 10000,
       });
@@ -108,7 +108,7 @@ const App = () => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
       console.log('Fetching users with token:', token);
-      const response = await axios.get('http://localhost:5001/api/users', {
+      const response = await axios.get('/api/users', { // Ruta relativa
         headers: { Authorization: `Bearer ${token}` },
       });
       console.log('Users fetched:', response.data);
@@ -128,7 +128,7 @@ const App = () => {
   };
 
   const handlePlayerAdded = () => {
-    fetchPlayers(); // Refresca la lista de jugadores
+    fetchPlayers();
   };
 
   const handleTournamentClick = (event) => {

@@ -13,11 +13,11 @@ const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5001/api/auth/login', { username, password });
+      const response = await axios.post('/api/login', { username, password }); // Ruta relativa
       localStorage.setItem('token', response.data.token);
       login(response.data.username, response.data.role);
       addNotification('Inicio de sesión exitoso', 'success');
-      if (onLoginSuccess) onLoginSuccess(); // Llama al callback para cerrar el Dialog
+      if (onLoginSuccess) onLoginSuccess();
     } catch (error) {
       console.error('Error logging in from frontend:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Error al iniciar sesión';

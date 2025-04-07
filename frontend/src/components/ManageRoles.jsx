@@ -17,7 +17,7 @@ const ManageRoles = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/users', {
+      const response = await axios.get('/api/users', { // Ruta relativa
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setUsers(response.data);
@@ -30,7 +30,7 @@ const ManageRoles = () => {
     e.preventDefault();
     try {
       await axios.put(
-        `http://localhost:5001/api/users/${selectedUser}/role`, // Corrección de la URL
+        `/api/users/${selectedUser}/role`, // Ruta relativa
         { role: newRole },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );

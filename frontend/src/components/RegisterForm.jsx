@@ -11,7 +11,7 @@ const RegisterForm = ({ onSwitchToLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5001/api/auth/register', { username, password });
+      await axios.post('/api/register', { username, password }); // Ruta relativa
       addNotification('Usuario registrado con éxito', 'success');
       onSwitchToLogin();
     } catch (error) {
