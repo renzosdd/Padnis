@@ -15,6 +15,22 @@
   ],
   "routes": [
     {
+      "src": "/api/users/(.*)/role",
+      "dest": "/api/users/[username]/role.js"
+    },
+    {
+      "src": "/api/tournaments/(.*)/finish",
+      "dest": "/api/tournaments/finish.js"
+    },
+    {
+      "src": "/api/tournaments/(.*)/resolve-tie",
+      "dest": "/api/tournaments/tie.js"
+    },
+    {
+      "src": "/api/tournaments/(.*)",
+      "dest": "/api/tournaments/[id].js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },
