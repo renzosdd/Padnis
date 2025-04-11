@@ -2,416 +2,280 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Stepper, Step, StepLabel, Button, Typography, Box, Checkbox, FormControlLabel, Select, MenuItem, InputLabel, FormControl, Dialog, DialogTitle, DialogContent, DialogActions, Card, CardContent, TextField, Autocomplete } from '@mui/material';
+import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Checkbox, List, ListItem, ListItemText, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 
 const TournamentForm = ({ players, onCreateTournament }) => {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
     type: 'RoundRobin',
     sport: 'Tenis',
-    mode: 'Singles',
-    sets: 1,
-    gamesPerSet: 6,
-    tiebreakSet: 7,
-    tiebreakMatch: 10,
+    format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 7, tiebreakMatch: 10 },
     participants: [],
-    groupSize: 3,
+    groups: [],
+    rounds: [],
     schedule: { group: null, matches: [] },
+    autoGenerate: true,
   });
-  const [pairModalOpen, setPairModalOpen] = useState(false);
-  const [pairPlayer1, setPairPlayer1] = useState(null);
-  const [pairPlayer2, setPairPlayer2] = useState(null);
+  const [pairDialog, setPairDialog] = useState({ open: false, player1: null, player2: null });
   const { user } = useAuth();
   const { addNotification } = useNotification();
 
   const updateFormData = (updates) => setFormData(prev => ({ ...prev, ...updates }));
 
-  const generateParticipants = () => {
-    return formData.mode === 'Singles'
-      ? formData.participants.map(p => ({
-          player1: p.playerId,
-          player2: null,
-          seed: p.isSeed || false,
-        }))
-      : formData.participants.map(p => ({
-          player1: p.player1Id,
-          player2: p.player2Id,
-          seed: false,
-        }));
-  };
-
-  const generateGroups = (participants) => {
-    const groupCount = Math.ceil(participants.length / formData.groupSize);
-    const groups = Array.from({ length: groupCount }, (_, i) => ({
-      name: `Grupo ${i + 1}`,
-      players: participants.slice(i * formData.groupSize, (i + 1) * formData.groupSize),
-      matches: [],
-      standings: [],
-    }));
-    if (groups.some(g => g.players.length === 1)) {
-      const loneGroup = groups.find(g => g.players.length === 1);
-      const targetGroup = groups.find(g => g.players.length < formData.groupSize && g.players.length > 1);
-      if (targetGroup) {
-        targetGroup.players.push(loneGroup.players[0]);
-        groups.splice(groups.indexOf(loneGroup), 1);
-      }
+  const handleNext = () => {
+    if (step === 0 && (!formData.type || !formData.sport || !formData.format.mode)) {
+      addNotification('Completa todos los campos básicos', 'error');
+      return;
     }
-    groups.forEach(group => {
-      group.matches = group.players.flatMap((p1, i) =>
-        group.players.slice(i + 1).map(p2 => ({
-          player1: p1,
-          player2: p2,
-          result: { sets: [], winner: null },
-        }))
-      );
-    });
-    return groups;
-  };
-
-  const generateRounds = (participants) => {
-    const seeded = participants.filter(p => p.seed);
-    const unseeded = participants.filter(p => !p.seed);
-    const shuffledUnseeded = unseeded.sort(() => 0.5 - Math.random());
-    const ordered = [...seeded.slice(0, 2), ...shuffledUnseeded, ...seeded.slice(2)].reverse();
-    const roundCount = Math.ceil(Math.log2(ordered.length));
-    const firstRoundSize = Math.pow(2, roundCount);
-    const byes = firstRoundSize - ordered.length;
-    const matches = [];
-    for (let i = 0; i < firstRoundSize / 2; i++) {
-      const p1 = i < byes ? ordered[i] : ordered[i];
-      const p2 = i < byes ? { player1: null, name: 'BYE' } : ordered[firstRoundSize - 1 - i];
-      matches.push({ player1: p1, player2: p2, result: { sets: [], winner: null } });
+    if (step === 1 && formData.participants.length < (formData.format.mode === 'Singles' ? 2 : 1)) {
+      addNotification(`Selecciona al menos ${formData.format.mode === 'Singles' ? 2 : 1} participantes`, 'error');
+      return;
     }
-    return [{ round: 1, matches }];
+    setStep(step + 1);
   };
 
-  const handleSubmit = async (isDraft = false) => {
+  const handleSubmit = async (draft = true) => {
     try {
-      if (!user || !user._id) throw new Error('Usuario no autenticado');
-      const participants = generateParticipants();
-      if (participants.length === 0 || participants.some(p => !p.player1)) {
-        throw new Error('Faltan participantes válidos');
-      }
       const tournament = {
         type: formData.type,
         sport: formData.sport,
-        format: {
-          mode: formData.mode,
-          sets: formData.sets,
-          gamesPerSet: formData.gamesPerSet,
-          tiebreakSet: formData.tiebreakSet,
-          tiebreakMatch: formData.tiebreakMatch,
-        },
-        participants,
-        groups: formData.type === 'RoundRobin' ? generateGroups(participants) : [],
-        rounds: formData.type === 'Eliminatorio' ? generateRounds(participants) : [],
+        format: formData.format,
+        participants: formData.participants,
+        groups: formData.groups,
+        rounds: formData.rounds,
         schedule: formData.schedule,
-        creator: user._id,
-        draft: isDraft,
+        draft,
       };
       const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      if (!isDraft) onCreateTournament(response.data);
-      addNotification(isDraft ? 'Borrador guardado' : 'Torneo creado con éxito', 'success');
+      if (!draft) onCreateTournament(response.data);
+      addNotification(draft ? 'Borrador guardado' : 'Torneo creado', 'success');
       resetForm();
     } catch (error) {
-      console.error('Error submitting tournament:', error);
       addNotification(error.response?.data?.message || 'Error al guardar torneo', 'error');
     }
   };
 
   const resetForm = () => {
     setStep(0);
-    setPairModalOpen(false);
-    setPairPlayer1(null);
-    setPairPlayer2(null);
     setFormData({
       type: 'RoundRobin',
       sport: 'Tenis',
-      mode: 'Singles',
-      sets: 1,
-      gamesPerSet: 6,
-      tiebreakSet: 7,
-      tiebreakMatch: 10,
+      format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 7, tiebreakMatch: 10 },
       participants: [],
-      groupSize: 3,
+      groups: [],
+      rounds: [],
       schedule: { group: null, matches: [] },
+      autoGenerate: true,
     });
   };
 
   const Step1 = () => (
     <Box>
-      <FormControl fullWidth margin="normal">
+      <FormControl fullWidth sx={{ mt: 2 }}>
         <InputLabel>Tipo de Torneo</InputLabel>
         <Select value={formData.type} onChange={(e) => updateFormData({ type: e.target.value })}>
           <MenuItem value="RoundRobin">Round Robin</MenuItem>
           <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
         </Select>
       </FormControl>
-      <FormControl fullWidth margin="normal">
+      <FormControl fullWidth sx={{ mt: 2 }}>
         <InputLabel>Deporte</InputLabel>
         <Select value={formData.sport} onChange={(e) => updateFormData({ sport: e.target.value })}>
           <MenuItem value="Tenis">Tenis</MenuItem>
           <MenuItem value="Pádel">Pádel</MenuItem>
         </Select>
       </FormControl>
+      <FormControl fullWidth sx={{ mt: 2 }}>
+        <InputLabel>Modalidad</InputLabel>
+        <Select value={formData.format.mode} onChange={(e) => updateFormData({ format: { ...formData.format, mode: e.target.value }, participants: [] })}>
+          <MenuItem value="Singles">Singles</MenuItem>
+          <MenuItem value="Dobles">Dobles</MenuItem>
+        </Select>
+      </FormControl>
     </Box>
   );
 
   const Step2 = () => {
-    const togglePlayer = (playerId, isSeed = false) => {
-      setFormData(prev => {
-        const participants = [...prev.participants];
-        const index = participants.findIndex(p => p.playerId === playerId);
-        if (index >= 0) {
-          if (isSeed) participants[index].isSeed = !participants[index].isSeed;
-          else participants.splice(index, 1);
-        } else if (!isSeed) {
-          participants.push({ playerId, isSeed: false });
-        }
-        return { ...prev, participants };
+    const toggleParticipant = (player) => {
+      const exists = formData.participants.some(p => p.player1 === player._id);
+      updateFormData({
+        participants: exists
+          ? formData.participants.filter(p => p.player1 !== player._id)
+          : [...formData.participants, { player1: player._id, player2: null }],
       });
     };
 
     const addPair = () => {
-      if (!pairPlayer1 || !pairPlayer2 || pairPlayer1._id === pairPlayer2._id) {
+      if (!pairDialog.player1 || !pairDialog.player2 || pairDialog.player1._id === pairDialog.player2._id) {
         addNotification('Selecciona dos jugadores diferentes', 'error');
         return;
       }
-      const existing = formData.participants.some(p => p.player1Id === pairPlayer1._id || p.player2Id === pairPlayer1._id || p.player1Id === pairPlayer2._id || p.player2Id === pairPlayer2._id);
-      if (existing) {
-        addNotification('Jugador ya asignado a una pareja', 'error');
-        return;
-      }
-      setFormData(prev => ({
-        ...prev,
-        participants: [...prev.participants, { player1Id: pairPlayer1._id, player2Id: pairPlayer2._id }],
-      }));
-      setPairPlayer1(null);
-      setPairPlayer2(null);
-      setPairModalOpen(false);
+      updateFormData({
+        participants: [...formData.participants, { player1: pairDialog.player1._id, player2: pairDialog.player2._id }],
+      });
+      setPairDialog({ open: false, player1: null, player2: null });
     };
 
-    const availablePlayers = players.filter(p => !formData.participants.some(part => part.player1Id === p._id || part.player2Id === p._id));
-
     return (
       <Box>
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Modalidad</InputLabel>
-          <Select value={formData.mode} onChange={(e) => updateFormData({ mode: e.target.value, participants: [] })}>
-            <MenuItem value="Singles">Singles</MenuItem>
-            <MenuItem value="Dobles">Dobles</MenuItem>
-          </Select>
-        </FormControl>
-        {formData.mode === 'Singles' ? (
-          <Box>
-            <Typography variant="h6" gutterBottom>Seleccionar Jugadores</Typography>
-            <Box sx={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
-              {players.map(player => (
-                <Box key={player._id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderBottom: '1px solid #e0e0e0' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.participants.some(p => p.playerId === player._id)}
-                        onChange={() => togglePlayer(player._id)}
-                      />
-                    }
-                    label={`${player.firstName} ${player.lastName}`}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.participants.some(p => p.playerId === player._id && p.isSeed)}
-                        onChange={() => togglePlayer(player._id, true)}
-                        disabled={!formData.participants.some(p => p.playerId === player._id)}
-                      />
-                    }
-                    label="Cabeza de Serie"
-                  />
-                </Box>
-              ))}
-            </Box>
-          </Box>
+        {formData.format.mode === 'Singles' ? (
+          <List sx={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
+            {players.map(player => (
+              <ListItem key={player._id} sx={{ borderBottom: '1px solid #e0e0e0' }}>
+                <Checkbox
+                  checked={formData.participants.some(p => p.player1 === player._id)}
+                  onChange={() => toggleParticipant(player)}
+                />
+                <ListItemText primary={`${player.firstName} ${player.lastName}`} />
+              </ListItem>
+            ))}
+          </List>
         ) : (
-          <Box>
-            <Typography variant="h6" gutterBottom>Crear Parejas</Typography>
-            <Button variant="contained" color="primary" onClick={() => setPairModalOpen(true)} sx={{ mb: 2 }}>Agregar Pareja</Button>
-            <Box sx={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
+          <>
+            <Button variant="contained" onClick={() => setPairDialog({ ...pairDialog, open: true })}>Agregar Pareja</Button>
+            <List sx={{ maxHeight: '50vh', overflowY: 'auto', border: '1px solid #e0e0e0', mt: 2 }}>
               {formData.participants.map((pair, idx) => (
-                <Box key={`${pair.player1Id}-${pair.player2Id}`} sx={{ padding: '10px', borderBottom: '1px solid #e0e0e0' }}>
-                  {players.find(p => p._id === pair.player1Id)?.firstName} {players.find(p => p._id === pair.player1Id)?.lastName} / 
-                  {players.find(p => p._id === pair.player2Id)?.firstName} {players.find(p => p._id === pair.player2Id)?.lastName}
-                </Box>
+                <ListItem key={idx} sx={{ borderBottom: '1px solid #e0e0e0' }}>
+                  <ListItemText
+                    primary={`${players.find(p => p._id === pair.player1)?.firstName} ${players.find(p => p._id === pair.player1)?.lastName} / ${players.find(p => p._id === pair.player2)?.firstName} ${players.find(p => p._id === pair.player2)?.lastName}`}
+                  />
+                </ListItem>
               ))}
-            </Box>
-            <Dialog open={pairModalOpen} onClose={() => setPairModalOpen(false)}>
-              <DialogTitle>Agregar Pareja</DialogTitle>
+            </List>
+            <Dialog open={pairDialog.open} onClose={() => setPairDialog({ ...pairDialog, open: false })}>
+              <DialogTitle>Crear Pareja</DialogTitle>
               <DialogContent>
-                <Autocomplete
-                  options={availablePlayers}
-                  getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
-                  value={pairPlayer1}
-                  onChange={(e, newValue) => setPairPlayer1(newValue)}
-                  renderInput={(params) => <TextField {...params} label="Jugador 1" margin="normal" />}
-                  fullWidth
-                />
-                <Autocomplete
-                  options={availablePlayers}
-                  getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
-                  value={pairPlayer2}
-                  onChange={(e, newValue) => setPairPlayer2(newValue)}
-                  renderInput={(params) => <TextField {...params} label="Jugador 2" margin="normal" />}
-                  fullWidth
-                />
+                <FormControl fullWidth sx={{ mt: 2 }}>
+                  <InputLabel>Jugador 1</InputLabel>
+                  <Select value={pairDialog.player1?._id || ''} onChange={(e) => setPairDialog({ ...pairDialog, player1: players.find(p => p._id === e.target.value) })}>
+                    {players.map(p => (
+                      <MenuItem key={p._id} value={p._id}>{`${p.firstName} ${p.lastName}`}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl fullWidth sx={{ mt: 2 }}>
+                  <InputLabel>Jugador 2</InputLabel>
+                  <Select value={pairDialog.player2?._id || ''} onChange={(e) => setPairDialog({ ...pairDialog, player2: players.find(p => p._id === e.target.value) })}>
+                    {players.map(p => (
+                      <MenuItem key={p._id} value={p._id}>{`${p.firstName} ${p.lastName}`}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </DialogContent>
               <DialogActions>
-                <Button onClick={() => setPairModalOpen(false)} color="secondary">Cancelar</Button>
-                <Button onClick={addPair} color="primary">Agregar</Button>
+                <Button onClick={() => setPairDialog({ ...pairDialog, open: false })}>Cancelar</Button>
+                <Button onClick={addPair}>Agregar</Button>
               </DialogActions>
             </Dialog>
+          </>
+        )}
+      </Box>
+    );
+  };
+
+  const Step3 = () => {
+    const generateAutoGroups = () => {
+      const shuffled = [...formData.participants].sort(() => 0.5 - Math.random());
+      const groups = [];
+      for (let i = 0; i < shuffled.length; i += 4) {
+        const groupPlayers = shuffled.slice(i, i + 4);
+        const matches = groupPlayers.flatMap((p1, idx) =>
+          groupPlayers.slice(idx + 1).map(p2 => ({
+            player1: p1,
+            player2: p2,
+            result: { sets: [], winner: null },
+            date: null,
+          }))
+        );
+        groups.push({ name: `Grupo ${groups.length + 1}`, players: groupPlayers, matches, standings: [] });
+      }
+      return groups;
+    };
+
+    const generateAutoRounds = () => {
+      const shuffled = [...formData.participants].sort(() => 0.5 - Math.random());
+      const matches = [];
+      for (let i = 0; i < shuffled.length; i += 2) {
+        if (i + 1 < shuffled.length) {
+          matches.push({ player1: shuffled[i], player2: shuffled[i + 1], result: { sets: [], winner: null }, date: null });
+        } else {
+          matches.push({ player1: shuffled[i], player2: { player1: null, name: 'BYE' }, result: { sets: [], winner: shuffled[i].player1 }, date: null });
+        }
+      }
+      return [{ round: 1, matches }];
+    };
+
+    return (
+      <Box>
+        <FormControlLabel
+          control={<Checkbox checked={formData.autoGenerate} onChange={(e) => updateFormData({ autoGenerate: e.target.checked, groups: [], rounds: [] })} />}
+          label="Generar automáticamente"
+        />
+        {formData.autoGenerate ? (
+          <TextField
+            label="Fecha General (Opcional)"
+            type="datetime-local"
+            value={formData.schedule.group ? formData.schedule.group.slice(0, 16) : ''}
+            onChange={(e) => updateFormData({ schedule: { ...formData.schedule, group: e.target.value || null } })}
+            fullWidth
+            sx={{ mt: 2 }}
+            InputLabelProps={{ shrink: true }}
+          />
+        ) : (
+          <Typography>Implementar entrada manual (pendiente)</Typography>
+        )}
+        {step === 2 && formData.autoGenerate && (
+          <Button onClick={() => updateFormData({ groups: formData.type === 'RoundRobin' ? generateAutoGroups() : [], rounds: formData.type === 'Eliminatorio' ? generateAutoRounds() : [] })}>
+            Generar Vista Previa
+          </Button>
+        )}
+        {(formData.groups.length > 0 || formData.rounds.length > 0) && (
+          <Box sx={{ mt: 2 }}>
+            {formData.type === 'RoundRobin' ? formData.groups.map(group => (
+              <Box key={group.name}>
+                <Typography>{group.name}</Typography>
+                <List>
+                  {group.players.map(p => (
+                    <ListItemText key={p.player1} primary={`${players.find(pl => pl._id === p.player1)?.firstName} ${players.find(pl => pl._id === p.player1)?.lastName}`} />
+                  ))}
+                </List>
+              </Box>
+            )) : formData.rounds.map(round => (
+              <Box key={round.round}>
+                <Typography>Ronda {round.round}</Typography>
+                <List>
+                  {round.matches.map((m, idx) => (
+                    <ListItemText key={idx} primary={`${players.find(p => p._id === m.player1.player1)?.firstName} vs ${m.player2.name || players.find(p => p._id === m.player2.player1)?.firstName}`} />
+                  ))}
+                </List>
+              </Box>
+            ))}
           </Box>
         )}
       </Box>
     );
   };
-  
-  const Step3 = () => (
-    <Box>
-      <FormControl fullWidth margin="normal">
-        <InputLabel>Cantidad de Sets</InputLabel>
-        <Select value={formData.sets} onChange={(e) => updateFormData({ sets: parseInt(e.target.value) })}>
-          <MenuItem value={1}>1 Set</MenuItem>
-          <MenuItem value={2}>2 Sets</MenuItem>
-        </Select>
-      </FormControl>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={formData.gamesPerSet === 4}
-            onChange={() => updateFormData({ gamesPerSet: formData.gamesPerSet === 6 ? 4 : 6 })}
-          />
-        }
-        label="Sets a 4 Juegos"
-      />
-      <TextField
-        label="Tiebreak por Set (7-25)"
-        type="number"
-        value={formData.tiebreakSet}
-        onChange={(e) => updateFormData({ tiebreakSet: Math.min(Math.max(parseInt(e.target.value) || 7, 7), 25) })}
-        fullWidth
-        margin="normal"
-        inputProps={{ min: 7, max: 25 }}
-      />
-      {formData.sets === 2 && (
-        <TextField
-          label="Tiebreak por Partido (7-25)"
-          type="number"
-          value={formData.tiebreakMatch}
-          onChange={(e) => updateFormData({ tiebreakMatch: Math.min(Math.max(parseInt(e.target.value) || 7, 7), 25) })}
-          fullWidth
-          margin="normal"
-          inputProps={{ min: 7, max: 25 }}
-        />
-      )}
-      {formData.type === 'RoundRobin' && (
-        <TextField
-          label="Tamaño de Grupos (2-5)"
-          type="number"
-          value={formData.groupSize}
-          onChange={(e) => updateFormData({ groupSize: Math.min(Math.max(parseInt(e.target.value) || 2, 2), 5) })}
-          fullWidth
-          margin="normal"
-          inputProps={{ min: 2, max: 5 }}
-        />
-      )}
-    </Box>
-  );
 
-  const Step4 = () => {
-    const participants = generateParticipants();
-    const previewData = formData.type === 'RoundRobin' ? generateGroups(participants) : generateRounds(participants);
-
-    return (
-      <Box>
-        <TextField
-          label="Horario General (Opcional)"
-          type="datetime-local"
-          value={formData.schedule.group ? formData.schedule.group.toISOString().slice(0, 16) : ''}
-          onChange={(e) => updateFormData({ schedule: { ...formData.schedule, group: e.target.value ? new Date(e.target.value) : null } })}
-          fullWidth
-          margin="normal"
-          InputLabelProps={{ shrink: true }}
-        />
-        <Typography variant="h6" gutterBottom>Vista Previa</Typography>
-        {formData.type === 'RoundRobin' ? (
-          previewData.map((group) => (
-            <Card key={group.name} sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6">{group.name}</Typography>
-                <ul style={{ padding: 0, listStyleType: 'none' }}>
-                  {group.players.map((p) => (
-                    <li key={p.player1}>
-                      {players.find(pl => pl._id === p.player1)?.firstName} {players.find(pl => pl._id === p.player1)?.lastName}
-                      {p.player2 && ` / ${players.find(pl => pl._id === p.player2)?.firstName} ${players.find(pl => pl._id === p.player2)?.lastName}`}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          previewData.map((round) => (
-            <Card key={round.round} sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="h6">Ronda {round.round}</Typography>
-                <ul style={{ padding: 0, listStyleType: 'none' }}>
-                  {round.matches.map((match, idx) => (
-                    <li key={`${round.round}-${idx}`}>
-                      {players.find(p => p._id === match.player1.player1)?.firstName} 
-                      {match.player1.player2 && ` / ${players.find(p => p._id === match.player1.player2)?.firstName}`} 
-                      {' vs. '} 
-                      {match.player2.name || players.find(p => p._id === match.player2.player1)?.firstName}
-                      {match.player2.player2 && ` / ${players.find(p => p._id === match.player2.player2)?.firstName}`}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </Box>
-    );
-  };
-
-  const steps = ['Tipo y Deporte', 'Participantes', 'Formato', 'Revisión'];
+  const steps = ['Datos Básicos', 'Participantes', 'Grupos/Rondas'];
 
   return (
-    <Box sx={{ padding: 2 }}>
-      <Stepper activeStep={step} alternativeLabel>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h5" gutterBottom>Crear Torneo</Typography>
+      <Stepper activeStep={step} sx={{ mb: 2 }}>
+        {steps.map(label => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
-      <Box sx={{ mt: 2 }}>
-        {step === 0 && <Step1 />}
-        {step === 1 && <Step2 />}
-        {step === 2 && <Step3 />}
-        {step === 3 && <Step4 />}
-      </Box>
+      {step === 0 && <Step1 />}
+      {step === 1 && <Step2 />}
+      {step === 2 && <Step3 />}
       <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
-        {step > 0 && (
-          <Button variant="contained" color="secondary" onClick={() => setStep(step - 1)}>Atrás</Button>
-        )}
-        {step < 3 && (
-          <Button variant="contained" color="primary" onClick={() => setStep(step + 1)}>Siguiente</Button>
-        )}
-        {step === 3 && (
+        {step > 0 && <Button onClick={() => setStep(step - 1)}>Atrás</Button>}
+        {step < 2 && <Button variant="contained" onClick={handleNext}>Siguiente</Button>}
+        {step === 2 && (
           <>
-            <Button variant="contained" color="primary" onClick={() => handleSubmit(false)}>Finalizar</Button>
-            <Button variant="outlined" color="primary" onClick={() => handleSubmit(true)}>Guardar Borrador</Button>
+            <Button variant="contained" onClick={() => handleSubmit(false)}>Iniciar Torneo</Button>
+            <Button variant="outlined" onClick={() => handleSubmit(true)}>Guardar Borrador</Button>
           </>
         )}
       </Box>
