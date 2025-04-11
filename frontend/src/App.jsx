@@ -73,12 +73,10 @@ const App = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
-      console.log('Fetching players with token:', token);
       const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 30000,
       });
-      console.log('Players fetched:', response.data);
       dispatch(setPlayers(response.data));
     } catch (error) {
       console.error('Error fetching players:', error.message);
@@ -87,7 +85,7 @@ const App = () => {
     }
   };
 
-  const fetchTournaments = async () => {
+  const fetchTournaments = async (retries = 2) => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching tournaments with token:', token || 'No token (spectator mode)');
@@ -99,8 +97,13 @@ const App = () => {
       setTournaments(response.data);
     } catch (error) {
       console.error('Error fetching tournaments:', error.message, error);
-      addNotification(`No se pudieron cargar los torneos: ${error.message}`, 'error');
-      setTournaments([]);
+      if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying fetchTournaments (${retries} attempts left)...`);
+        setTimeout(() => fetchTournaments(retries - 1), 2000); // Reintentar tras 2 segundos
+      } else {
+        addNotification('No se pudieron cargar los torneos. Verifica tu conexión o intenta recargar la página.', 'error');
+        setTournaments([]);
+      }
     }
   };
 
@@ -108,12 +111,10 @@ const App = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
-      console.log('Fetching users with token:', token);
       const response = await axios.get(`${BACKEND_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 30000,
       });
-      console.log('Users fetched:', response.data);
       setUsers(response.data);
     } catch (error) {
       console.error('Error fetching users:', error.message);
