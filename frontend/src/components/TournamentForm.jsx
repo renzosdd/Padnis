@@ -19,7 +19,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
     }
     try {
       const response = await axios.post('https://padnis.onrender.com/api/players', {
-        playerId: Date.now(), // Temporal, idealmente debería venir del backend
+        playerId: Date.now(),
         firstName,
         lastName,
         phone: phone || undefined,
