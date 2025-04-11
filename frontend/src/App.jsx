@@ -77,8 +77,8 @@ const App = () => {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 30000,
       });
-      // Normalizar IDs a String
       const normalizedPlayers = response.data.map(player => ({ ...player, _id: String(player._id) }));
+      console.log('Fetched Players:', normalizedPlayers); // Depuración
       dispatch(setPlayers(normalizedPlayers));
     } catch (error) {
       console.error('Error fetching players:', error.message);

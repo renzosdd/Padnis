@@ -19,7 +19,6 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
     }
     try {
       const response = await axios.post('https://padnis.onrender.com/api/players', {
-        playerId: Date.now(),
         firstName,
         lastName,
         phone: phone || undefined,
@@ -101,12 +100,14 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const [pairPlayers, setPairPlayers] = useState([]);
   const [search, setSearch] = useState('');
   const [newPlayerDialogOpen, setNewPlayerDialogOpen] = useState(false);
-  const [localPlayers, setLocalPlayers] = useState(players.map(p => ({ ...p, _id: String(p._id) })));
+  const [localPlayers, setLocalPlayers] = useState([]);
   const { user } = useAuth();
   const { addNotification } = useNotification();
 
   useEffect(() => {
-    setLocalPlayers(players.map(p => ({ ...p, _id: String(p._id) })));
+    const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
+    setLocalPlayers(normalizedPlayers);
+    console.log('Local Players:', normalizedPlayers); // Depuración
   }, [players]);
 
   const handleNext = () => {
@@ -218,12 +219,17 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const Step2 = () => {
     const handleAddPlayer = (playerId) => {
       const idAsString = String(playerId);
+      console.log('Adding player with ID:', idAsString); // Depuración
       if (formData.format.mode === 'Singles') {
         if (selectedPlayers.includes(idAsString)) {
           addNotification('Jugador ya seleccionado', 'error');
           return;
         }
-        setSelectedPlayers(prev => [...prev, idAsString]);
+        setSelectedPlayers(prev => {
+          const newSelected = [...prev, idAsString];
+          console.log('Updated selectedPlayers:', newSelected); // Depuración
+          return newSelected;
+        });
       } else {
         if (pairPlayers.length >= 2) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
@@ -233,7 +239,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           addNotification('Jugador ya seleccionado o en una pareja', 'error');
           return;
         }
-        setPairPlayers(prev => [...prev, idAsString]);
+        setPairPlayers(prev => {
+          const newPair = [...prev, idAsString];
+          console.log('Updated pairPlayers:', newPair); // Depuración
+          return newPair;
+        });
       }
     };
 
@@ -250,7 +260,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     };
 
     const removeParticipant = (playerId) => {
-      setSelectedPlayers(prev => prev.filter(id => id !== String(playerId)));
+      const idAsString = String(playerId);
+      setSelectedPlayers(prev => prev.filter(id => id !== idAsString));
     };
 
     const removePair = (pair) => {
