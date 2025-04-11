@@ -5,6 +5,62 @@ import { useNotification } from '../contexts/NotificationContext';
 import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Checkbox, List, ListItem, ListItemText, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
+// Componente separado para el diálogo de nuevo jugador
+const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const { addNotification } = useNotification();
+
+  const handleAddPlayer = async () => {
+    if (!firstName || !lastName) {
+      addNotification('Nombre y apellido son obligatorios', 'error');
+      return;
+    }
+    try {
+      const response = await axios.post('https://padnis.onrender.com/api/players', {
+        playerId: Date.now(), // Temporal, idealmente debería venir del backend
+        firstName,
+        lastName,
+        dominantHand: 'right',
+        racketBrand: '',
+        matches: [],
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      onAddPlayer(response.data);
+      setFirstName('');
+      setLastName('');
+      addNotification('Jugador creado y agregado', 'success');
+    } catch (error) {
+      addNotification(error.response?.data?.message || 'Error al crear jugador', 'error');
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>Crear Nuevo Jugador</DialogTitle>
+      <DialogContent>
+        <TextField
+          label="Nombre"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
+        <TextField
+          label="Apellido"
+          value={lastName}
+          onChange={(e) => setLastName(e.target.value)}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancelar</Button>
+        <Button onClick={handleAddPlayer}>Crear</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 const TournamentForm = ({ players, onCreateTournament }) => {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
@@ -20,8 +76,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   });
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [pairPlayers, setPairPlayers] = useState([]);
-  const [search, setSearch] = useState(''); // Campo de búsqueda
-  const [newPlayerDialog, setNewPlayerDialog] = useState({ open: false, firstName: '', lastName: '' });
+  const [search, setSearch] = useState('');
+  const [newPlayerDialogOpen, setNewPlayerDialogOpen] = useState(false);
   const [localPlayers, setLocalPlayers] = useState(players);
   const { user } = useAuth();
   const { addNotification } = useNotification();
@@ -121,19 +177,17 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const Step2 = () => {
     const togglePlayer = (playerId) => {
       if (formData.format.mode === 'Singles') {
-        setSelectedPlayers(prev => {
-          const newSelected = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
-          return [...newSelected]; // Forzar nueva referencia
-        });
+        setSelectedPlayers(prev => (
+          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+        ));
       } else {
         if (pairPlayers.length >= 2 && !pairPlayers.includes(playerId)) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
           return;
         }
-        setPairPlayers(prev => {
-          const newPair = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
-          return [...newPair]; // Forzar nueva referencia
-        });
+        setPairPlayers(prev => (
+          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+        ));
       }
     };
 
@@ -164,30 +218,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       }));
     };
 
-    const addNewPlayer = async () => {
-      if (!newPlayerDialog.firstName || !newPlayerDialog.lastName) {
-        addNotification('Nombre y apellido son obligatorios', 'error');
-        return;
+    const handleAddPlayer = (newPlayer) => {
+      setLocalPlayers(prev => [...prev, newPlayer]);
+      if (formData.format.mode === 'Singles') {
+        setSelectedPlayers(prev => [...prev, newPlayer._id]);
       }
-      try {
-        const response = await axios.post('https://padnis.onrender.com/api/players', {
-          playerId: Math.max(...localPlayers.map(p => p.playerId), 0) + 1,
-          firstName: newPlayerDialog.firstName,
-          lastName: newPlayerDialog.lastName,
-          dominantHand: 'right',
-          racketBrand: '',
-          matches: [],
-        }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-        const newPlayer = response.data;
-        setLocalPlayers(prev => [...prev, newPlayer]);
-        if (formData.format.mode === 'Singles') {
-          setSelectedPlayers(prev => [...prev, newPlayer._id]);
-        }
-        setNewPlayerDialog({ open: false, firstName: '', lastName: '' });
-        addNotification('Jugador creado y agregado', 'success');
-      } catch (error) {
-        addNotification(error.response?.data?.message || 'Error al crear jugador', 'error');
-      }
+      setNewPlayerDialogOpen(false);
     };
 
     const filteredPlayers = localPlayers.filter(player => {
@@ -220,7 +256,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
-          onClick={() => setNewPlayerDialog({ open: true, firstName: '', lastName: '' })}
+          onClick={() => setNewPlayerDialogOpen(true)}
           sx={{ mt: 2 }}
         >
           Agregar Jugador
@@ -263,29 +299,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             </Box>
           </>
         )}
-        <Dialog open={newPlayerDialog.open} onClose={() => setNewPlayerDialog({ open: false, firstName: '', lastName: '' })}>
-          <DialogTitle>Crear Nuevo Jugador</DialogTitle>
-          <DialogContent>
-            <TextField
-              label="Nombre"
-              value={newPlayerDialog.firstName}
-              onChange={(e) => setNewPlayerDialog(prev => ({ ...prev, firstName: e.target.value }))}
-              fullWidth
-              sx={{ mt: 2 }}
-            />
-            <TextField
-              label="Apellido"
-              value={newPlayerDialog.lastName}
-              onChange={(e) => setNewPlayerDialog(prev => ({ ...prev, lastName: e.target.value }))}
-              fullWidth
-              sx={{ mt: 2 }}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setNewPlayerDialog({ open: false, firstName: '', lastName: '' })}>Cancelar</Button>
-            <Button onClick={addNewPlayer}>Crear</Button>
-          </DialogActions>
-        </Dialog>
+        <NewPlayerDialog
+          open={newPlayerDialogOpen}
+          onClose={() => setNewPlayerDialogOpen(false)}
+          onAddPlayer={handleAddPlayer}
+        />
       </Box>
     );
   };
