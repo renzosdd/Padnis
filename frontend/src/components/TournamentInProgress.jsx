@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useSelector } from 'react-redux';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Chip } from '@mui/material'; // Añadido Chip aquí
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
