@@ -97,12 +97,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const [pairPlayers, setPairPlayers] = useState([]);
   const [search, setSearch] = useState('');
   const [newPlayerDialogOpen, setNewPlayerDialogOpen] = useState(false);
-  const [localPlayers, setLocalPlayers] = useState(players);
+  const [localPlayers, setLocalPlayers] = useState(players.map(p => ({ ...p, _id: String(p._id) }))); // Normalizar IDs a String
   const { user } = useAuth();
   const { addNotification } = useNotification();
 
   useEffect(() => {
-    setLocalPlayers(players);
+    setLocalPlayers(players.map(p => ({ ...p, _id: String(p._id) }))); // Asegurar IDs como strings
   }, [players]);
 
   const handleNext = () => {
@@ -195,18 +195,19 @@ const TournamentForm = ({ players, onCreateTournament }) => {
 
   const Step2 = () => {
     const handleTogglePlayer = (playerId) => {
+      const idAsString = String(playerId); // Normalizar ID a String
       if (formData.format.mode === 'Singles') {
         setSelectedPlayers(prev => {
-          const newSelected = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+          const newSelected = prev.includes(idAsString) ? prev.filter(id => id !== idAsString) : [...prev, idAsString];
           return newSelected;
         });
       } else {
-        if (pairPlayers.length >= 2 && !pairPlayers.includes(playerId)) {
+        if (pairPlayers.length >= 2 && !pairPlayers.includes(idAsString)) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
           return;
         }
         setPairPlayers(prev => {
-          const newPair = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+          const newPair = prev.includes(idAsString) ? prev.filter(id => id !== idAsString) : [...prev, idAsString];
           return newPair;
         });
       }
@@ -229,7 +230,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     };
 
     const removeParticipant = (playerId) => {
-      setSelectedPlayers(prev => prev.filter(id => id !== playerId));
+      setSelectedPlayers(prev => prev.filter(id => id !== String(playerId)));
     };
 
     const removePair = (pair) => {
@@ -240,9 +241,10 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     };
 
     const handleAddPlayer = (newPlayer) => {
-      setLocalPlayers(prev => [...prev, newPlayer]);
+      const normalizedPlayer = { ...newPlayer, _id: String(newPlayer._id) }; // Normalizar ID a String
+      setLocalPlayers(prev => [...prev, normalizedPlayer]);
       if (formData.format.mode === 'Singles') {
-        setSelectedPlayers(prev => [...prev, newPlayer._id]);
+        setSelectedPlayers(prev => [...prev, normalizedPlayer._id]);
       }
       setNewPlayerDialogOpen(false);
     };
@@ -266,10 +268,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           {filteredPlayers.map(player => (
             <ListItem key={player._id} sx={{ borderBottom: '1px solid #e0e0e0' }}>
               <Checkbox
-                checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(player._id) : pairPlayers.includes(player._id)}
+                id={`checkbox-${player._id}`} // ID único para accesibilidad
+                checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(String(player._id)) : pairPlayers.includes(String(player._id))}
                 onChange={() => handleTogglePlayer(player._id)}
                 inputProps={{ 'aria-label': `Seleccionar ${player.firstName} ${player.lastName}` }}
-                disabled={formData.format.mode === 'Dobles' && formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)}
+                disabled={formData.format.mode === 'Dobles' && formData.participants.some(p => p.player1 === String(player._id) || p.player2 === String(player._id))}
               />
               <ListItemText primary={`${player.firstName} ${player.lastName}`} />
             </ListItem>
