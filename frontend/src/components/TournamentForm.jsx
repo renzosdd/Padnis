@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Autocomplete, TextField, Chip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Checkbox, List, ListItem, ListItemText, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
 const TournamentForm = ({ players, onCreateTournament }) => {
@@ -18,7 +18,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     groupSize: 4,
     autoGenerate: true,
   });
-  const [tempPair, setTempPair] = useState({ player1: null, player2: null });
+  const [selectedPlayers, setSelectedPlayers] = useState([]); // Para Singles y temporales en Dobles
+  const [pairPlayers, setPairPlayers] = useState([]); // Jugadores seleccionados para formar pareja
   const [newPlayerDialog, setNewPlayerDialog] = useState({ open: false, firstName: '', lastName: '' });
   const [localPlayers, setLocalPlayers] = useState(players);
   const { user } = useAuth();
@@ -33,9 +34,18 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       addNotification('Completa todos los campos básicos', 'error');
       return;
     }
-    if (step === 1 && formData.participants.length < (formData.format.mode === 'Singles' ? 2 : 1)) {
-      addNotification(`Selecciona al menos ${formData.format.mode === 'Singles' ? 2 : 1} participantes`, 'error');
-      return;
+    if (step === 1) {
+      const participantCount = formData.format.mode === 'Singles' ? selectedPlayers.length : formData.participants.length;
+      if (participantCount < (formData.format.mode === 'Singles' ? 2 : 1)) {
+        addNotification(`Selecciona al menos ${formData.format.mode === 'Singles' ? 2 : 1} participantes`, 'error');
+        return;
+      }
+      if (formData.format.mode === 'Singles') {
+        setFormData(prev => ({
+          ...prev,
+          participants: selectedPlayers.map(id => ({ player1: id, player2: null, seed: false })),
+        }));
+      }
     }
     setStep(step + 1);
   };
@@ -76,7 +86,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       groupSize: 4,
       autoGenerate: true,
     });
-    setTempPair({ player1: null, player2: null });
+    setSelectedPlayers([]);
+    setPairPlayers([]);
   };
 
   const Step1 = () => (
@@ -106,45 +117,40 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   );
 
   const Step2 = () => {
-    const [inputValue, setInputValue] = useState(null); // Controlar el valor del Autocomplete
-
-    const addParticipant = (player) => {
-      if (!player) return;
+    const togglePlayer = (playerId) => {
       if (formData.format.mode === 'Singles') {
-        if (formData.participants.some(p => p.player1 === player._id)) {
-          addNotification('Jugador ya seleccionado', 'error');
+        setSelectedPlayers(prev =>
+          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+        );
+      } else {
+        if (pairPlayers.length >= 2) {
+          addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
           return;
         }
-        setFormData(prev => ({
-          ...prev,
-          participants: [...prev.participants, { player1: player._id, player2: null, seed: false }],
-        }));
-        setInputValue(null); // Resetear el Autocomplete
-      } else {
-        if (!tempPair.player1) {
-          if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)) {
-            addNotification('Jugador ya asignado a una pareja', 'error');
-            return;
-          }
-          setTempPair({ ...tempPair, player1: player._id });
-          setInputValue(null);
-        } else if (!tempPair.player2) {
-          if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id) || tempPair.player1 === player._id) {
-            addNotification('Jugador ya asignado o repetido', 'error');
-            return;
-          }
-          setFormData(prev => ({
-            ...prev,
-            participants: [...prev.participants, { player1: tempPair.player1, player2: player._id, seed: false }],
-          }));
-          setTempPair({ player1: null, player2: null });
-          setInputValue(null);
-        }
+        setPairPlayers(prev =>
+          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+        );
       }
     };
 
+    const addPair = () => {
+      if (pairPlayers.length !== 2) {
+        addNotification('Selecciona exactamente 2 jugadores para formar una pareja', 'error');
+        return;
+      }
+      if (formData.participants.some(p => p.player1 === pairPlayers[0] || p.player2 === pairPlayers[0] || p.player1 === pairPlayers[1] || p.player2 === pairPlayers[1])) {
+        addNotification('Uno o ambos jugadores ya están en una pareja', 'error');
+        return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        participants: [...prev.participants, { player1: pairPlayers[0], player2: pairPlayers[1], seed: false }],
+      }));
+      setPairPlayers([]);
+    };
+
     const removeParticipant = (playerId) => {
-      setFormData(prev => ({ ...prev, participants: prev.participants.filter(p => p.player1 !== playerId) }));
+      setSelectedPlayers(prev => prev.filter(id => id !== playerId));
     };
 
     const removePair = (pair) => {
@@ -170,7 +176,9 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
         const newPlayer = response.data;
         setLocalPlayers(prev => [...prev, newPlayer]);
-        addParticipant(newPlayer);
+        if (formData.format.mode === 'Singles') {
+          setSelectedPlayers(prev => [...prev, newPlayer._id]);
+        }
         setNewPlayerDialog({ open: false, firstName: '', lastName: '' });
         addNotification('Jugador creado y agregado', 'success');
       } catch (error) {
@@ -180,39 +188,39 @@ const TournamentForm = ({ players, onCreateTournament }) => {
 
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-        <Autocomplete
-          options={localPlayers.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
-          getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
-          value={inputValue}
-          onChange={(e, value) => addParticipant(value)}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label={formData.format.mode === 'Singles' ? 'Agregar Jugador' : tempPair.player1 ? 'Jugador 2' : 'Jugador 1'}
-              sx={{ mt: 2 }}
-            />
-          )}
-          noOptionsText={<Button onClick={() => setNewPlayerDialog({ open: true, firstName: '', lastName: '' })}>Crear nuevo jugador</Button>}
-        />
-        <Box sx={{ mt: 2 }}>
-          {formData.format.mode === 'Singles' ? (
-            formData.participants.map(part => (
-              <Chip
-                key={part.player1}
-                label={`${localPlayers.find(p => p._id === part.player1)?.firstName} ${localPlayers.find(p => p._id === part.player1)?.lastName}`}
-                onDelete={() => removeParticipant(part.player1)}
-                sx={{ m: 0.5 }}
+        <Typography variant="subtitle1" sx={{ mt: 2 }}>Jugadores Disponibles</Typography>
+        <List sx={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
+          {localPlayers.map(player => (
+            <ListItem key={player._id} sx={{ borderBottom: '1px solid #e0e0e0' }}>
+              <Checkbox
+                checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(player._id) : pairPlayers.includes(player._id)}
+                onChange={() => togglePlayer(player._id)}
+                disabled={formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)}
               />
-            ))
-          ) : (
-            <>
-              {tempPair.player1 && (
-                <Chip
-                  label={`Pareja en progreso: ${localPlayers.find(p => p._id === tempPair.player1)?.firstName} ${localPlayers.find(p => p._id === tempPair.player1)?.lastName}`}
-                  onDelete={() => setTempPair({ player1: null, player2: null })}
-                  sx={{ m: 0.5, bgcolor: 'grey.300' }}
-                />
-              )}
+              <ListItemText primary={`${player.firstName} ${player.lastName}`} />
+            </ListItem>
+          ))}
+        </List>
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon />}
+          onClick={() => setNewPlayerDialog({ open: true, firstName: '', lastName: '' })}
+          sx={{ mt: 2 }}
+        >
+          Agregar Jugador
+        </Button>
+        {formData.format.mode === 'Dobles' && (
+          <>
+            <Button
+              variant="contained"
+              onClick={addPair}
+              disabled={pairPlayers.length !== 2}
+              sx={{ mt: 2, ml: 2 }}
+            >
+              Formar Pareja
+            </Button>
+            <Typography variant="subtitle1" sx={{ mt: 2 }}>Parejas Seleccionadas</Typography>
+            <Box sx={{ mt: 1 }}>
               {formData.participants.map((pair, idx) => (
                 <Chip
                   key={idx}
@@ -221,9 +229,24 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   sx={{ m: 0.5 }}
                 />
               ))}
-            </>
-          )}
-        </Box>
+            </Box>
+          </>
+        )}
+        {formData.format.mode === 'Singles' && (
+          <>
+            <Typography variant="subtitle1" sx={{ mt: 2 }}>Jugadores Seleccionados</Typography>
+            <Box sx={{ mt: 1 }}>
+              {selectedPlayers.map(playerId => (
+                <Chip
+                  key={playerId}
+                  label={`${localPlayers.find(p => p._id === playerId)?.firstName} ${localPlayers.find(p => p._id === playerId)?.lastName}`}
+                  onDelete={() => removeParticipant(playerId)}
+                  sx={{ m: 0.5 }}
+                />
+              ))}
+            </Box>
+          </>
+        )}
         <Dialog open={newPlayerDialog.open} onClose={() => setNewPlayerDialog({ open: false, firstName: '', lastName: '' })}>
           <DialogTitle>Crear Nuevo Jugador</DialogTitle>
           <DialogContent>
