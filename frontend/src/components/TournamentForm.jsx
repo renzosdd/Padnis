@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Checkbox, List, ListItem, ListItemText, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
 const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
@@ -44,6 +44,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
       <DialogTitle>Crear Nuevo Jugador</DialogTitle>
       <DialogContent>
         <TextField
+          id="new-player-firstName"
           label="Nombre *"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
@@ -51,6 +52,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
           sx={{ mt: 2 }}
         />
         <TextField
+          id="new-player-lastName"
           label="Apellido *"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
@@ -58,6 +60,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
           sx={{ mt: 2 }}
         />
         <TextField
+          id="new-player-phone"
           label="Teléfono"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
@@ -65,6 +68,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
           sx={{ mt: 2 }}
         />
         <TextField
+          id="new-player-email"
           label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -97,12 +101,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const [pairPlayers, setPairPlayers] = useState([]);
   const [search, setSearch] = useState('');
   const [newPlayerDialogOpen, setNewPlayerDialogOpen] = useState(false);
-  const [localPlayers, setLocalPlayers] = useState(players.map(p => ({ ...p, _id: String(p._id) }))); // Normalizar IDs a String
+  const [localPlayers, setLocalPlayers] = useState(players.map(p => ({ ...p, _id: String(p._id) })));
   const { user } = useAuth();
   const { addNotification } = useNotification();
 
   useEffect(() => {
-    setLocalPlayers(players.map(p => ({ ...p, _id: String(p._id) }))); // Asegurar IDs como strings
+    setLocalPlayers(players.map(p => ({ ...p, _id: String(p._id) })));
   }, [players]);
 
   const handleNext = () => {
@@ -170,22 +174,40 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const Step1 = () => (
     <Box sx={{ maxWidth: 400, mx: 'auto' }}>
       <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel>Tipo de Torneo</InputLabel>
-        <Select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })}>
+        <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
+        <Select
+          labelId="tournament-type-label"
+          id="tournament-type"
+          value={formData.type}
+          label="Tipo de Torneo"
+          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+        >
           <MenuItem value="RoundRobin">Round Robin</MenuItem>
           <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
         </Select>
       </FormControl>
       <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel>Deporte</InputLabel>
-        <Select value={formData.sport} onChange={(e) => setFormData({ ...formData, sport: e.target.value })}>
+        <InputLabel id="sport-label">Deporte</InputLabel>
+        <Select
+          labelId="sport-label"
+          id="sport"
+          value={formData.sport}
+          label="Deporte"
+          onChange={(e) => setFormData({ ...formData, sport: e.target.value })}
+        >
           <MenuItem value="Tenis">Tenis</MenuItem>
           <MenuItem value="Pádel">Pádel</MenuItem>
         </Select>
       </FormControl>
       <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel>Modalidad</InputLabel>
-        <Select value={formData.format.mode} onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}>
+        <InputLabel id="format-mode-label">Modalidad</InputLabel>
+        <Select
+          labelId="format-mode-label"
+          id="format-mode"
+          value={formData.format.mode}
+          label="Modalidad"
+          onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}
+        >
           <MenuItem value="Singles">Singles</MenuItem>
           <MenuItem value="Dobles">Dobles</MenuItem>
         </Select>
@@ -194,32 +216,30 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   );
 
   const Step2 = () => {
-    const handleTogglePlayer = (playerId) => {
-      const idAsString = String(playerId); // Normalizar ID a String
+    const handleAddPlayer = (playerId) => {
+      const idAsString = String(playerId);
       if (formData.format.mode === 'Singles') {
-        setSelectedPlayers(prev => {
-          const newSelected = prev.includes(idAsString) ? prev.filter(id => id !== idAsString) : [...prev, idAsString];
-          return newSelected;
-        });
+        if (selectedPlayers.includes(idAsString)) {
+          addNotification('Jugador ya seleccionado', 'error');
+          return;
+        }
+        setSelectedPlayers(prev => [...prev, idAsString]);
       } else {
-        if (pairPlayers.length >= 2 && !pairPlayers.includes(idAsString)) {
+        if (pairPlayers.length >= 2) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
           return;
         }
-        setPairPlayers(prev => {
-          const newPair = prev.includes(idAsString) ? prev.filter(id => id !== idAsString) : [...prev, idAsString];
-          return newPair;
-        });
+        if (pairPlayers.includes(idAsString) || formData.participants.some(p => p.player1 === idAsString || p.player2 === idAsString)) {
+          addNotification('Jugador ya seleccionado o en una pareja', 'error');
+          return;
+        }
+        setPairPlayers(prev => [...prev, idAsString]);
       }
     };
 
     const addPair = () => {
       if (pairPlayers.length !== 2) {
         addNotification('Selecciona exactamente 2 jugadores para formar una pareja', 'error');
-        return;
-      }
-      if (formData.participants.some(p => p.player1 === pairPlayers[0] || p.player2 === pairPlayers[0] || p.player1 === pairPlayers[1] || p.player2 === pairPlayers[1])) {
-        addNotification('Uno o ambos jugadores ya están en una pareja', 'error');
         return;
       }
       setFormData(prev => ({
@@ -240,8 +260,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       }));
     };
 
-    const handleAddPlayer = (newPlayer) => {
-      const normalizedPlayer = { ...newPlayer, _id: String(newPlayer._id) }; // Normalizar ID a String
+    const handleAddNewPlayer = (newPlayer) => {
+      const normalizedPlayer = { ...newPlayer, _id: String(newPlayer._id) };
       setLocalPlayers(prev => [...prev, normalizedPlayer]);
       if (formData.format.mode === 'Singles') {
         setSelectedPlayers(prev => [...prev, normalizedPlayer._id]);
@@ -257,6 +277,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto' }}>
         <TextField
+          id="search-players"
           label="Buscar Jugadores"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -264,20 +285,27 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           sx={{ mt: 2 }}
         />
         <Typography variant="subtitle1" sx={{ mt: 2 }}>Jugadores Disponibles</Typography>
-        <List sx={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
+        <Box sx={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
           {filteredPlayers.map(player => (
-            <ListItem key={player._id} sx={{ borderBottom: '1px solid #e0e0e0' }}>
-              <Checkbox
-                id={`checkbox-${player._id}`} // ID único para accesibilidad
-                checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(String(player._id)) : pairPlayers.includes(String(player._id))}
-                onChange={() => handleTogglePlayer(player._id)}
-                inputProps={{ 'aria-label': `Seleccionar ${player.firstName} ${player.lastName}` }}
-                disabled={formData.format.mode === 'Dobles' && formData.participants.some(p => p.player1 === String(player._id) || p.player2 === String(player._id))}
-              />
-              <ListItemText primary={`${player.firstName} ${player.lastName}`} />
-            </ListItem>
+            <Box
+              key={player._id}
+              sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, borderBottom: '1px solid #e0e0e0' }}
+            >
+              <Typography>{`${player.firstName} ${player.lastName}`}</Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => handleAddPlayer(player._id)}
+                disabled={
+                  (formData.format.mode === 'Singles' && selectedPlayers.includes(String(player._id))) ||
+                  (formData.format.mode === 'Dobles' && (pairPlayers.includes(String(player._id)) || formData.participants.some(p => p.player1 === String(player._id) || p.player2 === String(player._id))))
+                }
+              >
+                Agregar
+              </Button>
+            </Box>
           ))}
-        </List>
+        </Box>
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
@@ -306,6 +334,13 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   sx={{ m: 0.5 }}
                 />
               ))}
+              {pairPlayers.map(playerId => (
+                <Chip
+                  key={playerId}
+                  label={`${localPlayers.find(p => p._id === playerId)?.firstName} ${localPlayers.find(p => p._id === playerId)?.lastName} (en espera)`}
+                  sx={{ m: 0.5, bgcolor: 'grey.300' }}
+                />
+              ))}
             </Box>
           </>
         )}
@@ -327,7 +362,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         <NewPlayerDialog
           open={newPlayerDialogOpen}
           onClose={() => setNewPlayerDialogOpen(false)}
-          onAddPlayer={handleAddPlayer}
+          onAddPlayer={handleAddNewPlayer}
         />
       </Box>
     );
@@ -370,9 +405,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto' }}>
         <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel>Tamaño de Grupos (Round Robin)</InputLabel>
+          <InputLabel id="group-size-label">Tamaño de Grupos (Round Robin)</InputLabel>
           <Select
+            labelId="group-size-label"
+            id="group-size"
             value={formData.groupSize}
+            label="Tamaño de Grupos (Round Robin)"
             onChange={(e) => setFormData({ ...formData, groupSize: e.target.value })}
             disabled={formData.type === 'Eliminatorio'}
           >
@@ -382,6 +420,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           </Select>
         </FormControl>
         <TextField
+          id="schedule-group"
           label="Fecha General (Opcional)"
           type="datetime-local"
           value={formData.schedule.group ? formData.schedule.group.slice(0, 16) : ''}

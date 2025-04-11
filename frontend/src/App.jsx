@@ -77,7 +77,9 @@ const App = () => {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 30000,
       });
-      dispatch(setPlayers(response.data));
+      // Normalizar IDs a String
+      const normalizedPlayers = response.data.map(player => ({ ...player, _id: String(player._id) }));
+      dispatch(setPlayers(normalizedPlayers));
     } catch (error) {
       console.error('Error fetching players:', error.message);
       addNotification('No se pudieron cargar los jugadores.', 'error');
@@ -99,7 +101,7 @@ const App = () => {
       console.error('Error fetching tournaments:', error.message, error);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying fetchTournaments (${retries} attempts left)...`);
-        setTimeout(() => fetchTournaments(retries - 1), 2000); // Reintentar tras 2 segundos
+        setTimeout(() => fetchTournaments(retries - 1), 2000);
       } else {
         addNotification('No se pudieron cargar los torneos. Verifica tu conexión o intenta recargar la página.', 'error');
         setTournaments([]);
@@ -125,7 +127,7 @@ const App = () => {
 
   const registerPlayer = async (player) => {};
   const updatePlayer = (updatedPlayer) => {
-    dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? updatedPlayer : p)));
+    dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p)));
   };
   const createTournament = async (tournament) => {
     setTournaments(prev => [...prev, tournament]);
