@@ -281,7 +281,6 @@ app.get('/api/tournaments', async (req, res) => {
   }
 });
 
-// server.js (añadir después de las rutas existentes)
 app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'admin' && req.user.role !== 'coach') {
@@ -297,6 +296,32 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating tournament:', error.stack);
     res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
+  }
+});
+
+app.get('/api/tournaments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const token = req.headers['authorization']?.split(' ')[1];
+    let user = null;
+    if (token) {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (err) {
+        console.log('Invalid token, proceeding as spectator');
+      }
+    }
+    const tournament = await Tournament.findById(id)
+      .populate('creator', 'username')
+      .populate('participants.player1 participants.player2', 'firstName lastName');
+    if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
+    if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
+      return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
+    }
+    res.json(tournament);
+  } catch (error) {
+    console.error('Error fetching tournament by ID:', error.stack);
+    res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });
   }
 });
 

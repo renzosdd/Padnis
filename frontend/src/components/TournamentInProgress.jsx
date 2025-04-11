@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useSelector } from 'react-redux';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, TextField, Select, MenuItem, Chip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
@@ -12,6 +13,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [setScores, setSetScores] = useState({ player1: '', player2: '' });
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
+  const players = useSelector(state => state.players.list); // Obtener jugadores desde Redux
 
   useEffect(() => {
     fetchTournament();
@@ -24,7 +26,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       });
       setTournament(response.data);
     } catch (error) {
-      addNotification('Error al cargar el torneo', 'error');
+      addNotification(`Error al cargar el torneo: ${error.response?.status || error.message}`, 'error');
       console.error('Error fetching tournament:', error);
     }
   };
@@ -139,8 +141,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 key={part.player1}
                 label={
                   tournament.format.mode === 'Singles'
-                    ? `${localPlayers.find(p => p._id === part.player1)?.firstName} ${localPlayers.find(p => p._id === part.player1)?.lastName}`
-                    : `${localPlayers.find(p => p._id === part.player1)?.firstName} ${localPlayers.find(p => p._id === part.player1)?.lastName} / ${localPlayers.find(p => p._id === part.player2)?.firstName} ${localPlayers.find(p => p._id === part.player2)?.lastName}`
+                    ? `${players.find(p => p._id === part.player1)?.firstName} ${players.find(p => p._id === part.player1)?.lastName}`
+                    : `${players.find(p => p._id === part.player1)?.firstName} ${players.find(p => p._id === part.player1)?.lastName} / ${players.find(p => p._id === part.player2)?.firstName} ${players.find(p => p._id === part.player2)?.lastName}`
                 }
                 sx={{ m: 0.5 }}
               />
@@ -167,8 +169,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   <TableBody>
                     {group.matches.map((match, matchIndex) => (
                       <TableRow key={matchIndex}>
-                        <TableCell>{localPlayers.find(p => p._id === match.player1.player1)?.firstName} {localPlayers.find(p => p._id === match.player1.player1)?.lastName}</TableCell>
-                        <TableCell>{localPlayers.find(p => p._id === match.player2.player1)?.firstName} {localPlayers.find(p => p._id === match.player2.player1)?.lastName}</TableCell>
+                        <TableCell>{players.find(p => p._id === match.player1.player1)?.firstName} {players.find(p => p._id === match.player1.player1)?.lastName}</TableCell>
+                        <TableCell>{players.find(p => p._id === match.player2.player1)?.firstName} {players.find(p => p._id === match.player2.player1)?.lastName}</TableCell>
                         <TableCell>
                           {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
                             <Typography key={idx}>{set.player1} - {set.player2}</Typography>
@@ -206,8 +208,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   <TableBody>
                     {round.matches.map((match, matchIndex) => (
                       <TableRow key={matchIndex}>
-                        <TableCell>{match.player1.name || `${localPlayers.find(p => p._id === match.player1.player1)?.firstName} ${localPlayers.find(p => p._id === match.player1.player1)?.lastName}`}</TableCell>
-                        <TableCell>{match.player2.name || `${localPlayers.find(p => p._id === match.player2.player1)?.firstName} ${localPlayers.find(p => p._id === match.player2.player1)?.lastName}`}</TableCell>
+                        <TableCell>{match.player1.name || `${players.find(p => p._id === match.player1.player1)?.firstName} ${players.find(p => p._id === match.player1.player1)?.lastName}`}</TableCell>
+                        <TableCell>{match.player2.name || `${players.find(p => p._id === match.player2.player1)?.firstName} ${players.find(p => p._id === match.player2.player1)?.lastName}`}</TableCell>
                         <TableCell>
                           {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
                             <Typography key={idx}>{set.player1} - {set.player2}</Typography>
@@ -248,7 +250,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               {(tournament.type === 'RoundRobin' ? tournament.groups.flatMap(g => g.matches) : tournament.rounds.flatMap(r => r.matches)).map((match, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
-                    {localPlayers.find(p => p._id === match.player1.player1)?.firstName} {localPlayers.find(p => p._id === match.player1.player1)?.lastName} vs {localPlayers.find(p => p._id === match.player2.player1)?.firstName} {localPlayers.find(p => p._id === match.player2.player1)?.lastName}
+                    {players.find(p => p._id === match.player1.player1)?.firstName} {players.find(p => p._id === match.player1.player1)?.lastName} vs {players.find(p => p._id === match.player2.player1)?.firstName} {players.find(p => p._id === match.player2.player1)?.lastName}
                   </TableCell>
                   <TableCell>{match.date || 'No definida'}</TableCell>
                 </TableRow>
@@ -275,7 +277,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           {selectedMatch && (
             <>
               <Typography>
-                {localPlayers.find(p => p._id === selectedMatch.match.player1.player1)?.firstName} {localPlayers.find(p => p._id === selectedMatch.match.player1.player1)?.lastName} vs {localPlayers.find(p => p._id === selectedMatch.match.player2.player1)?.firstName} {localPlayers.find(p => p._id === selectedMatch.match.player2.player1)?.lastName}
+                {players.find(p => p._id === selectedMatch.match.player1.player1)?.firstName} {players.find(p => p._id === selectedMatch.match.player1.player1)?.lastName} vs {players.find(p => p._id === selectedMatch.match.player2.player1)?.firstName} {players.find(p => p._id === selectedMatch.match.player2.player1)?.lastName}
               </Typography>
               <TextField
                 label="Puntaje Jugador 1"
@@ -306,5 +308,3 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 };
 
 export default TournamentInProgress;
-
-const localPlayers = []; // Temporal hasta que integremos con el estado global de jugadores
