@@ -18,8 +18,9 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     groupSize: 4,
     autoGenerate: true,
   });
-  const [selectedPlayers, setSelectedPlayers] = useState([]); // Para Singles y temporales en Dobles
-  const [pairPlayers, setPairPlayers] = useState([]); // Jugadores seleccionados para formar pareja
+  const [selectedPlayers, setSelectedPlayers] = useState([]);
+  const [pairPlayers, setPairPlayers] = useState([]);
+  const [search, setSearch] = useState(''); // Campo de búsqueda
   const [newPlayerDialog, setNewPlayerDialog] = useState({ open: false, firstName: '', lastName: '' });
   const [localPlayers, setLocalPlayers] = useState(players);
   const { user } = useAuth();
@@ -88,6 +89,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     });
     setSelectedPlayers([]);
     setPairPlayers([]);
+    setSearch('');
   };
 
   const Step1 = () => (
@@ -119,17 +121,19 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const Step2 = () => {
     const togglePlayer = (playerId) => {
       if (formData.format.mode === 'Singles') {
-        setSelectedPlayers(prev =>
-          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
-        );
+        setSelectedPlayers(prev => {
+          const newSelected = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+          return [...newSelected]; // Forzar nueva referencia
+        });
       } else {
-        if (pairPlayers.length >= 2) {
+        if (pairPlayers.length >= 2 && !pairPlayers.includes(playerId)) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
           return;
         }
-        setPairPlayers(prev =>
-          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
-        );
+        setPairPlayers(prev => {
+          const newPair = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+          return [...newPair]; // Forzar nueva referencia
+        });
       }
     };
 
@@ -186,11 +190,23 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       }
     };
 
+    const filteredPlayers = localPlayers.filter(player => {
+      const fullName = `${player.firstName} ${player.lastName}`.toLowerCase();
+      return fullName.includes(search.toLowerCase());
+    });
+
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto' }}>
+        <TextField
+          label="Buscar Jugadores"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
         <Typography variant="subtitle1" sx={{ mt: 2 }}>Jugadores Disponibles</Typography>
         <List sx={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #e0e0e0' }}>
-          {localPlayers.map(player => (
+          {filteredPlayers.map(player => (
             <ListItem key={player._id} sx={{ borderBottom: '1px solid #e0e0e0' }}>
               <Checkbox
                 checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(player._id) : pairPlayers.includes(player._id)}
