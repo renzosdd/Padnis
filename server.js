@@ -16,36 +16,57 @@ mongoose.set('strictQuery', false);
 
 // Middleware
 app.use(cors({
-  origin: 'https://padnis-frontend.onrender.com', // Reemplaza con tu URL de frontend real
+  origin: 'https://padnis-frontend.onrender.com',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
 // Conexión a MongoDB con verificación
-mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  }).then(() => console.log('Connected to MongoDB'))
-    .catch(err => {
-      console.error('MongoDB connection error:', err);
-      process.exit(1); // Detiene el servidor si no se conecta a MongoDB
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
     });
+    console.log('Connected to MongoDB');
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    process.exit(1); // Detiene el servidor si no se conecta a MongoDB
+  }
+};
+
+// Ruta de salud para verificar que el backend está activo
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'Backend is running' });
+});
+
+// Ruta para verificar la conexión a MongoDB
+app.get('/api/db-check', async (req, res) => {
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.json({ status: 'MongoDB connected' });
+  } catch (error) {
+    console.error('MongoDB check failed:', error);
+    res.status(500).json({ message: 'MongoDB connection failed', error: error.message });
+  }
+});
 
 // Middleware de autenticación
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Acceso denegado' });
-    try {
-      const user = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
-      req.user = user;
-      next();
-    } catch (err) {
-      return res.status(403).json({ message: 'Token inválido' });
-    }
-  };
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Acceso denegado' });
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(403).json({ message: 'Token inválido' });
+  }
+};
 
+// Middleware para verificar rol de admin
 const isAdmin = (req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Requiere rol de admin' });
   next();
@@ -54,36 +75,43 @@ const isAdmin = (req, res, next) => {
 // Rutas de autenticación
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  console.log('Login attempt:', { username, password });
+  console.log('Login attempt:', { username });
   try {
     if (!username || !password) {
       console.log('Missing credentials');
       return res.status(400).json({ message: 'Usuario y contraseña son obligatorios' });
     }
+    console.log('Querying user:', username);
     const user = await User.findOne({ username });
     if (!user) {
       console.log('User not found:', username);
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
-    console.log('User found:', { username: user.username, passwordHash: user.password });
+    console.log('User found:', { username: user.username, role: user.role });
+    console.log('Comparing passwords...');
     const isMatch = await bcrypt.compare(password, user.password);
     console.log('Password match:', isMatch);
     if (!isMatch) {
       console.log('Password mismatch for user:', username);
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
-    const token = jwt.sign({ _id: user._id, username, role: user.role }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '1h' });
-    console.log('Login successful:', { _id: user._id, username, role: user.role });
+    console.log('Generating JWT...');
+    const token = jwt.sign(
+      { _id: user._id, username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    console.log('Login successful:', { username, role: user.role });
     res.json({ token, username, role: user.role });
   } catch (error) {
-    console.error('Error in login:', error);
+    console.error('Error in login:', error.stack);
     res.status(500).json({ message: 'Error en el servidor al iniciar sesión', error: error.message });
   }
 });
 
 app.post('/api/register', async (req, res) => {
   const { username, password } = req.body;
-  console.log('Register attempt:', { username, password });
+  console.log('Register attempt:', { username });
   try {
     if (!username || !password) {
       console.log('Missing credentials');
@@ -105,7 +133,7 @@ app.post('/api/register', async (req, res) => {
     console.log('User registered successfully:', { username, role: user.role });
     res.status(201).json({ message: 'Usuario registrado', username, role: user.role });
   } catch (error) {
-    console.error('Error in register:', error);
+    console.error('Error in register:', error.stack);
     res.status(500).json({ message: 'Error en el servidor al registrar usuario', error: error.message });
   }
 });
@@ -113,10 +141,12 @@ app.post('/api/register', async (req, res) => {
 // Rutas de usuarios
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
+    console.log('Fetching users');
     const users = await User.find({}, 'username role');
+    console.log('Users found:', users.length);
     res.status(200).json(users);
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('Error fetching users:', error.stack);
     res.status(500).json({ message: 'Error fetching users', error: error.message });
   }
 });
@@ -139,7 +169,7 @@ app.put('/api/users/:username/role', authenticateToken, isAdmin, async (req, res
     console.log('Role updated successfully:', { username, role });
     res.json({ message: `Rol de ${username} actualizado a ${role}` });
   } catch (error) {
-    console.error('Error updating user role:', error);
+    console.error('Error updating user role:', error.stack);
     res.status(500).json({ message: 'Error al actualizar rol', error: error.message });
   }
 });
@@ -147,14 +177,16 @@ app.put('/api/users/:username/role', authenticateToken, isAdmin, async (req, res
 // Rutas de jugadores
 app.get('/api/players', async (req, res) => {
   try {
+    console.log('Fetching players, query:', req.query);
     const { showInactive } = req.query;
     let query = { active: 'Yes' };
     const token = req.headers['authorization']?.split(' ')[1];
     if (token) {
-      const user = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+      const user = jwt.verify(token, process.env.JWT_SECRET);
       if (user.role === 'admin' && showInactive === 'true') query = {};
     }
     const players = await Player.find(query).populate('user', 'username');
+    console.log('Players found:', players.length);
     res.status(200).json(players.map(player => ({
       playerId: player.playerId,
       firstName: player.firstName,
@@ -169,6 +201,7 @@ app.get('/api/players', async (req, res) => {
       matches: player.matches,
     })));
   } catch (error) {
+    console.error('Error fetching players:', error.stack);
     res.status(error.message === 'Acceso denegado' ? 401 : 500).json({ message: error.message });
   }
 });
@@ -193,8 +226,10 @@ app.post('/api/players', authenticateToken, async (req, res) => {
       matches: [],
     });
     await player.save();
+    console.log('Player created:', { playerId, firstName, lastName });
     res.status(201).json(player);
   } catch (error) {
+    console.error('Error creating player:', error.stack);
     res.status(500).json({ message: error.message });
   }
 });
@@ -207,8 +242,10 @@ app.put('/api/players/:playerId', authenticateToken, async (req, res) => {
     if (!player) return res.status(404).json({ message: 'Jugador no encontrado' });
     Object.assign(player, updates);
     await player.save();
+    console.log('Player updated:', { playerId });
     res.json(player);
   } catch (error) {
+    console.error('Error updating player:', error.stack);
     res.status(500).json({ message: 'Error al actualizar jugador', error: error.message });
   }
 });
@@ -232,43 +269,49 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       draft: draft || false,
     });
     await tournament.save();
+    console.log('Tournament created:', { type, sport });
     res.status(201).json(tournament);
   } catch (error) {
-    console.error('Error creating tournament:', error);
+    console.error('Error creating tournament:', error.stack);
     res.status(500).json({ message: 'Error al crear torneo', error: error.message });
   }
 });
 
 app.get('/api/tournaments', async (req, res) => {
-    try {
-      const token = req.headers['authorization']?.split(' ')[1];
-      let user = null;
-      if (token) {
-        try {
-          user = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
-        } catch (err) {
-          console.log('Invalid token, proceeding as spectator');
-        }
+  try {
+    console.log('Fetching tournaments, query:', req.query);
+    const token = req.headers['authorization']?.split(' ')[1];
+    let user = null;
+    if (token) {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('User authenticated:', { username: user.username, role: user.role });
+      } catch (err) {
+        console.log('Invalid token, proceeding as spectator');
       }
-      const { status } = req.query;
-      const query = { draft: false };
-      if (status) query.status = status;
-      if (user && user.role !== 'admin') {
-        query.$or = [
-          { creator: user._id },
-          { status: { $ne: 'Pendiente' } }
-        ];
-      }
-      const tournaments = await Tournament.find(query).populate('creator', 'username');
-      res.json(tournaments);
-    } catch (error) {
-      console.error('Error fetching tournaments:', error);
-      res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
     }
-  });
+    const { status } = req.query;
+    const query = { draft: false };
+    if (status) query.status = status;
+    if (user && user.role !== 'admin') {
+      query.$or = [
+        { creator: user._id },
+        { status: { $ne: 'Pendiente' } }
+      ];
+    }
+    console.log('Executing query:', query);
+    const tournaments = await Tournament.find(query).populate('creator', 'username').limit(50);
+    console.log('Tournaments found:', tournaments.length);
+    res.json(tournaments);
+  } catch (error) {
+    console.error('Error fetching tournaments:', error.stack);
+    res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
+  }
+});
 
 app.get('/api/tournaments/:id', authenticateToken, async (req, res) => {
   try {
+    console.log('Fetching tournament:', req.params.id);
     const tournament = await Tournament.findById(req.params.id).populate('creator', 'username');
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (req.user.role !== 'admin' && tournament.creator.toString() !== req.user._id && tournament.draft) {
@@ -276,13 +319,14 @@ app.get('/api/tournaments/:id', authenticateToken, async (req, res) => {
     }
     res.json(tournament);
   } catch (error) {
-    console.error('Error fetching tournament:', error);
+    console.error('Error fetching tournament:', error.stack);
     res.status(500).json({ message: 'Error al obtener torneo', error: error.message });
   }
 });
 
 app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   try {
+    console.log('Updating tournament:', req.params.id);
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (req.user.role !== 'admin' && tournament.creator.toString() !== req.user._id) {
@@ -312,15 +356,17 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       }
     }
     const updatedTournament = await Tournament.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    console.log('Tournament updated:', req.params.id);
     res.json(updatedTournament);
   } catch (error) {
-    console.error('Error updating tournament:', error);
+    console.error('Error updating tournament:', error.stack);
     res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
   }
 });
 
 app.post('/api/tournaments/:id/finish', authenticateToken, async (req, res) => {
   try {
+    console.log('Finishing tournament:', req.params.id);
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (req.user.role !== 'admin' && tournament.creator.toString() !== req.user._id) {
@@ -332,15 +378,17 @@ app.post('/api/tournaments/:id/finish', authenticateToken, async (req, res) => {
     if (!allMatchesCompleted) return res.status(400).json({ message: 'Faltan resultados de partidos' });
     tournament.status = 'Finalizado';
     await tournament.save();
+    console.log('Tournament finished:', req.params.id);
     res.json(tournament);
   } catch (error) {
-    console.error('Error finishing tournament:', error);
+    console.error('Error finishing tournament:', error.stack);
     res.status(500).json({ message: 'Error al finalizar torneo', error: error.message });
   }
 });
 
 app.post('/api/tournaments/:id/resolve-tie', authenticateToken, async (req, res) => {
   try {
+    console.log('Resolving tie in tournament:', req.params.id);
     const tournament = await Tournament.findById(req.params.id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (req.user.role !== 'admin' && tournament.creator.toString() !== req.user._id) {
@@ -354,15 +402,18 @@ app.post('/api/tournaments/:id/resolve-tie', authenticateToken, async (req, res)
     const winner = tiedPlayers[Math.floor(Math.random() * tiedPlayers.length)];
     group.standings = [winner, ...group.standings.filter(s => s.playerId !== winner.playerId)];
     await tournament.save();
+    console.log('Tie resolved in tournament:', req.params.id);
     res.json(tournament);
   } catch (error) {
-    console.error('Error resolving tie:', error);
+    console.error('Error resolving tie:', error.stack);
     res.status(500).json({ message: 'Error al resolver empate', error: error.message });
   }
 });
 
-// Iniciar el servidor
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Iniciar el servidor solo después de conectar a MongoDB
+connectDB().then(() => {
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });
