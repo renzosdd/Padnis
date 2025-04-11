@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -18,10 +18,16 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     groupSize: 4,
     autoGenerate: true,
   });
-  const [tempPair, setTempPair] = useState({ player1: null, player2: null }); // Para Dobles
+  const [tempPair, setTempPair] = useState({ player1: null, player2: null });
   const [newPlayerDialog, setNewPlayerDialog] = useState({ open: false, firstName: '', lastName: '' });
+  const [localPlayers, setLocalPlayers] = useState(players); // Copia local para nuevos jugadores
   const { user } = useAuth();
   const { addNotification } = useNotification();
+
+  // Actualizar localPlayers cuando cambie la prop players
+  useEffect(() => {
+    setLocalPlayers(players);
+  }, [players]);
 
   const handleNext = () => {
     if (step === 0 && (!formData.type || !formData.sport || !formData.format.mode)) {
@@ -108,7 +114,10 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           addNotification('Jugador ya seleccionado', 'error');
           return;
         }
-        setFormData({ ...formData, participants: [...formData.participants, { player1: player._id, player2: null, seed: false }] });
+        setFormData({
+          ...formData,
+          participants: [...formData.participants, { player1: player._id, player2: null, seed: false }],
+        });
       } else {
         if (!tempPair.player1) {
           if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)) {
@@ -147,19 +156,17 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         return;
       }
       try {
-        const lastPlayer = await axios.get('https://padnis.onrender.com/api/players', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        });
-        const playerId = lastPlayer.data.length > 0 ? Math.max(...lastPlayer.data.map(p => p.playerId)) + 1 : 1;
         const response = await axios.post('https://padnis.onrender.com/api/players', {
-          playerId,
+          playerId: Math.max(...localPlayers.map(p => p.playerId), 0) + 1,
           firstName: newPlayerDialog.firstName,
           lastName: newPlayerDialog.lastName,
           dominantHand: 'right',
           racketBrand: '',
           matches: [],
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-        addParticipant(response.data);
+        const newPlayer = response.data;
+        setLocalPlayers([...localPlayers, newPlayer]); // Agregar al estado local
+        addParticipant(newPlayer);
         setNewPlayerDialog({ open: false, firstName: '', lastName: '' });
         addNotification('Jugador creado y agregado', 'success');
       } catch (error) {
@@ -170,7 +177,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto' }}>
         <Autocomplete
-          options={players.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
+          options={localPlayers.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
           getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
           onChange={(e, value) => addParticipant(value)}
           renderInput={(params) => (
@@ -180,14 +187,14 @@ const TournamentForm = ({ players, onCreateTournament }) => {
               sx={{ mt: 2 }}
             />
           )}
-          noOptionsText={<Button onClick={() => setNewPlayerDialog({ ...newPlayerDialog, open: true })}>Crear nuevo jugador</Button>}
+          noOptionsText={<Button onClick={() => setNewPlayerDialog({ open: true, firstName: '', lastName: '' })}>Crear nuevo jugador</Button>}
         />
         <Box sx={{ mt: 2 }}>
           {formData.format.mode === 'Singles' ? (
             formData.participants.map(part => (
               <Chip
                 key={part.player1}
-                label={`${players.find(p => p._id === part.player1)?.firstName} ${players.find(p => p._id === part.player1)?.lastName}`}
+                label={`${localPlayers.find(p => p._id === part.player1)?.firstName} ${localPlayers.find(p => p._id === part.player1)?.lastName}`}
                 onDelete={() => removeParticipant(part.player1)}
                 sx={{ m: 0.5 }}
               />
@@ -196,7 +203,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             <>
               {tempPair.player1 && (
                 <Chip
-                  label={`Pareja en progreso: ${players.find(p => p._id === tempPair.player1)?.firstName} ${players.find(p => p._id === tempPair.player1)?.lastName}`}
+                  label={`Pareja en progreso: ${localPlayers.find(p => p._id === tempPair.player1)?.firstName} ${localPlayers.find(p => p._id === tempPair.player1)?.lastName}`}
                   onDelete={() => setTempPair({ player1: null, player2: null })}
                   sx={{ m: 0.5, bgcolor: 'grey.300' }}
                 />
@@ -204,7 +211,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
               {formData.participants.map((pair, idx) => (
                 <Chip
                   key={idx}
-                  label={`${players.find(p => p._id === pair.player1)?.firstName} ${players.find(p => p._id === pair.player1)?.lastName} / ${players.find(p => p._id === pair.player2)?.firstName} ${players.find(p => p._id === pair.player2)?.lastName}`}
+                  label={`${localPlayers.find(p => p._id === pair.player1)?.firstName} ${localPlayers.find(p => p._id === pair.player1)?.lastName} / ${localPlayers.find(p => p._id === pair.player2)?.firstName} ${localPlayers.find(p => p._id === pair.player2)?.lastName}`}
                   onDelete={() => removePair(pair)}
                   sx={{ m: 0.5 }}
                 />
@@ -218,14 +225,14 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             <TextField
               label="Nombre"
               value={newPlayerDialog.firstName}
-              onChange={(e) => setNewPlayerDialog({ ...newPlayerDialog, firstName: e.target.value })}
+              onChange={(e) => setNewPlayerDialog(prev => ({ ...prev, firstName: e.target.value }))}
               fullWidth
               sx={{ mt: 2 }}
             />
             <TextField
               label="Apellido"
               value={newPlayerDialog.lastName}
-              onChange={(e) => setNewPlayerDialog({ ...newPlayerDialog, lastName: e.target.value })}
+              onChange={(e) => setNewPlayerDialog(prev => ({ ...prev, lastName: e.target.value }))}
               fullWidth
               sx={{ mt: 2 }}
             />
@@ -316,7 +323,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   {group.players.map(p => (
                     <Chip
                       key={p.player1}
-                      label={`${players.find(pl => pl._id === p.player1)?.firstName} ${players.find(pl => pl._id === p.player1)?.lastName}`}
+                      label={`${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName}`}
                       sx={{ m: 0.5 }}
                     />
                   ))}
@@ -329,7 +336,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   {round.matches.map((m, idx) => (
                     <Chip
                       key={idx}
-                      label={`${players.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || players.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`}
+                      label={`${localPlayers.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`}
                       sx={{ m: 0.5 }}
                     />
                   ))}
