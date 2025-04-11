@@ -14,7 +14,6 @@ import ManageRoles from './components/ManageRoles';
 import { useAuth } from './contexts/AuthContext';
 import { useNotification } from './contexts/NotificationContext';
 
-// Replace with your actual Render backend URL after deployment
 const BACKEND_URL = 'https://padnis.onrender.com';
 
 const theme = createTheme({
@@ -49,7 +48,6 @@ const App = () => {
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
-    console.log('App useEffect triggered with user:', user, 'role:', role);
     const fetchData = async () => {
       try {
         console.log('Fetching initial data...');
@@ -78,7 +76,7 @@ const App = () => {
       console.log('Fetching players with token:', token);
       const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
+        timeout: 30000,
       });
       console.log('Players fetched:', response.data);
       dispatch(setPlayers(response.data));
@@ -95,13 +93,13 @@ const App = () => {
       console.log('Fetching tournaments with token:', token || 'No token (spectator mode)');
       const response = await axios.get(`${BACKEND_URL}/api/tournaments`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        timeout: 10000,
+        timeout: 30000,
       });
       console.log('Tournaments fetched:', response.data);
       setTournaments(response.data);
     } catch (error) {
-      console.error('Error fetching tournaments:', error.message);
-      addNotification('No se pudieron cargar los torneos.', 'error');
+      console.error('Error fetching tournaments:', error.message, error);
+      addNotification(`No se pudieron cargar los torneos: ${error.message}`, 'error');
       setTournaments([]);
     }
   };
@@ -113,6 +111,7 @@ const App = () => {
       console.log('Fetching users with token:', token);
       const response = await axios.get(`${BACKEND_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000,
       });
       console.log('Users fetched:', response.data);
       setUsers(response.data);
@@ -124,28 +123,19 @@ const App = () => {
   };
 
   const registerPlayer = async (player) => {};
-  const updatePlayer = (updatedPlayer) => {};
+  const updatePlayer = (updatedPlayer) => {
+    dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? updatedPlayer : p)));
+  };
   const createTournament = async (tournament) => {
     setTournaments(prev => [...prev, tournament]);
     fetchTournaments();
   };
 
-  const handlePlayerAdded = () => {
-    fetchPlayers();
-  };
+  const handlePlayerAdded = () => fetchPlayers();
 
-  const handleTournamentClick = (event) => {
-    setTournamentAnchor(event.currentTarget);
-  };
-
-  const handleSettingsClick = (event) => {
-    setSettingsAnchor(event.currentTarget);
-  };
-
-  const handleUserClick = (event) => {
-    setUserAnchor(event.currentTarget);
-  };
-
+  const handleTournamentClick = (event) => setTournamentAnchor(event.currentTarget);
+  const handleSettingsClick = (event) => setSettingsAnchor(event.currentTarget);
+  const handleUserClick = (event) => setUserAnchor(event.currentTarget);
   const handleClose = () => {
     setTournamentAnchor(null);
     setSettingsAnchor(null);
@@ -157,9 +147,7 @@ const App = () => {
     logout();
   };
 
-  const handleLoginSuccess = () => {
-    setAuthDialogOpen(false);
-  };
+  const handleLoginSuccess = () => setAuthDialogOpen(false);
 
   if (error) {
     return (
@@ -184,29 +172,14 @@ const App = () => {
             {user ? (
               <>
                 {role !== 'player' && (
-                  <Button
-                    color="inherit"
-                    startIcon={<People />}
-                    onClick={() => setView('jugadores')}
-                    sx={{ mx: 1 }}
-                  >
+                  <Button color="inherit" startIcon={<People />} onClick={() => setView('jugadores')} sx={{ mx: 1 }}>
                     {!isSmallScreen && 'Jugadores'}
                   </Button>
                 )}
-                <Button
-                  color="inherit"
-                  startIcon={<EmojiEvents />}
-                  onClick={handleTournamentClick}
-                  endIcon={!isSmallScreen && <ExpandMore />}
-                  sx={{ mx: 1 }}
-                >
+                <Button color="inherit" startIcon={<EmojiEvents />} onClick={handleTournamentClick} endIcon={!isSmallScreen && <ExpandMore />} sx={{ mx: 1 }}>
                   {!isSmallScreen && 'Torneos'}
                 </Button>
-                <Menu
-                  anchorEl={tournamentAnchor}
-                  open={Boolean(tournamentAnchor)}
-                  onClose={handleClose}
-                >
+                <Menu anchorEl={tournamentAnchor} open={Boolean(tournamentAnchor)} onClose={handleClose}>
                   {(role === 'admin' || role === 'coach') && (
                     <MenuItem onClick={() => { setView('crear'); handleClose(); }}>Crear Torneo</MenuItem>
                   )}
@@ -214,52 +187,28 @@ const App = () => {
                   <MenuItem onClick={() => { setView('historial'); handleClose(); }}>Historial</MenuItem>
                 </Menu>
                 {role === 'admin' && (
-                  <Button
-                    color="inherit"
-                    startIcon={<Settings />}
-                    onClick={handleSettingsClick}
-                    endIcon={!isSmallScreen && <ExpandMore />}
-                    sx={{ mx: 1 }}
-                  >
+                  <Button color="inherit" startIcon={<Settings />} onClick={handleSettingsClick} endIcon={!isSmallScreen && <ExpandMore />} sx={{ mx: 1 }}>
                     {!isSmallScreen && 'Settings'}
                   </Button>
                 )}
-                <Menu
-                  anchorEl={settingsAnchor}
-                  open={Boolean(settingsAnchor)}
-                  onClose={handleClose}
-                >
+                <Menu anchorEl={settingsAnchor} open={Boolean(settingsAnchor)} onClose={handleClose}>
                   {role === 'admin' && (
                     <MenuItem onClick={() => { setView('roles'); handleClose(); }}>Gestionar Roles</MenuItem>
                   )}
                 </Menu>
               </>
             ) : (
-              <Button
-                color="inherit"
-                startIcon={<EmojiEvents />}
-                onClick={() => setView('activos')}
-                sx={{ mx: 1 }}
-              >
+              <Button color="inherit" startIcon={<EmojiEvents />} onClick={() => setView('activos')} sx={{ mx: 1 }}>
                 {!isSmallScreen && 'Torneos Activos'}
               </Button>
             )}
             <Box sx={{ flexGrow: 1 }} />
             {user ? (
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Button
-                  color="inherit"
-                  onClick={handleUserClick}
-                  endIcon={<ExpandMore />}
-                  sx={{ mx: 1 }}
-                >
+                <Button color="inherit" onClick={handleUserClick} endIcon={<ExpandMore />} sx={{ mx: 1 }}>
                   <Typography sx={{ color: '#f5f5f5', mr: 1 }}>{user}</Typography>
                 </Button>
-                <Menu
-                  anchorEl={userAnchor}
-                  open={Boolean(userAnchor)}
-                  onClose={handleClose}
-                >
+                <Menu anchorEl={userAnchor} open={Boolean(userAnchor)} onClose={handleClose}>
                   <MenuItem onClick={() => { setView('perfil'); handleClose(); }}>
                     <People sx={{ mr: 1 }} /> Perfil
                   </MenuItem>
@@ -267,11 +216,7 @@ const App = () => {
                 </Menu>
               </Box>
             ) : (
-              <Button
-                variant="contained"
-                sx={{ bgcolor: 'accent.main', color: 'secondary.main' }}
-                onClick={() => setAuthDialogOpen(true)}
-              >
+              <Button variant="contained" sx={{ bgcolor: 'accent.main', color: 'secondary.main' }} onClick={() => setAuthDialogOpen(true)}>
                 Iniciar Sesión
               </Button>
             )}
@@ -280,7 +225,7 @@ const App = () => {
         <Box sx={{ mt: 8, p: 3 }}>
           {user ? (
             <>
-              {view === 'jugadores' && <PlayerForm onRegisterPlayer={registerPlayer} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} />}
+              {view === 'jugadores' && <PlayerForm onRegisterPlayer={registerPlayer} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />}
               {view === 'crear' && (role === 'admin' || role === 'coach') && <TournamentForm players={players} onCreateTournament={createTournament} />}
               {view === 'activos' && <Typography>Torneos Activos (a desarrollar)</Typography>}
               {view === 'historial' && <TournamentHistory tournaments={tournaments} />}
@@ -301,13 +246,7 @@ const App = () => {
             </Box>
           )}
         </Box>
-        <Dialog
-          open={authDialogOpen}
-          onClose={() => setAuthDialogOpen(false)}
-          maxWidth="sm"
-          fullWidth
-          sx={{ '& .MuiDialog-paper': { borderTop: `4px solid ${theme.palette.primary.main}` } }}
-        >
+        <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} maxWidth="sm" fullWidth sx={{ '& .MuiDialog-paper': { borderTop: `4px solid ${theme.palette.primary.main}` } }}>
           <DialogTitle>{authView === 'login' ? 'Iniciar Sesión' : 'Registrarse'}</DialogTitle>
           <DialogContent>
             {authView === 'login' ? (

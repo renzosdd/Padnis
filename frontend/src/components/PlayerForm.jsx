@@ -7,7 +7,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { Box, Typography, TextField, Button, Select, MenuItem, FormControl, InputLabel, Table, TableBody, TableCell, TableHead, TableRow, Pagination, Checkbox, FormControlLabel, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import PlayerDetailsModal from './PlayerDetailsModal';
 
-const PlayerForm = ({ onRegisterPlayer, onUpdatePlayer, onPlayerAdded }) => {
+const PlayerForm = ({ onRegisterPlayer, onUpdatePlayer, onPlayerAdded, users }) => { // Agregar prop users
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -191,7 +191,7 @@ const PlayerForm = ({ onRegisterPlayer, onUpdatePlayer, onPlayerAdded }) => {
       {selectedPlayer && (
         <PlayerDetailsModal
           player={selectedPlayer}
-          users={users}
+          users={users || []} // Pasar users o array vacío como fallback
           onUpdate={onUpdatePlayer}
           onClose={() => setSelectedPlayer(null)}
         />

@@ -20,11 +20,10 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   });
   const [tempPair, setTempPair] = useState({ player1: null, player2: null });
   const [newPlayerDialog, setNewPlayerDialog] = useState({ open: false, firstName: '', lastName: '' });
-  const [localPlayers, setLocalPlayers] = useState(players); // Copia local para nuevos jugadores
+  const [localPlayers, setLocalPlayers] = useState(players);
   const { user } = useAuth();
   const { addNotification } = useNotification();
 
-  // Actualizar localPlayers cuando cambie la prop players
   useEffect(() => {
     setLocalPlayers(players);
   }, [players]);
@@ -107,6 +106,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   );
 
   const Step2 = () => {
+    const [inputValue, setInputValue] = useState(null); // Controlar el valor del Autocomplete
+
     const addParticipant = (player) => {
       if (!player) return;
       if (formData.format.mode === 'Singles') {
@@ -114,10 +115,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           addNotification('Jugador ya seleccionado', 'error');
           return;
         }
-        setFormData({
-          ...formData,
-          participants: [...formData.participants, { player1: player._id, player2: null, seed: false }],
-        });
+        setFormData(prev => ({
+          ...prev,
+          participants: [...prev.participants, { player1: player._id, player2: null, seed: false }],
+        }));
+        setInputValue(null); // Resetear el Autocomplete
       } else {
         if (!tempPair.player1) {
           if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)) {
@@ -125,29 +127,31 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             return;
           }
           setTempPair({ ...tempPair, player1: player._id });
+          setInputValue(null);
         } else if (!tempPair.player2) {
           if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id) || tempPair.player1 === player._id) {
             addNotification('Jugador ya asignado o repetido', 'error');
             return;
           }
-          setFormData({
-            ...formData,
-            participants: [...formData.participants, { player1: tempPair.player1, player2: player._id, seed: false }],
-          });
+          setFormData(prev => ({
+            ...prev,
+            participants: [...prev.participants, { player1: tempPair.player1, player2: player._id, seed: false }],
+          }));
           setTempPair({ player1: null, player2: null });
+          setInputValue(null);
         }
       }
     };
 
     const removeParticipant = (playerId) => {
-      setFormData({ ...formData, participants: formData.participants.filter(p => p.player1 !== playerId) });
+      setFormData(prev => ({ ...prev, participants: prev.participants.filter(p => p.player1 !== playerId) }));
     };
 
     const removePair = (pair) => {
-      setFormData({
-        ...formData,
-        participants: formData.participants.filter(p => !(p.player1 === pair.player1 && p.player2 === pair.player2)),
-      });
+      setFormData(prev => ({
+        ...prev,
+        participants: prev.participants.filter(p => !(p.player1 === pair.player1 && p.player2 === pair.player2)),
+      }));
     };
 
     const addNewPlayer = async () => {
@@ -165,7 +169,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           matches: [],
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
         const newPlayer = response.data;
-        setLocalPlayers([...localPlayers, newPlayer]); // Agregar al estado local
+        setLocalPlayers(prev => [...prev, newPlayer]);
         addParticipant(newPlayer);
         setNewPlayerDialog({ open: false, firstName: '', lastName: '' });
         addNotification('Jugador creado y agregado', 'success');
@@ -179,6 +183,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         <Autocomplete
           options={localPlayers.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
           getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
+          value={inputValue}
           onChange={(e, value) => addParticipant(value)}
           renderInput={(params) => (
             <TextField
