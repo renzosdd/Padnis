@@ -198,7 +198,6 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       if (formData.format.mode === 'Singles') {
         setSelectedPlayers(prev => {
           const newSelected = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
-          console.log('Selected Players:', newSelected); // Depuración
           return newSelected;
         });
       } else {
@@ -208,7 +207,6 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         }
         setPairPlayers(prev => {
           const newPair = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
-          console.log('Pair Players:', newPair); // Depuración
           return newPair;
         });
       }
@@ -270,6 +268,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
               <Checkbox
                 checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(player._id) : pairPlayers.includes(player._id)}
                 onChange={() => handleTogglePlayer(player._id)}
+                inputProps={{ 'aria-label': `Seleccionar ${player.firstName} ${player.lastName}` }}
                 disabled={formData.format.mode === 'Dobles' && formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)}
               />
               <ListItemText primary={`${player.firstName} ${player.lastName}`} />
