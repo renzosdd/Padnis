@@ -281,6 +281,25 @@ app.get('/api/tournaments', async (req, res) => {
   }
 });
 
+// server.js (añadir después de las rutas existentes)
+app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
+      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
+    }
+    const { id } = req.params;
+    const updates = req.body;
+    const tournament = await Tournament.findById(id);
+    if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
+    Object.assign(tournament, updates);
+    await tournament.save();
+    res.json(tournament);
+  } catch (error) {
+    console.error('Error updating tournament:', error.stack);
+    res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
+  }
+});
+
 // Iniciar el servidor
 connectDB().then(() => {
   const PORT = process.env.PORT || 5001;

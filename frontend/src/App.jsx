@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import PlayerForm from './components/PlayerForm';
 import TournamentForm from './components/TournamentForm';
 import TournamentHistory from './components/TournamentHistory';
+import TournamentInProgress from './components/TournamentInProgress'; // Nuevo componente
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import ManageRoles from './components/ManageRoles';
@@ -39,6 +40,7 @@ const App = () => {
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const [userAnchor, setUserAnchor] = useState(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null); // Nuevo estado
   const { user, role, logout } = useAuth();
   const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
@@ -136,6 +138,12 @@ const App = () => {
 
   const handlePlayerAdded = () => fetchPlayers();
 
+  const handleFinishTournament = (finishedTournament) => {
+    setTournaments(prev => prev.map(t => t._id === finishedTournament._id ? finishedTournament : t));
+    setSelectedTournamentId(null); // Volver a la lista de torneos activos
+    setView('activos'); // Regresar a la vista de torneos activos
+  };
+
   const handleTournamentClick = (event) => setTournamentAnchor(event.currentTarget);
   const handleSettingsClick = (event) => setSettingsAnchor(event.currentTarget);
   const handleUserClick = (event) => setUserAnchor(event.currentTarget);
@@ -184,10 +192,10 @@ const App = () => {
                 </Button>
                 <Menu anchorEl={tournamentAnchor} open={Boolean(tournamentAnchor)} onClose={handleClose}>
                   {(role === 'admin' || role === 'coach') && (
-                    <MenuItem onClick={() => { setView('crear'); handleClose(); }}>Crear Torneo</MenuItem>
+                    <MenuItem onClick={() => { setView('crear'); setSelectedTournamentId(null); handleClose(); }}>Crear Torneo</MenuItem>
                   )}
-                  <MenuItem onClick={() => { setView('activos'); handleClose(); }}>Torneos Activos</MenuItem>
-                  <MenuItem onClick={() => { setView('historial'); handleClose(); }}>Historial</MenuItem>
+                  <MenuItem onClick={() => { setView('activos'); setSelectedTournamentId(null); handleClose(); }}>Torneos Activos</MenuItem>
+                  <MenuItem onClick={() => { setView('historial'); setSelectedTournamentId(null); handleClose(); }}>Historial</MenuItem>
                 </Menu>
                 {role === 'admin' && (
                   <Button color="inherit" startIcon={<Settings />} onClick={handleSettingsClick} endIcon={!isSmallScreen && <ExpandMore />} sx={{ mx: 1 }}>
@@ -196,7 +204,7 @@ const App = () => {
                 )}
                 <Menu anchorEl={settingsAnchor} open={Boolean(settingsAnchor)} onClose={handleClose}>
                   {role === 'admin' && (
-                    <MenuItem onClick={() => { setView('roles'); handleClose(); }}>Gestionar Roles</MenuItem>
+                    <MenuItem onClick={() => { setView('roles'); setSelectedTournamentId(null); handleClose(); }}>Gestionar Roles</MenuItem>
                   )}
                 </Menu>
               </>
@@ -212,7 +220,7 @@ const App = () => {
                   <Typography sx={{ color: '#f5f5f5', mr: 1 }}>{user}</Typography>
                 </Button>
                 <Menu anchorEl={userAnchor} open={Boolean(userAnchor)} onClose={handleClose}>
-                  <MenuItem onClick={() => { setView('perfil'); handleClose(); }}>
+                  <MenuItem onClick={() => { setView('perfil'); setSelectedTournamentId(null); handleClose(); }}>
                     <People sx={{ mr: 1 }} /> Perfil
                   </MenuItem>
                   <MenuItem onClick={handleLogout}>Cerrar Sesión</MenuItem>
@@ -230,7 +238,33 @@ const App = () => {
             <>
               {view === 'jugadores' && <PlayerForm onRegisterPlayer={registerPlayer} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />}
               {view === 'crear' && (role === 'admin' || role === 'coach') && <TournamentForm players={players} onCreateTournament={createTournament} />}
-              {view === 'activos' && <Typography>Torneos Activos (a desarrollar)</Typography>}
+              {view === 'activos' && !selectedTournamentId && (
+                <Box>
+                  <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
+                  {tournaments.filter(t => t.status === 'En curso' && !t.draft).length === 0 ? (
+                    <Typography>No hay torneos activos actualmente.</Typography>
+                  ) : (
+                    tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
+                      <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                        <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
+                        <Button
+                          variant="outlined"
+                          onClick={() => setSelectedTournamentId(tournament._id)}
+                          sx={{ mt: 1 }}
+                        >
+                          Ver Detalles
+                        </Button>
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              )}
+              {view === 'activos' && selectedTournamentId && (
+                <TournamentInProgress
+                  tournamentId={selectedTournamentId}
+                  onFinishTournament={handleFinishTournament}
+                />
+              )}
               {view === 'historial' && <TournamentHistory tournaments={tournaments} />}
               {view === 'roles' && role === 'admin' && <ManageRoles />}
               {view === 'perfil' && (
@@ -244,7 +278,16 @@ const App = () => {
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
-                <Typography>(Vista de espectador - a desarrollar)</Typography>
+                {tournaments.filter(t => t.status === 'En curso' && !t.draft).length === 0 ? (
+                  <Typography>No hay torneos activos actualmente.</Typography>
+                ) : (
+                  tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
+                    <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                      <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
+                      <Typography>Estado: {tournament.status}</Typography>
+                    </Box>
+                  ))
+                )}
               </Box>
             </Box>
           )}
