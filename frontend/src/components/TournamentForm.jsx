@@ -5,10 +5,11 @@ import { useNotification } from '../contexts/NotificationContext';
 import { Box, Stepper, Step, StepLabel, Button, Typography, FormControl, InputLabel, Select, MenuItem, Checkbox, List, ListItem, ListItemText, Chip, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
-// Componente separado para el diálogo de nuevo jugador
 const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const { addNotification } = useNotification();
 
   const handleAddPlayer = async () => {
@@ -21,6 +22,8 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
         playerId: Date.now(), // Temporal, idealmente debería venir del backend
         firstName,
         lastName,
+        phone: phone || undefined,
+        email: email || undefined,
         dominantHand: 'right',
         racketBrand: '',
         matches: [],
@@ -28,6 +31,8 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
       onAddPlayer(response.data);
       setFirstName('');
       setLastName('');
+      setPhone('');
+      setEmail('');
       addNotification('Jugador creado y agregado', 'success');
     } catch (error) {
       addNotification(error.response?.data?.message || 'Error al crear jugador', 'error');
@@ -39,16 +44,30 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
       <DialogTitle>Crear Nuevo Jugador</DialogTitle>
       <DialogContent>
         <TextField
-          label="Nombre"
+          label="Nombre *"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
           fullWidth
           sx={{ mt: 2 }}
         />
         <TextField
-          label="Apellido"
+          label="Apellido *"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
+        <TextField
+          label="Teléfono"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
+        <TextField
+          label="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           fullWidth
           sx={{ mt: 2 }}
         />
@@ -175,19 +194,23 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   );
 
   const Step2 = () => {
-    const togglePlayer = (playerId) => {
+    const handleTogglePlayer = (playerId) => {
       if (formData.format.mode === 'Singles') {
-        setSelectedPlayers(prev => (
-          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
-        ));
+        setSelectedPlayers(prev => {
+          const newSelected = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+          console.log('Selected Players:', newSelected); // Depuración
+          return newSelected;
+        });
       } else {
         if (pairPlayers.length >= 2 && !pairPlayers.includes(playerId)) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
           return;
         }
-        setPairPlayers(prev => (
-          prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
-        ));
+        setPairPlayers(prev => {
+          const newPair = prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId];
+          console.log('Pair Players:', newPair); // Depuración
+          return newPair;
+        });
       }
     };
 
@@ -246,8 +269,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             <ListItem key={player._id} sx={{ borderBottom: '1px solid #e0e0e0' }}>
               <Checkbox
                 checked={formData.format.mode === 'Singles' ? selectedPlayers.includes(player._id) : pairPlayers.includes(player._id)}
-                onChange={() => togglePlayer(player._id)}
-                disabled={formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)}
+                onChange={() => handleTogglePlayer(player._id)}
+                disabled={formData.format.mode === 'Dobles' && formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)}
               />
               <ListItemText primary={`${player.firstName} ${player.lastName}`} />
             </ListItem>
