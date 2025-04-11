@@ -15,10 +15,10 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     groups: [],
     rounds: [],
     schedule: { group: null, matches: [] },
-    groupSize: 4, // Default para Round Robin
+    groupSize: 4,
     autoGenerate: true,
   });
-  const [pairDialog, setPairDialog] = useState({ open: false, player1: null, player2: null });
+  const [tempPair, setTempPair] = useState({ player1: null, player2: null }); // Para Dobles
   const [newPlayerDialog, setNewPlayerDialog] = useState({ open: false, firstName: '', lastName: '' });
   const { user } = useAuth();
   const { addNotification } = useNotification();
@@ -71,6 +71,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       groupSize: 4,
       autoGenerate: true,
     });
+    setTempPair({ player1: null, player2: null });
   };
 
   const Step1 = () => (
@@ -108,31 +109,29 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           return;
         }
         setFormData({ ...formData, participants: [...formData.participants, { player1: player._id, player2: null, seed: false }] });
+      } else {
+        if (!tempPair.player1) {
+          if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id)) {
+            addNotification('Jugador ya asignado a una pareja', 'error');
+            return;
+          }
+          setTempPair({ ...tempPair, player1: player._id });
+        } else if (!tempPair.player2) {
+          if (formData.participants.some(p => p.player1 === player._id || p.player2 === player._id) || tempPair.player1 === player._id) {
+            addNotification('Jugador ya asignado o repetido', 'error');
+            return;
+          }
+          setFormData({
+            ...formData,
+            participants: [...formData.participants, { player1: tempPair.player1, player2: player._id, seed: false }],
+          });
+          setTempPair({ player1: null, player2: null });
+        }
       }
     };
 
     const removeParticipant = (playerId) => {
       setFormData({ ...formData, participants: formData.participants.filter(p => p.player1 !== playerId) });
-    };
-
-    const addPair = () => {
-      if (!pairDialog.player1 || !pairDialog.player2) {
-        addNotification('Selecciona dos jugadores', 'error');
-        return;
-      }
-      if (pairDialog.player1 === pairDialog.player2) {
-        addNotification('No puedes seleccionar el mismo jugador', 'error');
-        return;
-      }
-      if (formData.participants.some(p => p.player1 === pairDialog.player1 || p.player2 === pairDialog.player1 || p.player1 === pairDialog.player2 || p.player2 === pairDialog.player2)) {
-        addNotification('Jugador ya asignado a una pareja', 'error');
-        return;
-      }
-      setFormData({
-        ...formData,
-        participants: [...formData.participants, { player1: pairDialog.player1, player2: pairDialog.player2, seed: false }],
-      });
-      setPairDialog({ open: false, player1: null, player2: null });
     };
 
     const removePair = (pair) => {
@@ -170,32 +169,38 @@ const TournamentForm = ({ players, onCreateTournament }) => {
 
     return (
       <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-        {formData.format.mode === 'Singles' ? (
-          <>
-            <Autocomplete
-              options={players}
-              getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
-              onChange={(e, value) => addParticipant(value)}
-              renderInput={(params) => <TextField {...params} label="Agregar Jugador" sx={{ mt: 2 }} />}
-              noOptionsText={<Button onClick={() => setNewPlayerDialog({ ...newPlayerDialog, open: true })}>Crear nuevo jugador</Button>}
+        <Autocomplete
+          options={players.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
+          getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
+          onChange={(e, value) => addParticipant(value)}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={formData.format.mode === 'Singles' ? 'Agregar Jugador' : tempPair.player1 ? 'Jugador 2' : 'Jugador 1'}
+              sx={{ mt: 2 }}
             />
-            <Box sx={{ mt: 2 }}>
-              {formData.participants.map(part => (
+          )}
+          noOptionsText={<Button onClick={() => setNewPlayerDialog({ ...newPlayerDialog, open: true })}>Crear nuevo jugador</Button>}
+        />
+        <Box sx={{ mt: 2 }}>
+          {formData.format.mode === 'Singles' ? (
+            formData.participants.map(part => (
+              <Chip
+                key={part.player1}
+                label={`${players.find(p => p._id === part.player1)?.firstName} ${players.find(p => p._id === part.player1)?.lastName}`}
+                onDelete={() => removeParticipant(part.player1)}
+                sx={{ m: 0.5 }}
+              />
+            ))
+          ) : (
+            <>
+              {tempPair.player1 && (
                 <Chip
-                  key={part.player1}
-                  label={`${players.find(p => p._id === part.player1)?.firstName} ${players.find(p => p._id === part.player1)?.lastName}`}
-                  onDelete={() => removeParticipant(part.player1)}
-                  sx={{ m: 0.5 }}
+                  label={`Pareja en progreso: ${players.find(p => p._id === tempPair.player1)?.firstName} ${players.find(p => p._id === tempPair.player1)?.lastName}`}
+                  onDelete={() => setTempPair({ player1: null, player2: null })}
+                  sx={{ m: 0.5, bgcolor: 'grey.300' }}
                 />
-              ))}
-            </Box>
-          </>
-        ) : (
-          <>
-            <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setPairDialog({ open: true, player1: null, player2: null })} sx={{ mt: 2 }}>
-              Agregar Pareja
-            </Button>
-            <Box sx={{ mt: 2 }}>
+              )}
               {formData.participants.map((pair, idx) => (
                 <Chip
                   key={idx}
@@ -204,32 +209,9 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   sx={{ m: 0.5 }}
                 />
               ))}
-            </Box>
-            <Dialog open={pairDialog.open} onClose={() => setPairDialog({ open: false, player1: null, player2: null })}>
-              <DialogTitle>Crear Pareja</DialogTitle>
-              <DialogContent>
-                <Autocomplete
-                  options={players.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
-                  getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
-                  onChange={(e, value) => setPairDialog({ ...pairDialog, player1: value?._id || null })}
-                  renderInput={(params) => <TextField {...params} label="Jugador 1" sx={{ mt: 2 }} />}
-                  noOptionsText={<Button onClick={() => setNewPlayerDialog({ ...newPlayerDialog, open: true })}>Crear nuevo jugador</Button>}
-                />
-                <Autocomplete
-                  options={players.filter(p => !formData.participants.some(part => part.player1 === p._id || part.player2 === p._id))}
-                  getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
-                  onChange={(e, value) => setPairDialog({ ...pairDialog, player2: value?._id || null })}
-                  renderInput={(params) => <TextField {...params} label="Jugador 2" sx={{ mt: 2 }} />}
-                  noOptionsText={<Button onClick={() => setNewPlayerDialog({ ...newPlayerDialog, open: true })}>Crear nuevo jugador</Button>}
-                />
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setPairDialog({ open: false, player1: null, player2: null })}>Cancelar</Button>
-                <Button onClick={addPair}>Agregar</Button>
-              </DialogActions>
-            </Dialog>
-          </>
-        )}
+            </>
+          )}
+        </Box>
         <Dialog open={newPlayerDialog.open} onClose={() => setNewPlayerDialog({ open: false, firstName: '', lastName: '' })}>
           <DialogTitle>Crear Nuevo Jugador</DialogTitle>
           <DialogContent>
@@ -330,23 +312,28 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             {formData.type === 'RoundRobin' ? formData.groups.map(group => (
               <Box key={group.name} sx={{ mb: 2 }}>
                 <Typography variant="subtitle1">{group.name}</Typography>
-                <List dense>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
                   {group.players.map(p => (
-                    <ListItemText key={p.player1} primary={`${players.find(pl => pl._id === p.player1)?.firstName} ${players.find(pl => pl._id === p.player1)?.lastName}`} />
+                    <Chip
+                      key={p.player1}
+                      label={`${players.find(pl => pl._id === p.player1)?.firstName} ${players.find(pl => pl._id === p.player1)?.lastName}`}
+                      sx={{ m: 0.5 }}
+                    />
                   ))}
-                </List>
+                </Box>
               </Box>
             )) : formData.rounds.map(round => (
               <Box key={round.round} sx={{ mb: 2 }}>
                 <Typography variant="subtitle1">Ronda {round.round}</Typography>
-                <List dense>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
                   {round.matches.map((m, idx) => (
-                    <ListItemText
+                    <Chip
                       key={idx}
-                      primary={`${players.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || players.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`}
+                      label={`${players.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || players.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`}
+                      sx={{ m: 0.5 }}
                     />
                   ))}
-                </List>
+                </Box>
               </Box>
             ))}
           </Box>
