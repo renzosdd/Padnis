@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import PlayerForm from './components/PlayerForm';
 import TournamentForm from './components/TournamentForm';
 import TournamentHistory from './components/TournamentHistory';
-import TournamentInProgress from './components/TournamentInProgress'; // Nuevo componente
+import TournamentInProgress from './components/TournamentInProgress';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import ManageRoles from './components/ManageRoles';
@@ -40,7 +40,7 @@ const App = () => {
   const [settingsAnchor, setSettingsAnchor] = useState(null);
   const [userAnchor, setUserAnchor] = useState(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
-  const [selectedTournamentId, setSelectedTournamentId] = useState(null); // Nuevo estado
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
   const { user, role, logout } = useAuth();
   const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ const App = () => {
         timeout: 30000,
       });
       const normalizedPlayers = response.data.map(player => ({ ...player, _id: String(player._id) }));
-      console.log('Fetched Players:', normalizedPlayers); // Depuración
+      console.log('Fetched Players:', normalizedPlayers);
       dispatch(setPlayers(normalizedPlayers));
     } catch (error) {
       console.error('Error fetching players:', error.message);
@@ -105,7 +105,7 @@ const App = () => {
         console.log(`Retrying fetchTournaments (${retries} attempts left)...`);
         setTimeout(() => fetchTournaments(retries - 1), 2000);
       } else {
-        addNotification('No se pudieron cargar los torneos. Verifica tu conexión o intenta recargar la página.', 'error');
+        addNotification('No se pudieron cargar los torneos. Por favor, verifica tu conexión e intenta de nuevo.', 'error');
         setTournaments([]);
       }
     }
@@ -128,20 +128,22 @@ const App = () => {
   };
 
   const registerPlayer = async (player) => {};
+  
   const updatePlayer = (updatedPlayer) => {
     dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p)));
   };
+
   const createTournament = async (tournament) => {
-    setTournaments(prev => [...prev, tournament]);
-    fetchTournaments();
+    // Evitar duplicados refrescando la lista directamente
+    await fetchTournaments();
   };
 
   const handlePlayerAdded = () => fetchPlayers();
 
   const handleFinishTournament = (finishedTournament) => {
     setTournaments(prev => prev.map(t => t._id === finishedTournament._id ? finishedTournament : t));
-    setSelectedTournamentId(null); // Volver a la lista de torneos activos
-    setView('activos'); // Regresar a la vista de torneos activos
+    setSelectedTournamentId(null);
+    setView('activos');
   };
 
   const handleTournamentClick = (event) => setTournamentAnchor(event.currentTarget);
@@ -246,7 +248,9 @@ const App = () => {
                   ) : (
                     tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
                       <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                        <Typography variant="h6">{tournament.name}</Typography>
                         <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
+                        <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
                         <Button
                           variant="outlined"
                           onClick={() => setSelectedTournamentId(tournament._id)}
@@ -283,7 +287,9 @@ const App = () => {
                 ) : (
                   tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
                     <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                      <Typography variant="h6">{tournament.name}</Typography>
                       <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
+                      <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
                       <Typography>Estado: {tournament.status}</Typography>
                     </Box>
                   ))

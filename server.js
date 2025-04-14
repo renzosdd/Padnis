@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const User = require('./models/User');
 const Player = require('./models/Player');
 const Tournament = require('./models/Tournament');
+const Club = require('./models/Club');
 
 const app = express();
 
@@ -133,6 +134,35 @@ app.put('/api/users/:username/role', authenticateToken, isAdmin, async (req, res
   }
 });
 
+// Rutas de clubes
+app.post('/api/clubs', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
+      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
+    }
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ message: 'El nombre del club es obligatorio' });
+    const existingClub = await Club.findOne({ name });
+    if (existingClub) return res.status(400).json({ message: 'El club ya existe' });
+    const club = new Club({ name });
+    await club.save();
+    res.status(201).json(club);
+  } catch (error) {
+    console.error('Error creating club:', error.stack);
+    res.status(500).json({ message: 'Error al crear club', error: error.message });
+  }
+});
+
+app.get('/api/clubs', async (req, res) => {
+  try {
+    const clubs = await Club.find();
+    res.status(200).json(clubs);
+  } catch (error) {
+    console.error('Error fetching clubs:', error.stack);
+    res.status(500).json({ message: 'Error al obtener clubes', error: error.message });
+  }
+});
+
 // Rutas de jugadores
 app.get('/api/players', async (req, res) => {
   try {
@@ -145,7 +175,7 @@ app.get('/api/players', async (req, res) => {
     }
     const players = await Player.find(query).populate('user', 'username');
     res.status(200).json(players.map(player => ({
-      _id: String(player._id), // Normalizar ID a String
+      _id: String(player._id),
       playerId: player.playerId,
       firstName: player.firstName,
       lastName: player.lastName,
@@ -210,8 +240,10 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     if (req.user.role !== 'admin' && req.user.role !== 'coach') {
       return res.status(403).json({ message: 'Requiere rol de admin o coach' });
     }
-    const { type, sport, format, participants, groups, rounds, schedule, draft } = req.body;
+    const { name, clubId, type, sport, format, participants, groups, rounds, schedule, draft } = req.body;
 
+    if (!name) return res.status(400).json({ message: 'El nombre del torneo es obligatorio' });
+    if (!clubId) return res.status(400).json({ message: 'El club es obligatorio' });
     if (!type || !['RoundRobin', 'Eliminatorio'].includes(type)) {
       return res.status(400).json({ message: 'Tipo de torneo inválido' });
     }
@@ -225,6 +257,9 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: `Mínimo ${format.mode === 'Singles' ? 2 : 1} participantes requeridos` });
     }
 
+    const club = await Club.findById(clubId);
+    if (!club) return res.status(400).json({ message: 'Club no encontrado' });
+
     const playerIds = participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
     const playersExist = await Player.find({ _id: { $in: playerIds } });
     if (playersExist.length !== playerIds.length) {
@@ -232,6 +267,8 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     }
 
     const tournament = new Tournament({
+      name,
+      club: clubId,
       type,
       sport,
       format,
@@ -245,7 +282,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     });
 
     await tournament.save();
-    console.log('Tournament created:', { type, sport, draft });
+    console.log('Tournament created:', { name, type, sport, draft });
     res.status(201).json(tournament);
   } catch (error) {
     console.error('Error creating tournament:', error.stack);
@@ -273,7 +310,25 @@ app.get('/api/tournaments', async (req, res) => {
     }
     const tournaments = await Tournament.find(query)
       .populate('creator', 'username')
-      .populate('participants.player1 participants.player2', 'firstName lastName');
+      .populate('club', 'name')
+      .populate({
+        path: 'participants.player1 participants.player2',
+        select: 'firstName lastName',
+      })
+      .populate({
+        path: 'groups.matches.player1 groups.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      })
+      .populate({
+        path: 'rounds.matches.player1 rounds.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      });
     res.json(tournaments);
   } catch (error) {
     console.error('Error fetching tournaments:', error.stack);
@@ -292,7 +347,28 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     Object.assign(tournament, updates);
     await tournament.save();
-    res.json(tournament);
+    const updatedTournament = await Tournament.findById(id)
+      .populate('creator', 'username')
+      .populate('club', 'name')
+      .populate({
+        path: 'participants.player1 participants.player2',
+        select: 'firstName lastName',
+      })
+      .populate({
+        path: 'groups.matches.player1 groups.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      })
+      .populate({
+        path: 'rounds.matches.player1 rounds.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      });
+    res.json(updatedTournament);
   } catch (error) {
     console.error('Error updating tournament:', error.stack);
     res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
@@ -313,12 +389,29 @@ app.get('/api/tournaments/:id', async (req, res) => {
     }
     const tournament = await Tournament.findById(id)
       .populate('creator', 'username')
-      .populate('participants.player1 participants.player2', 'firstName lastName');
+      .populate('club', 'name')
+      .populate({
+        path: 'participants.player1 participants.player2',
+        select: 'firstName lastName',
+      })
+      .populate({
+        path: 'groups.matches.player1 groups.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      })
+      .populate({
+        path: 'rounds.matches.player1 rounds.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      });
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
       return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
     }
-    // Asegurar que los datos poblados estén disponibles
     res.json(tournament.toObject({ virtuals: true }));
   } catch (error) {
     console.error('Error fetching tournament by ID:', error.stack);

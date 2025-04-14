@@ -86,9 +86,11 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
 const TournamentForm = ({ players, onCreateTournament }) => {
   const [step, setStep] = useState(0);
   const [formData, setFormData] = useState({
+    name: '',
+    clubId: '',
     type: 'RoundRobin',
     sport: 'Tenis',
-    format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 7, tiebreakMatch: 10 },
+    format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
     participants: [],
     groups: [],
     rounds: [],
@@ -101,19 +103,43 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const [search, setSearch] = useState('');
   const [newPlayerDialogOpen, setNewPlayerDialogOpen] = useState(false);
   const [localPlayers, setLocalPlayers] = useState([]);
+  const [clubs, setClubs] = useState([]);
   const { user } = useAuth();
   const { addNotification } = useNotification();
 
   useEffect(() => {
     const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
     setLocalPlayers(normalizedPlayers);
-    console.log('Local Players:', normalizedPlayers); // Depuración
+    console.log('LocalreceivePlayers:', normalizedPlayers);
+    fetchClubs();
   }, [players]);
 
+  const fetchClubs = async () => {
+    try {
+      const response = await axios.get('https://padnis.onrender.com/api/clubs', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setClubs(response.data);
+    } catch (error) {
+      addNotification('Error al cargar clubes', 'error');
+      console.error('Error fetching clubs:', error);
+    }
+  };
+
   const handleNext = () => {
-    if (step === 0 && (!formData.type || !formData.sport || !formData.format.mode)) {
-      addNotification('Completa todos los campos básicos', 'error');
-      return;
+    if (step === 0) {
+      if (!formData.name) {
+        addNotification('El nombre del torneo es obligatorio', 'error');
+        return;
+      }
+      if (!formData.clubId) {
+        addNotification('Selecciona un club', 'error');
+        return;
+      }
+      if (!formData.type || !formData.sport || !formData.format.mode) {
+        addNotification('Completa todos los campos básicos', 'error');
+        return;
+      }
     }
     if (step === 1) {
       const participantCount = formData.format.mode === 'Singles' ? selectedPlayers.length : formData.participants.length;
@@ -134,6 +160,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const handleSubmit = async (draft = true) => {
     try {
       const tournament = {
+        name: formData.name,
+        clubId: formData.clubId,
         type: formData.type,
         sport: formData.sport,
         format: formData.format,
@@ -157,9 +185,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const resetForm = () => {
     setStep(0);
     setFormData({
+      name: '',
+      clubId: '',
       type: 'RoundRobin',
       sport: 'Tenis',
-      format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 7, tiebreakMatch: 10 },
+      format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
       participants: [],
       groups: [],
       rounds: [],
@@ -174,6 +204,27 @@ const TournamentForm = ({ players, onCreateTournament }) => {
 
   const Step1 = () => (
     <Box sx={{ maxWidth: 400, mx: 'auto' }}>
+      <TextField
+        label="Nombre del Torneo *"
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        fullWidth
+        sx={{ mt: 2 }}
+      />
+      <FormControl fullWidth sx={{ mt: 2 }}>
+        <InputLabel id="club-label">Club *</InputLabel>
+        <Select
+          labelId="club-label"
+          id="club"
+          value={formData.clubId}
+          label="Club"
+          onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
+        >
+          {clubs.map(club => (
+            <MenuItem key={club._id} value={club._id}>{club.name}</MenuItem>
+          ))}
+        </Select>
+      </FormControl>
       <FormControl fullWidth sx={{ mt: 2 }}>
         <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
         <Select
@@ -213,13 +264,26 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           <MenuItem value="Dobles">Dobles</MenuItem>
         </Select>
       </FormControl>
+      <FormControl fullWidth sx={{ mt: 2 }}>
+        <InputLabel id="sets-label">Sets por Partido</InputLabel>
+        <Select
+          labelId="sets-label"
+          id="sets"
+          value={formData.format.sets}
+          label="Sets por Partido"
+          onChange={(e) => setFormData({ ...formData, format: { ...formData.format, sets: e.target.value } })}
+        >
+          <MenuItem value={1}>1 Set</MenuItem>
+          <MenuItem value={2}>2 Sets</MenuItem>
+        </Select>
+      </FormControl>
     </Box>
   );
 
   const Step2 = () => {
     const handleAddPlayer = (playerId) => {
       const idAsString = String(playerId);
-      console.log('Adding player with ID:', idAsString); // Depuración
+      console.log('Adding player with ID:', idAsString);
       if (formData.format.mode === 'Singles') {
         if (selectedPlayers.includes(idAsString)) {
           addNotification('Jugador ya seleccionado', 'error');
@@ -227,7 +291,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         }
         setSelectedPlayers(prev => {
           const newSelected = [...prev, idAsString];
-          console.log('Updated selectedPlayers:', newSelected); // Depuración
+          console.log('Updated selectedPlayers:', newSelected);
           return newSelected;
         });
       } else {
@@ -241,7 +305,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         }
         setPairPlayers(prev => {
           const newPair = [...prev, idAsString];
-          console.log('Updated pairPlayers:', newPair); // Depuración
+          console.log('Updated pairPlayers:', newPair);
           return newPair;
         });
       }
@@ -250,6 +314,14 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     const addPair = () => {
       if (pairPlayers.length !== 2) {
         addNotification('Selecciona exactamente 2 jugadores para formar una pareja', 'error');
+        return;
+      }
+      if (pairPlayers[0] === pairPlayers[1]) {
+        addNotification('No puedes seleccionar al mismo jugador dos veces', 'error');
+        return;
+      }
+      if (formData.participants.some(p => p.player1 === pairPlayers[0] || p.player2 === pairPlayers[0] || p.player1 === pairPlayers[1] || p.player2 === pairPlayers[1])) {
+        addNotification('Uno o ambos jugadores ya están en una pareja', 'error');
         return;
       }
       setFormData(prev => ({
@@ -443,7 +515,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         <Button
           variant="outlined"
           onClick={() => setFormData({
-            ...formData,
+            ...prev,
             groups: formData.type === 'RoundRobin' ? generateAutoGroups() : [],
             rounds: formData.type === 'Eliminatorio' ? generateAutoRounds() : [],
           })}
@@ -460,7 +532,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   {group.players.map(p => (
                     <Chip
                       key={p.player1}
-                      label={`${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName}`}
+                      label={
+                        formData.format.mode === 'Singles'
+                          ? `${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName}`
+                          : `${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName} / ${localPlayers.find(pl => pl._id === p.player2)?.firstName} ${localPlayers.find(pl => pl._id === p.player2)?.lastName}`
+                      }
                       sx={{ m: 0.5 }}
                     />
                   ))}
@@ -473,7 +549,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   {round.matches.map((m, idx) => (
                     <Chip
                       key={idx}
-                      label={`${localPlayers.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`}
+                      label={
+                        formData.format.mode === 'Singles'
+                          ? `${localPlayers.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`
+                          : `${localPlayers.find(p => p._id === m.player1.player1)?.firstName} / ${localPlayers.find(p => p._id === m.player1.player2)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName} / ${localPlayers.find(p => p._id === m.player2.player2)?.firstName || 'BYE'}`
+                      }
                       sx={{ m: 0.5 }}
                     />
                   ))}
