@@ -318,7 +318,8 @@ app.get('/api/tournaments/:id', async (req, res) => {
     if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
       return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
     }
-    res.json(tournament);
+    // Asegurar que los datos poblados estén disponibles
+    res.json(tournament.toObject({ virtuals: true }));
   } catch (error) {
     console.error('Error fetching tournament by ID:', error.stack);
     res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });

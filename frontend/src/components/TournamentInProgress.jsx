@@ -10,7 +10,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState(null);
-  const [setScores, setSetScores] = useState([{ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }]); // Array para manejar múltiples sets
+  const [setScores, setSetScores] = useState([{ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }]);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
   const players = useSelector(state => state.players.list);
@@ -25,8 +25,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setTournament(response.data);
-      console.log('Tournament fetched:', response.data); // Depuración
-      console.log('Players available:', players); // Depuración
+      console.log('Tournament fetched:', response.data);
+      console.log('Players available:', players);
     } catch (error) {
       addNotification(`Error al cargar el torneo: ${error.response?.status || error.message}`, 'error');
       console.error('Error fetching tournament:', error);
@@ -44,8 +44,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
     setSelectedMatch({ match, groupIndex, matchIndex });
     const initialSets = match.result.sets.length > 0 
-      ? match.result.sets.map(set => ({ player1: set.player1.toString(), player2: set.player2.toString(), tiebreak1: set.tiebreak1?.toString() || '', tiebreak2: set.tiebreak2?.toString() || '' }))
-      : [{ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }];
+      ? match.result.sets.map(set => ({
+          player1: set.player1.toString(),
+          player2: set.player2.toString(),
+          tiebreak1: set.tiebreak1?.toString() || '',
+          tiebreak2: set.tiebreak2?.toString() || '',
+        }))
+      : Array(tournament?.format.sets || 1).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
     setSetScores(initialSets);
     setMatchDialogOpen(true);
   };
@@ -54,16 +59,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     setSetScores(prev => {
       const newScores = [...prev];
       newScores[index] = { ...newScores[index], [field]: value };
-      if (index === prev.length - 1 && field === 'player2' && value && tournament.format.sets > prev.length) {
-        newScores.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
-      }
       return newScores;
     });
   };
 
   const submitMatchResult = async () => {
     const validSets = setScores.filter(set => set.player1 && set.player2);
-    if (validSets.length === 0 || validSets.length > tournament.format.sets) {
+    if (validSets.length !== tournament.format.sets) {
       addNotification(`Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos`, 'error');
       return;
     }
@@ -79,8 +81,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
       if (tournament.type === 'RoundRobin') {
         updatedTournament.groups[groupIndex].matches[matchIndex].result.sets = sets;
-        const setsWonByPlayer1 = sets.filter(set => set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)).length;
-        const setsWonByPlayer2 = sets.filter(set => set.player1 < set.player2 || (set.player1 === set.player2 && set.tiebreak1 < set.tiebreak2)).length;
+        const setsWonByPlayer1 = sets.filter(set => 
+          set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)
+        ).length;
+        const setsWonByPlayer2 = sets.filter(set => 
+          set.player1 < set.player2 || (set.player1 === set.player2 && set.tiebreak1 < set.tiebreak2)
+        ).length;
         if (setsWonByPlayer1 > setsWonByPlayer2) {
           updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
         } else if (setsWonByPlayer2 > setsWonByPlayer1) {
@@ -88,8 +94,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
       } else {
         updatedTournament.rounds[groupIndex].matches[matchIndex].result.sets = sets;
-        const setsWonByPlayer1 = sets.filter(set => set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)).length;
-        const setsWonByPlayer2 = sets.filter(set => set.player1 < set.player2 || (set.player1 === set.player2 && set.tiebreak1 < set.tiebreak2)).length;
+        const setsWonByPlayer1 = sets.filter(set => 
+          set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)
+        ).length;
+        const setsWonByPlayer2 = sets.filter(set => 
+          set.player1 < set.player2 || (set.player1 === set.player2 && set.tiebreak1 < set.tiebreak2)
+        ).length;
         if (setsWonByPlayer1 > setsWonByPlayer2) {
           updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
         } else if (setsWonByPlayer2 > setsWonByPlayer1) {
@@ -97,11 +107,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
       }
 
-      const response = await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
+      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setTournament(response.data);
       setMatchDialogOpen(false);
+      fetchTournament(); // Refrescar datos después de guardar
       addNotification('Resultado de partido actualizado', 'success');
     } catch (error) {
       addNotification('Error al actualizar el resultado del partido', 'error');
@@ -151,14 +161,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           <Typography><strong>Participantes:</strong></Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1 }}>
             {tournament.participants.map(part => {
-              const player1 = players.find(p => p._id === part.player1);
-              const player2 = tournament.format.mode === 'Dobles' ? players.find(p => p._id === part.player2) : null;
-              const label = tournament.format.mode === 'Singles'
-                ? player1 ? `${player1.firstName} ${player1.lastName}` : 'Jugador no encontrado'
-                : `${player1 ? `${player1.firstName} ${player1.lastName}` : 'Jugador no encontrado'} / ${player2 ? `${player2.firstName} ${player2.lastName}` : 'Jugador no encontrado'}`;
+              const player1Name = part.player1.firstName ? `${part.player1.firstName} ${part.player1.lastName}` : 'Jugador no encontrado';
+              const player2Name = tournament.format.mode === 'Dobles' && part.player2 ? `${part.player2.firstName} ${part.player2.lastName}` : '';
+              const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
               return (
                 <Chip
-                  key={part.player1}
+                  key={part.player1._id || part.player1} // Usar _id si está poblado
                   label={label}
                   sx={{ m: 0.5 }}
                 />
@@ -186,8 +194,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   <TableBody>
                     {group.matches.map((match, matchIndex) => (
                       <TableRow key={matchIndex}>
-                        <TableCell>{players.find(p => p._id === match.player1.player1)?.firstName} {players.find(p => p._id === match.player1.player1)?.lastName}</TableCell>
-                        <TableCell>{players.find(p => p._id === match.player2.player1)?.firstName} {players.find(p => p._id === match.player2.player1)?.lastName}</TableCell>
+                        <TableCell>{match.player1.firstName} {match.player1.lastName}</TableCell>
+                        <TableCell>{match.player2.firstName} {match.player2.lastName}</TableCell>
                         <TableCell>
                           {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
                             <Typography key={idx}>
@@ -227,8 +235,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   <TableBody>
                     {round.matches.map((match, matchIndex) => (
                       <TableRow key={matchIndex}>
-                        <TableCell>{match.player1.name || `${players.find(p => p._id === match.player1.player1)?.firstName} ${players.find(p => p._id === match.player1.player1)?.lastName}`}</TableCell>
-                        <TableCell>{match.player2.name || `${players.find(p => p._id === match.player2.player1)?.firstName} ${players.find(p => p._id === match.player2.player1)?.lastName}`}</TableCell>
+                        <TableCell>{match.player1.name || `${match.player1.firstName} ${match.player1.lastName}`}</TableCell>
+                        <TableCell>{match.player2.name || `${match.player2.firstName} ${match.player2.lastName}`}</TableCell>
                         <TableCell>
                           {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
                             <Typography key={idx}>
@@ -271,7 +279,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               {(tournament.type === 'RoundRobin' ? tournament.groups.flatMap(g => g.matches) : tournament.rounds.flatMap(r => r.matches)).map((match, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
-                    {players.find(p => p._id === match.player1.player1)?.firstName} {players.find(p => p._id === match.player1.player1)?.lastName} vs {players.find(p => p._id === match.player2.player1)?.firstName} {players.find(p => p._id === match.player2.player1)?.lastName}
+                    {match.player1.firstName} {match.player1.lastName} vs {match.player2.firstName} {match.player2.lastName}
                   </TableCell>
                   <TableCell>{match.date || 'No definida'}</TableCell>
                 </TableRow>
@@ -298,48 +306,50 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           {selectedMatch && (
             <>
               <Typography>
-                {players.find(p => p._id === selectedMatch.match.player1.player1)?.firstName} {players.find(p => p._id === selectedMatch.match.player1.player1)?.lastName} vs {players.find(p => p._id === selectedMatch.match.player2.player1)?.firstName} {players.find(p => p._id === selectedMatch.match.player2.player1)?.lastName}
+                {selectedMatch.match.player1.firstName} {selectedMatch.match.player1.lastName} vs {selectedMatch.match.player2.firstName} {selectedMatch.match.player2.lastName}
               </Typography>
-              {setScores.slice(0, tournament.format.sets).map((set, index) => (
-                <Box key={index} sx={{ mt: 2 }}>
-                  <Typography>Set {index + 1}</Typography>
-                  <TextField
-                    label="Puntaje Jugador 1"
-                    type="number"
-                    value={set.player1}
-                    onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
-                    fullWidth
-                    sx={{ mt: 1 }}
-                  />
-                  <TextField
-                    label="Puntaje Jugador 2"
-                    type="number"
-                    value={set.player2}
-                    onChange={(e) => handleScoreChange(index, 'player2', e.target.value)}
-                    fullWidth
-                    sx={{ mt: 1 }}
-                  />
-                  {(parseInt(set.player1) === tournament.format.tiebreakSet && parseInt(set.player2) === tournament.format.tiebreakSet) && (
-                    <>
-                      <TextField
-                        label="Tiebreak Jugador 1"
-                        type="number"
-                        value={set.tiebreak1}
-                        onChange={(e) => handleScoreChange(index, 'tiebreak1', e.target.value)}
-                        fullWidth
-                        sx={{ mt: 1 }}
-                      />
-                      <TextField
-                        label="Tiebreak Jugador 2"
-                        type="number"
-                        value={set.tiebreak2}
-                        onChange={(e) => handleScoreChange(index, 'tiebreak2', e.target.value)}
-                        fullWidth
-                        sx={{ mt: 1 }}
-                      />
-                    </>
-                  )}
-                </Box>
+              {setScores.map((set, index) => (
+                index < tournament.format.sets && (
+                  <Box key={index} sx={{ mt: 2 }}>
+                    <Typography>Set {index + 1}</Typography>
+                    <TextField
+                      label="Puntaje Jugador 1"
+                      type="number"
+                      value={set.player1}
+                      onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
+                      fullWidth
+                      sx={{ mt: 1 }}
+                    />
+                    <TextField
+                      label="Puntaje Jugador 2"
+                      type="number"
+                      value={set.player2}
+                      onChange={(e) => handleScoreChange(index, 'player2', e.target.value)}
+                      fullWidth
+                      sx={{ mt: 1 }}
+                    />
+                    {(parseInt(set.player1) >= tournament.format.tiebreakSet && parseInt(set.player2) >= tournament.format.tiebreakSet) && (
+                      <>
+                        <TextField
+                          label="Tiebreak Jugador 1"
+                          type="number"
+                          value={set.tiebreak1}
+                          onChange={(e) => handleScoreChange(index, 'tiebreak1', e.target.value)}
+                          fullWidth
+                          sx={{ mt: 1 }}
+                        />
+                        <TextField
+                          label="Tiebreak Jugador 2"
+                          type="number"
+                          value={set.tiebreak2}
+                          onChange={(e) => handleScoreChange(index, 'tiebreak2', e.target.value)}
+                          fullWidth
+                          sx={{ mt: 1 }}
+                        />
+                      </>
+                    )}
+                  </Box>
+                )
               ))}
             </>
           )}
