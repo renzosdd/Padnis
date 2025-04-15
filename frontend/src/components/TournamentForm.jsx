@@ -133,10 +133,6 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         addNotification('El nombre del torneo es obligatorio', 'error');
         return;
       }
-      if (!formData.clubId) {
-        addNotification('Selecciona un club', 'error');
-        return;
-      }
       if (!formData.type || !formData.sport || !formData.format.mode || !formData.category) {
         addNotification('Completa todos los campos básicos', 'error');
         return;
@@ -162,7 +158,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     try {
       const tournament = {
         name: formData.name,
-        clubId: formData.clubId,
+        clubId: formData.clubId || null,
         type: formData.type,
         sport: formData.sport,
         category: formData.category,
@@ -220,7 +216,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           sx={{ mt: 2 }}
         />
         <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="club-label">Club *</InputLabel>
+          <InputLabel id="club-label">Club</InputLabel>
           <Select
             labelId="club-label"
             id="club"
@@ -228,6 +224,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             label="Club"
             onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
           >
+            <MenuItem value="">Ninguno</MenuItem>
             {clubs.map(club => (
               <MenuItem key={club._id} value={club._id}>{club.name}</MenuItem>
             ))}

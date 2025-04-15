@@ -12,6 +12,7 @@ import TournamentInProgress from './components/TournamentInProgress';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import ManageRoles from './components/ManageRoles';
+import ClubManagement from './components/ClubManagement';
 import { useAuth } from './contexts/AuthContext';
 import { useNotification } from './contexts/NotificationContext';
 
@@ -205,7 +206,10 @@ const App = () => {
                 )}
                 <Menu anchorEl={settingsAnchor} open={Boolean(settingsAnchor)} onClose={handleClose}>
                   {role === 'admin' && (
-                    <MenuItem onClick={() => { setView('roles'); setSelectedTournamentId(null); handleClose(); }}>Gestionar Roles</MenuItem>
+                    <>
+                      <MenuItem onClick={() => { setView('roles'); setSelectedTournamentId(null); handleClose(); }}>Gestionar Roles</MenuItem>
+                      <MenuItem onClick={() => { setView('clubs'); setSelectedTournamentId(null); handleClose(); }}>Gestionar Clubes</MenuItem>
+                    </>
                   )}
                 </Menu>
               </>
@@ -271,6 +275,7 @@ const App = () => {
               )}
               {view === 'historial' && <TournamentHistory tournaments={tournaments} />}
               {view === 'roles' && role === 'admin' && <ManageRoles />}
+              {view === 'clubs' && role === 'admin' && <ClubManagement />}
               {view === 'perfil' && (
                 <Box>
                   <Typography variant="h5" gutterBottom>Perfil</Typography>

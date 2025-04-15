@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useSelector } from 'react-redux';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Chip, IconButton } from '@mui/material';
+import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Chip, IconButton, TextField } from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
@@ -185,7 +184,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         console.log(`Retrying submitMatchResult (${retries} attempts left)...`);
         setTimeout(() => submitMatchResult(retries - 1), 2000);
       } else {
-        addNotification(`Error al actualizar el resultado del partido: ${error.message}`, 'error');
+        addNotification(`Error al actualizar el resultado del partido: ${error.response?.data?.message || error.message}`, 'error');
         console.error('Error updating match result:', error);
       }
     }
@@ -226,7 +225,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       await fetchTournament();
       addNotification('Fase eliminatoria generada', 'success');
     } catch (error) {
-      addNotification('Error al generar la fase eliminatoria', 'error');
+      addNotification(`Error al generar la fase eliminatoria: ${error.response?.data?.message || error.message}`, 'error');
       console.error('Error generating knockout phase:', error);
     }
   };
@@ -235,19 +234,19 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     if (tournament.type !== 'Eliminatorio') return;
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
-      if (!currentRound.matches.every(m => m.result.winner)) {
+      if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
         addNotification('Faltan completar partidos de la ronda actual', 'error');
         return;
       }
       const winners = currentRound.matches
-        .filter(m => m.result.winner) // Solo incluir partidos con ganador válido
+        .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => ({
-          player1: m.result.winner,
+          player1: m.result.winner || m.player1.player1,
           player2: tournament.format.mode === 'Dobles' 
-            ? tournament.participants.find(p => p.player1 === m.result.winner)?.player2 || null
+            ? tournament.participants.find(p => p.player1 === (m.result.winner || m.player1.player1))?.player2 || null
             : null,
         }));
-      if (winners.length < 2) {
+      if (winners.length < 1) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
         return;
       }
@@ -289,7 +288,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     try {
       const allMatchesCompleted = tournament.type === 'RoundRobin'
         ? tournament.groups.every(group => group.matches.every(match => match.result.winner !== null))
-        : tournament.rounds.every(round => round.matches.every(match => match.result.winner !== null));
+        : tournament.rounds.every(round => round.matches.every(match => match.result.winner !== null || match.player2?.name === 'BYE'));
       if (!allMatchesCompleted) {
         addNotification('Faltan completar algunos partidos', 'error');
         return;
@@ -301,7 +300,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       onFinishTournament(updatedTournament);
       addNotification('Torneo finalizado con éxito', 'success');
     } catch (error) {
-      addNotification('Error al finalizar el torneo', 'error');
+      addNotification(`Error al finalizar el torneo: ${error.response?.data?.message || error.message}`, 'error');
       console.error('Error finishing tournament:', error);
     }
   };
@@ -345,7 +344,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h5" gutterBottom>
-        {tournament.name} - {tournament.sport} ({tournament.format.mode}) en {tournament.club?.name || 'Club desconocido'}
+        {tournament.name} - {tournament.sport} ({tournament.format.mode}) en {tournament.club?.name || 'No definido'}
       </Typography>
       <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
         <Tab label="Detalles" />
@@ -521,6 +520,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               </TableRow>
             </TableHead>
             <TableBody>
+Tuesday, April 15, 2025
               {(tournament.type === 'RoundRobin' ? tournament.groups.flatMap(g => g.matches) : tournament.rounds.flatMap(r => r.matches)).map((match, idx) => (
                 <TableRow key={idx}>
                   <TableCell>

@@ -135,16 +135,15 @@ app.put('/api/users/:username/role', authenticateToken, isAdmin, async (req, res
 });
 
 // Rutas de clubes
-app.post('/api/clubs', authenticateToken, async (req, res) => {
+app.post('/api/clubs', authenticateToken, isAdmin, async (req, res) => {
   try {
-    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
-      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
-    }
-    const { name } = req.body;
+    const { name, address, phone } = req.body;
     if (!name) return res.status(400).json({ message: 'El nombre del club es obligatorio' });
-    const existingClub = await Club.findOne({ name });
-    if (existingClub) return res.status(400).json({ message: 'El club ya existe' });
-    const club = new Club({ name });
+    const club = new Club({
+      name,
+      address: address || '',
+      phone: phone || '',
+    });
     await club.save();
     res.status(201).json(club);
   } catch (error) {
@@ -160,6 +159,42 @@ app.get('/api/clubs', async (req, res) => {
   } catch (error) {
     console.error('Error fetching clubs:', error.stack);
     res.status(500).json({ message: 'Error al obtener clubes', error: error.message });
+  }
+});
+
+app.put('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, address, phone } = req.body;
+    if (!name) return res.status(400).json({ message: 'El nombre del club es obligatorio' });
+    const club = await Club.findById(id);
+    if (!club) return res.status(404).json({ message: 'Club no encontrado' });
+    club.name = name;
+    club.address = address || '';
+    club.phone = phone || '';
+    await club.save();
+    res.json(club);
+  } catch (error) {
+    console.error('Error updating club:', error.stack);
+    res.status(500).json({ message: 'Error al actualizar club', error: error.message });
+  }
+});
+
+app.delete('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const club = await Club.findById(id);
+    if (!club) return res.status(404).json({ message: 'Club no encontrado' });
+    // Verificar si el club está asociado a algún torneo
+    const tournaments = await Tournament.find({ club: id });
+    if (tournaments.length > 0) {
+      return res.status(400).json({ message: 'No se puede eliminar el club porque está asociado a torneos' });
+    }
+    await club.deleteOne();
+    res.json({ message: 'Club eliminado correctamente' });
+  } catch (error) {
+    console.error('Error deleting club:', error.stack);
+    res.status(500).json({ message: 'Error al eliminar club', error: error.message });
   }
 });
 
@@ -243,7 +278,6 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     const { name, clubId, type, sport, category, format, participants, groups, rounds, schedule, draft } = req.body;
 
     if (!name) return res.status(400).json({ message: 'El nombre del torneo es obligatorio' });
-    if (!clubId) return res.status(400).json({ message: 'El club es obligatorio' });
     if (!type || !['RoundRobin', 'Eliminatorio'].includes(type)) {
       return res.status(400).json({ message: 'Tipo de torneo inválido' });
     }
@@ -264,8 +298,10 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: `Mínimo ${format.mode === 'Singles' ? 2 : 1} participantes requeridos` });
     }
 
-    const club = await Club.findById(clubId);
-    if (!club) return res.status(400).json({ message: 'Club no encontrado' });
+    if (clubId) {
+      const club = await Club.findById(clubId);
+      if (!club) return res.status(400).json({ message: 'Club no encontrado' });
+    }
 
     const playerIds = participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
     const playersExist = await Player.find({ _id: { $in: playerIds } });
@@ -275,7 +311,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
 
     const tournament = new Tournament({
       name,
-      club: clubId,
+      club: clubId || null,
       type,
       sport,
       category,

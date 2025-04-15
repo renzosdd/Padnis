@@ -42,7 +42,7 @@ const roundSchema = new mongoose.Schema({
 
 const tournamentSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club', required: true },
+  club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' }, // No obligatorio
   type: { type: String, enum: ['RoundRobin', 'Eliminatorio'], required: true },
   sport: { type: String, enum: ['Tenis', 'Pádel'], required: true },
   category: {
