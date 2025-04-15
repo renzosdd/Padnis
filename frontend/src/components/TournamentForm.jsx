@@ -131,7 +131,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
   const [clubs, setClubs] = useState([]);
   const { user } = useAuth();
   const { addNotification } = useNotification();
-  const isMobile = useMediaQuery('(max-width:600px)'); // Detectar móvil
+  const isMobile = useMediaQuery('(max-width:600px)');
 
   useEffect(() => {
     const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
@@ -256,14 +256,14 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       </Typography>
       <Stepper
         activeStep={step}
-        orientation={isMobile ? 'vertical' : 'horizontal'} // Vertical en móvil
+        orientation={isMobile ? 'vertical' : 'horizontal'}
         sx={{
           mb: 3,
           bgcolor: '#ffffff',
           p: 2,
           borderRadius: 2,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          width: { xs: '100%', sm: 'auto' }, // Ajuste en móvil
+          width: { xs: '100%', sm: 'auto' },
           display: 'flex',
           justifyContent: 'center',
         }}

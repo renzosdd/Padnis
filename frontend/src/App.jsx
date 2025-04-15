@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
 import { setPlayers } from './store';
-import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Box, Menu, MenuItem, Button, IconButton, Dialog, DialogTitle, DialogContent, useMediaQuery } from '@mui/material';
+import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Box, Menu, MenuItem, Button, Dialog, DialogTitle, DialogContent, useMediaQuery } from '@mui/material';
 import { People, EmojiEvents, Settings, ExpandMore } from '@mui/icons-material';
 import ErrorBoundary from './components/ErrorBoundary';
 import PlayerForm from './components/PlayerForm';
@@ -23,7 +23,7 @@ const theme = createTheme({
     primary: { main: '#1976d2' },
     secondary: { main: '#424242' },
     accent: { main: '#c0ca33' },
-    background: { default: '#fff', paper: '#f5f5f5' },
+    background: { default: '#f5f5f5', paper: '#fff' },
   },
   typography: { fontFamily: 'Roboto, sans-serif' },
   shape: { borderRadius: 8 },
@@ -53,7 +53,6 @@ const App = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log('Fetching initial data...');
         await fetchTournaments();
         if (user) {
           await Promise.all([
@@ -63,7 +62,6 @@ const App = () => {
         }
         setLoading(false);
       } catch (err) {
-        console.error('Error in fetchData:', err);
         setError(err.message);
         setLoading(false);
         addNotification('Error al cargar datos iniciales', 'error');
@@ -81,10 +79,8 @@ const App = () => {
         timeout: 30000,
       });
       const normalizedPlayers = response.data.map(player => ({ ...player, _id: String(player._id) }));
-      console.log('Fetched Players:', normalizedPlayers);
       dispatch(setPlayers(normalizedPlayers));
     } catch (error) {
-      console.error('Error fetching players:', error.message);
       addNotification('No se pudieron cargar los jugadores.', 'error');
       dispatch(setPlayers([]));
     }
@@ -93,20 +89,16 @@ const App = () => {
   const fetchTournaments = async (retries = 2) => {
     try {
       const token = localStorage.getItem('token');
-      console.log('Fetching tournaments with token:', token || 'No token (spectator mode)');
       const response = await axios.get(`${BACKEND_URL}/api/tournaments`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 30000,
       });
-      console.log('Tournaments fetched:', response.data);
       setTournaments(response.data);
     } catch (error) {
-      console.error('Error fetching tournaments:', error.message, error);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
-        console.log(`Retrying fetchTournaments (${retries} attempts left)...`);
         setTimeout(() => fetchTournaments(retries - 1), 2000);
       } else {
-        addNotification('No se pudieron cargar los torneos. Por favor, verifica tu conexión e intenta de nuevo.', 'error');
+        addNotification('No se pudieron cargar los torneos.', 'error');
         setTournaments([]);
       }
     }
@@ -122,13 +114,10 @@ const App = () => {
       });
       setUsers(response.data);
     } catch (error) {
-      console.error('Error fetching users:', error.message);
       addNotification('No se pudieron cargar los usuarios.', 'error');
       setUsers([]);
     }
   };
-
-  const registerPlayer = async (player) => {};
 
   const updatePlayer = (updatedPlayer) => {
     dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p)));
@@ -164,7 +153,7 @@ const App = () => {
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
         <Typography variant="h5" color="error">Error: {error}</Typography>
         <Button variant="contained" color="primary" onClick={() => window.location.reload()} sx={{ mt: 2 }}>
           Recargar
@@ -173,7 +162,7 @@ const App = () => {
     );
   }
 
-  if (loading) return <Box sx={{ p: 3 }}><Typography variant="h5">Cargando...</Typography></Box>;
+  if (loading) return <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}><Typography variant="h5">Cargando...</Typography></Box>;
 
   return (
     <ThemeProvider theme={theme}>
@@ -238,10 +227,10 @@ const App = () => {
             )}
           </Toolbar>
         </AppBar>
-        <Box sx={{ mt: 8, p: 3 }}>
+        <Box sx={{ mt: 8, p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
           {user ? (
             <>
-              {view === 'jugadores' && <PlayerForm onRegisterPlayer={registerPlayer} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />}
+              {view === 'jugadores' && <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />}
               {view === 'crear' && (role === 'admin' || role === 'coach') && <TournamentForm players={players} onCreateTournament={createTournament} />}
               {view === 'activos' && !selectedTournamentId && (
                 <Box>
@@ -250,7 +239,7 @@ const App = () => {
                     <Typography>No hay torneos activos actualmente.</Typography>
                   ) : (
                     tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
-                      <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                      <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
                         <Typography variant="h6">{tournament.name}</Typography>
                         <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
                         <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
@@ -277,7 +266,7 @@ const App = () => {
               {view === 'roles' && role === 'admin' && <ManageRoles />}
               {view === 'clubs' && role === 'admin' && <ClubManagement />}
               {view === 'perfil' && (
-                <Box>
+                <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
                   <Typography variant="h5" gutterBottom>Perfil</Typography>
                   <Typography>Modifica tus datos personales y preferencias (a desarrollar)</Typography>
                 </Box>
@@ -291,7 +280,7 @@ const App = () => {
                   <Typography>No hay torneos activos actualmente.</Typography>
                 ) : (
                   tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
-                    <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                    <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
                       <Typography variant="h6">{tournament.name}</Typography>
                       <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
                       <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
