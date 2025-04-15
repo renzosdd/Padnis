@@ -394,8 +394,10 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     // Validar IDs de jugadores en las actualizaciones
     if (updates.participants) {
       const playerIds = updates.participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
+      console.log('Validating participant IDs:', playerIds);
       const playersExist = await Player.find({ _id: { $in: playerIds } });
       if (playersExist.length !== playerIds.length) {
+        console.log('Invalid participant IDs:', playerIds.filter(id => !playersExist.some(p => p._id.toString() === id)));
         return res.status(400).json({ message: 'Algunos jugadores no existen' });
       }
     }
@@ -409,8 +411,10 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             m.player2?.player2,
             m.result?.winner,
           ].filter(Boolean));
+          console.log('Validating group match IDs:', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
+            console.log('Invalid group match IDs:', matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id)));
             return res.status(400).json({ message: 'Algunos jugadores en los partidos no existen' });
           }
         }
@@ -426,8 +430,10 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             m.player2?.player2,
             m.result?.winner,
           ].filter(Boolean));
+          console.log('Validating round match IDs:', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
+            console.log('Invalid round match IDs:', matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id)));
             return res.status(400).json({ message: 'Algunos jugadores en los partidos no existen' });
           }
         }
@@ -459,7 +465,11 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       });
     res.json(updatedTournament);
   } catch (error) {
-    console.error('Error updating tournament:', error.stack);
+    console.error('Error updating tournament:', {
+      message: error.message,
+      stack: error.stack,
+      updates: JSON.stringify(req.body, null, 2),
+    });
     res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
   }
 });
