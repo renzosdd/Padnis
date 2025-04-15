@@ -29,7 +29,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [matchScores, setMatchScores] = useState([]);
-  const [standings, setStandings] = useState([]); // Inicializado como arreglo vacío
+  const [standings, setStandings] = useState([]);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
 
@@ -48,7 +48,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
     } catch (error) {
       addNotification(`Error al cargar el torneo: ${error.response?.data?.message || error.message}`, 'error');
-      console.error('Error fetching tournament:', error);
     }
   };
 
@@ -411,366 +410,390 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   if (!tournament) return <Typography>Cargando torneo...</Typography>;
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        {tournament.name} - {tournament.sport} ({tournament.format.mode}) en {tournament.club?.name || 'No definido'}
-      </Typography>
-      <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
-        <Tab label="Detalles" />
-        <Tab label={tournament.type === 'RoundRobin' ? 'Grupos' : 'Rondas'} />
-        <Tab label="Calendario" />
-        {tournament.type === 'RoundRobin' && <Tab label="Posiciones" />}
-        {tournament.type === 'Eliminatorio' && <Tab label="Llave" />}
-      </Tabs>
-
-      {tabValue === 0 && (
-        <Box>
-          <Typography><strong>Nombre:</strong> {tournament.name}</Typography>
-          <Typography><strong>Club:</strong> {tournament.club?.name || 'No definido'}</Typography>
-          <Typography><strong>Categoría:</strong> {tournament.category || 'No definida'}</Typography>
-          <Typography><strong>Tipo:</strong> {tournament.type}</Typography>
-          <Typography><strong>Deporte:</strong> {tournament.sport}</Typography>
-          <Typography><strong>Modalidad:</strong> {tournament.format.mode}</Typography>
-          <Typography><strong>Sets por partido:</strong> {tournament.format.sets}</Typography>
-          <Typography><strong>Juegos por set:</strong> {tournament.format.gamesPerSet}</Typography>
-          <Typography><strong>Participantes:</strong></Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1 }}>
-            {tournament.participants.map(part => {
-              const player1Name = part.player1?.firstName ? `${part.player1.firstName} ${part.player1.lastName}` : 'Jugador no encontrado';
-              const player2Name = tournament.format.mode === 'Dobles' && part.player2 ? `${part.player2.firstName} ${part.player2.lastName}` : '';
-              const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-              return (
-                <Chip
-                  key={part.player1?._id || part.player1}
-                  label={label}
-                  sx={{ m: 0.5 }}
-                />
-              );
-            })}
-          </Box>
-        </Box>
-      )}
-
-      {tabValue === 1 && (
-        <Box>
-          {tournament.type === 'RoundRobin' ? (
-            tournament.groups.map((group, groupIndex) => (
-              <Box key={group.name} sx={{ mb: 3 }}>
-                <Typography variant="h6">{group.name}</Typography>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 1' : 'Equipo 1'}</TableCell>
-                      <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 2' : 'Equipo 2'}</TableCell>
-                      <TableCell>Resultado</TableCell>
-                      <TableCell>Acción</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {group.matches.map((match, matchIndex) => (
-                      <TableRow key={matchIndex}>
-                        <TableCell>
-                          {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
-                          {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                            <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
-                          {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                            <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
-                            <Typography key={idx}>
-                              {set.player1} - {set.player2} {set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
-                            </Typography>
-                          )) : 'Pendiente'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
-                            disabled={match.result.winner !== null}
-                          >
-                            Actualizar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            ))
-          ) : (
-            tournament.rounds.map((round, roundIndex) => (
-              <Box key={round.round} sx={{ mb: 3 }}>
-                <Typography variant="h6">Ronda {round.round}</Typography>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 1' : 'Equipo 1'}</TableCell>
-                      <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 2' : 'Equipo 2'}</TableCell>
-                      <TableCell>Resultado</TableCell>
-                      <TableCell>Acción</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {round.matches.map((match, matchIndex) => (
-                      <TableRow key={matchIndex}>
-                        <TableCell>
-                          {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
-                          {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                            <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
-                          {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                            <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
-                            <Typography key={idx}>
-                              {set.player1} - {set.player2} {set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
-                            </Typography>
-                          )) : 'Pendiente'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => openMatchDialog(match, roundIndex, matchIndex)}
-                            disabled={match.result.winner !== null}
-                          >
-                            Actualizar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            ))
-          )}
-          {tournament.type === 'Eliminatorio' && (role === 'admin' || role === 'coach') && (
-            <Button
-              variant="contained"
-              onClick={advanceEliminationRound}
-              sx={{ mt: 2 }}
-            >
-              Avanzar a la Siguiente Ronda
-            </Button>
-          )}
-          {tournament.type === 'RoundRobin' && (role === 'admin' || role === 'coach') && (
-            <Button
-              variant="contained"
-              onClick={generateKnockoutPhase}
-              sx={{ mt: 2, ml: 2 }}
-            >
-              Generar Fase Eliminatoria
-            </Button>
-          )}
-        </Box>
-      )}
-
-      {tabValue === 2 && (
-        <Box>
-          <Typography><strong>Fecha General:</strong> {tournament.schedule.group || 'No definida'}</Typography>
-          <Typography variant="subtitle1" sx={{ mt: 2 }}>Partidos Programados</Typography>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Partido</TableCell>
-                <TableCell>Fecha</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {(tournament.type === 'RoundRobin' ? tournament.groups.flatMap(g => g.matches) : tournament.rounds.flatMap(r => r.matches)).map((match, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>
-                    {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
-                    {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
-                    )}
-                    {' vs '}
-                    {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
-                    {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
-                    )}
-                  </TableCell>
-                  <TableCell>{match.date || 'No definida'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Box>
-      )}
-
-      {tabValue === 3 && tournament.type === 'RoundRobin' && (
-        <Box>
-          <Typography variant="h5" gutterBottom>Posiciones</Typography>
-          {standings && Array.isArray(standings) ? (
-            standings.map(group => (
-              <Box key={group.groupName} sx={{ mb: 3 }}>
-                <Typography variant="h6">{group.groupName}</Typography>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador' : 'Equipo'}</TableCell>
-                      <TableCell>Victorias</TableCell>
-                      <TableCell>Sets Ganados</TableCell>
-                      <TableCell>Juegos Ganados</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {group.standings.map((player, idx) => {
-                      const participant = tournament.participants.find(p => 
-                        (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player.playerId.toString()
-                      );
-                      const player1Name = participant?.player1?.firstName 
-                        ? `${participant.player1.firstName} ${participant.player1.lastName || ''}` 
-                        : 'Jugador no encontrado';
-                      const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 
-                        ? `${participant.player2.firstName} ${participant.player2.lastName || ''}` 
-                        : '';
-                      const label = tournament.format.mode === 'Singles' 
-                        ? player1Name 
-                        : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                      return (
-                        <TableRow key={idx}>
-                          <TableCell>{label}</TableCell>
-                          <TableCell>{player.wins}</TableCell>
-                          <TableCell>{player.setsWon}</TableCell>
-                          <TableCell>{player.gamesWon}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Box>
-            ))
-          ) : (
-            <Typography>No hay posiciones disponibles para mostrar.</Typography>
-          )}
-        </Box>
-      )}
-
-      {tabValue === 4 && tournament.type === 'Eliminatorio' && renderBracket()}
-
-      {(role === 'admin' || role === 'coach') && (
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleFinishTournament}
-          sx={{ mt: 2 }}
+    <Box
+      sx={{
+        p: { xs: 3, sm: 4 },
+        bgcolor: '#f0f4f8', // Fondo suave
+        minHeight: '100vh',
+      }}
+    >
+      <Box
+        sx={{
+          bgcolor: '#ffffff', // Contenedor blanco
+          p: 3,
+          borderRadius: 2,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        <Typography
+          variant="h5"
+          gutterBottom
+          sx={{
+            fontSize: { xs: '1.8rem', sm: '2rem' },
+            color: '#01579b', // Azul oscuro
+            fontWeight: 700,
+            textAlign: 'center',
+          }}
         >
-          Finalizar Torneo
-        </Button>
-      )}
+          {tournament.name} - {tournament.sport} ({tournament.format.mode}) en {tournament.club?.name || 'No definido'}
+        </Typography>
+        <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
+          <Tab label="Detalles" />
+          <Tab label={tournament.type === 'RoundRobin' ? 'Grupos' : 'Rondas'} />
+          <Tab label="Calendario" />
+          {tournament.type === 'RoundRobin' && <Tab label="Posiciones" />}
+          {tournament.type === 'Eliminatorio' && <Tab label="Llave" />}
+        </Tabs>
 
-      <Dialog open={matchDialogOpen} onClose={() => setMatchDialogOpen(false)}>
-        <DialogTitle>Actualizar Resultado del Partido</DialogTitle>
-        <DialogContent>
-          {selectedMatch && (
-            <>
-              <Typography>
-                {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player1?.lastName || ''}
-                {tournament.format.mode === 'Dobles' && selectedMatch.match.player1?.player2 && (
-                  <> / {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player2?.lastName || ''}</>
-                )}
-                {' vs '}
-                {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player1?.lastName || ''}
-                {tournament.format.mode === 'Dobles' && selectedMatch.match.player2?.player2 && (
-                  <> / {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player2?.lastName || ''}</>
-                )}
-              </Typography>
-              {matchScores.map((set, index) => (
-                index < tournament.format.sets && (
-                  <Box key={index} sx={{ mt: 2 }}>
-                    <Typography>Set {index + 1}</Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      <IconButton onClick={() => decrementScore(index, 'player1')} size="small">
-                        <Remove />
-                      </IconButton>
-                      <TextField
-                        label="Puntaje Jugador 1"
-                        type="number"
-                        value={set.player1}
-                        onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
-                        inputProps={{ min: 0 }}
-                        sx={{ width: 100, mx: 1 }}
-                      />
-                      <IconButton onClick={() => incrementScore(index, 'player1')} size="small">
-                        <Add />
-                      </IconButton>
+        {tabValue === 0 && (
+          <Box>
+            <Typography><strong>Nombre:</strong> {tournament.name}</Typography>
+            <Typography><strong>Club:</strong> {tournament.club?.name || 'No definido'}</Typography>
+            <Typography><strong>Categoría:</strong> {tournament.category || 'No definida'}</Typography>
+            <Typography><strong>Tipo:</strong> {tournament.type}</Typography>
+            <Typography><strong>Deporte:</strong> {tournament.sport}</Typography>
+            <Typography><strong>Modalidad:</strong> {tournament.format.mode}</Typography>
+            <Typography><strong>Sets por partido:</strong> {tournament.format.sets}</Typography>
+            <Typography><strong>Juegos por set:</strong> {tournament.format.gamesPerSet}</Typography>
+            <Typography><strong>Participantes:</strong></Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1 }}>
+              {tournament.participants.map(part => {
+                const player1Name = part.player1?.firstName ? `${part.player1.firstName} ${part.player1.lastName}` : 'Jugador no encontrado';
+                const player2Name = tournament.format.mode === 'Dobles' && part.player2 ? `${part.player2.firstName} ${part.player2.lastName}` : '';
+                const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                return (
+                  <Chip
+                    key={part.player1?._id || part.player1}
+                    label={label}
+                    sx={{ m: 0.5 }}
+                  />
+                );
+              })}
+            </Box>
+          </Box>
+        )}
+
+        {tabValue === 1 && (
+          <Box>
+            {tournament.type === 'RoundRobin' ? (
+              tournament.groups.map((group, groupIndex) => (
+                <Box key={group.name} sx={{ mb: 3 }}>
+                  <Typography variant="h6">{group.name}</Typography>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 1' : 'Equipo 1'}</TableCell>
+                        <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 2' : 'Equipo 2'}</TableCell>
+                        <TableCell>Resultado</TableCell>
+                        <TableCell>Acción</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {group.matches.map((match, matchIndex) => (
+                        <TableRow key={matchIndex}>
+                          <TableCell>
+                            {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
+                            {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
+                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
+                            {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
+                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
+                              <Typography key={idx}>
+                                {set.player1} - {set.player2} {set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
+                              </Typography>
+                            )) : 'Pendiente'}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
+                              disabled={match.result.winner !== null}
+                            >
+                              Actualizar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              ))
+            ) : (
+              tournament.rounds.map((round, roundIndex) => (
+                <Box key={round.round} sx={{ mb: 3 }}>
+                  <Typography variant="h6">Ronda {round.round}</Typography>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 1' : 'Equipo 1'}</TableCell>
+                        <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador 2' : 'Equipo 2'}</TableCell>
+                        <TableCell>Resultado</TableCell>
+                        <TableCell>Acción</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {round.matches.map((match, matchIndex) => (
+                        <TableRow key={matchIndex}>
+                          <TableCell>
+                            {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
+                            {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
+                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
+                            {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
+                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
+                              <Typography key={idx}>
+                                {set.player1} - {set.player2} {set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
+                              </Typography>
+                            )) : 'Pendiente'}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              onClick={() => openMatchDialog(match, roundIndex, matchIndex)}
+                              disabled={match.result.winner !== null}
+                            >
+                              Actualizar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
+              ))
+            )}
+            {tournament.type === 'Eliminatorio' && (role === 'admin' || role === 'coach') && (
+              <Button
+                variant="contained"
+                onClick={advanceEliminationRound}
+                sx={{ mt: 2, bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+              >
+                Avanzar a la Siguiente Ronda
+              </Button>
+            )}
+            {tournament.type === 'RoundRobin' && (role === 'admin' || role === 'coach') && (
+              <Button
+                variant="contained"
+                onClick={generateKnockoutPhase}
+                sx={{ mt: 2, ml: 2, bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+              >
+                Generar Fase Eliminatoria
+              </Button>
+            )}
+          </Box>
+        )}
+
+        {tabValue === 2 && (
+          <Box>
+            <Typography><strong>Fecha General:</strong> {tournament.schedule.group || 'No definida'}</Typography>
+            <Typography variant="subtitle1" sx={{ mt: 2 }}>Partidos Programados</Typography>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Partido</TableCell>
+                  <TableCell>Fecha</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {(tournament.type === 'RoundRobin' ? tournament.groups.flatMap(g => g.matches) : tournament.rounds.flatMap(r => r.matches)).map((match, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
+                      {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
+                        <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                      )}
+                      {' vs '}
+                      {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
+                      {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
+                        <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                      )}
+                    </TableCell>
+                    <TableCell>{match.date || 'No definida'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+
+        {tabValue === 3 && tournament.type === 'RoundRobin' && (
+          <Box>
+            <Typography variant="h5" gutterBottom>Posiciones</Typography>
+            {standings && Array.isArray(standings) ? (
+              standings.map(group => (
+                <Box key={group.groupName} sx={{ mb: 3 }}>
+                  <Typography variant="h6">{group.groupName}</Typography>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador' : 'Equipo'}</TableCell>
+                        <TableCell>Victorias</TableCell>
+                        <TableCell>Sets Ganados</TableCell>
+                        <TableCell>Juegos Ganados</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {group.standings.map((player, idx) => {
+                        const participant = tournament.participants.find(p => 
+                          (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player.playerId.toString()
+                        );
+                        const player1Name = participant?.player1?.firstName 
+                          ? `${participant.player1.firstName} ${participant.player1.lastName || ''}` 
+                          : 'Jugador no encontrado';
+                        const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 
+                          ? `${participant.player2.firstName} ${participant.player2.lastName || ''}` 
+                          : '';
+                        const label = tournament.format.mode === 'Singles' 
+                          ? player1Name 
+                          : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell>{label}</TableCell>
+                            <TableCell>{player.wins}</TableCell>
+                            <TableCell>{player.setsWon}</TableCell>
+                            <TableCell>{player.gamesWon}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Box>
+              ))
+            ) : (
+              <Typography>No hay posiciones disponibles para mostrar.</Typography>
+            )}
+          </Box>
+        )}
+
+        {tabValue === 4 && tournament.type === 'Eliminatorio' && renderBracket()}
+
+        {(role === 'admin' || role === 'coach') && (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleFinishTournament}
+            sx={{ mt: 2, bgcolor: '#388e3c', '&:hover': { bgcolor: '#2e7d32' } }}
+          >
+            Finalizar Torneo
+          </Button>
+        )}
+
+        <Dialog open={matchDialogOpen} onClose={() => setMatchDialogOpen(false)}>
+          <DialogTitle>Actualizar Resultado del Partido</DialogTitle>
+          <DialogContent>
+            {selectedMatch && (
+              <>
+                <Typography>
+                  {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player1?.lastName || ''}
+                  {tournament.format.mode === 'Dobles' && selectedMatch.match.player1?.player2 && (
+                    <> / {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player2?.lastName || ''}</>
+                  )}
+                  {' vs '}
+                  {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player1?.lastName || ''}
+                  {tournament.format.mode === 'Dobles' && selectedMatch.match.player2?.player2 && (
+                    <> / {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player2?.lastName || ''}</>
+                  )}
+                </Typography>
+                {matchScores.map((set, index) => (
+                  index < tournament.format.sets && (
+                    <Box key={index} sx={{ mt: 2 }}>
+                      <Typography>Set {index + 1}</Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <IconButton onClick={() => decrementScore(index, 'player1')} size="small">
+                          <Remove />
+                        </IconButton>
+                        <TextField
+                          label="Puntaje Jugador 1"
+                          type="number"
+                          value={set.player1}
+                          onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
+                          inputProps={{ min: 0 }}
+                          sx={{ width: 100, mx: 1 }}
+                        />
+                        <IconButton onClick={() => incrementScore(index, 'player1')} size="small">
+                          <Add />
+                        </IconButton>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <IconButton onClick={() => decrementScore(index, 'player2')} size="small">
+                          <Remove />
+                        </IconButton>
+                        <TextField
+                          label="Puntaje Jugador 2"
+                          type="number"
+                          value={set.player2}
+                          onChange={(e) => handleScoreChange(index, 'player2', e.target.value)}
+                          inputProps={{ min: 0 }}
+                          sx={{ width: 100, mx: 1 }}
+                        />
+                        <IconButton onClick={() => incrementScore(index, 'player2')} size="small">
+                          <Add />
+                        </IconButton>
+                      </Box>
+                      {set.player1 >= tournament.format.tiebreakSet && set.player2 >= tournament.format.tiebreakSet && (
+                        <>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                            <IconButton onClick={() => decrementScore(index, 'tiebreak1')} size="small">
+                              <Remove />
+                            </IconButton>
+                            <TextField
+                              label="Tiebreak Jugador 1"
+                              type="number"
+                              value={set.tiebreak1}
+                              onChange={(e) => handleScoreChange(index, 'tiebreak1', e.target.value)}
+                              inputProps={{ min: 0 }}
+                              sx={{ width: 100, mx: 1 }}
+                            />
+                            <IconButton onClick={() => incrementScore(index, 'tiebreak1')} size="small">
+                              <Add />
+                            </IconButton>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                            <IconButton onClick={() => decrementScore(index, 'tiebreak2')} size="small">
+                              <Remove />
+                            </IconButton>
+                            <TextField
+                              label="Tiebreak Jugador 2"
+                              type="number"
+                              value={set.tiebreak2}
+                              onChange={(e) => handleScoreChange(index, 'tiebreak2', e.target.value)}
+                              inputProps={{ min: 0 }}
+                              sx={{ width: 100, mx: 1 }}
+                            />
+                            <IconButton onClick={() => incrementScore(index, 'tiebreak2')} size="small">
+                              <Add />
+                            </IconButton>
+                          </Box>
+                        </>
+                      )}
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                      <IconButton onClick={() => decrementScore(index, 'player2')} size="small">
-                        <Remove />
-                      </IconButton>
-                      <TextField
-                        label="Puntaje Jugador 2"
-                        type="number"
-                        value={set.player2}
-                        onChange={(e) => handleScoreChange(index, 'player2', e.target.value)}
-                        inputProps={{ min: 0 }}
-                        sx={{ width: 100, mx: 1 }}
-                      />
-                      <IconButton onClick={() => incrementScore(index, 'player2')} size="small">
-                        <Add />
-                      </IconButton>
-                    </Box>
-                    {set.player1 >= tournament.format.tiebreakSet && set.player2 >= tournament.format.tiebreakSet && (
-                      <>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                          <IconButton onClick={() => decrementScore(index, 'tiebreak1')} size="small">
-                            <Remove />
-                          </IconButton>
-                          <TextField
-                            label="Tiebreak Jugador 1"
-                            type="number"
-                            value={set.tiebreak1}
-                            onChange={(e) => handleScoreChange(index, 'tiebreak1', e.target.value)}
-                            inputProps={{ min: 0 }}
-                            sx={{ width: 100, mx: 1 }}
-                          />
-                          <IconButton onClick={() => incrementScore(index, 'tiebreak1')} size="small">
-                            <Add />
-                          </IconButton>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                          <IconButton onClick={() => decrementScore(index, 'tiebreak2')} size="small">
-                            <Remove />
-                          </IconButton>
-                          <TextField
-                            label="Tiebreak Jugador 2"
-                            type="number"
-                            value={set.tiebreak2}
-                            onChange={(e) => handleScoreChange(index, 'tiebreak2', e.target.value)}
-                            inputProps={{ min: 0 }}
-                            sx={{ width: 100, mx: 1 }}
-                          />
-                          <IconButton onClick={() => incrementScore(index, 'tiebreak2')} size="small">
-                            <Add />
-                          </IconButton>
-                        </Box>
-                      </>
-                    )}
-                  </Box>
-                )
-              ))}
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMatchDialogOpen(false)}>Cancelar</Button>
-          <Button onClick={submitMatchResult} color="primary">Guardar</Button>
-        </DialogActions>
-      </Dialog>
+                  )
+                ))}
+              </>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setMatchDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={submitMatchResult} color="primary">Guardar</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Box>
   );
 };

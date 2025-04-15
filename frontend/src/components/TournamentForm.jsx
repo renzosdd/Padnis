@@ -22,6 +22,7 @@ import {
   Stack,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import { useMediaQuery } from '@mui/material';
 
 const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
   const [firstName, setFirstName] = useState('');
@@ -120,7 +121,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
     schedule: { group: null, matches: [] },
     groupSize: 4,
     autoGenerate: true,
-    playersPerGroupToAdvance: 2, // Nuevo campo
+    playersPerGroupToAdvance: 2,
   });
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [pairPlayers, setPairPlayers] = useState([]);
@@ -130,6 +131,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
   const [clubs, setClubs] = useState([]);
   const { user } = useAuth();
   const { addNotification } = useNotification();
+  const isMobile = useMediaQuery('(max-width:600px)'); // Detectar móvil
 
   useEffect(() => {
     const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
@@ -145,7 +147,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       setClubs(response.data);
     } catch (error) {
       addNotification('Error al cargar clubes', 'error');
-      console.error('Error fetching clubs:', error);
     }
   };
 
@@ -193,7 +194,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
         groups: formData.groups,
         rounds: formData.rounds,
         schedule: formData.schedule,
-        playersPerGroupToAdvance: formData.playersPerGroupToAdvance, // Incluir aquí
+        playersPerGroupToAdvance: formData.playersPerGroupToAdvance,
         draft,
       };
       const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
@@ -229,590 +230,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
     setSearch('');
   };
 
-  const Step1 = () => {
-    const categories = formData.sport === 'Tenis'
-      ? ['A', 'B', 'C', 'D', 'E']
-      : ['Séptima', 'Sexta', 'Quinta', 'Cuarta', 'Tercera', 'Segunda', 'Primera'];
-
-    return (
-      <Stack
-        spacing={3}
-        sx={{
-          maxWidth: '90%',
-          width: { xs: '100%', sm: 400 },
-          mx: 'auto',
-          bgcolor: '#ffffff',
-          p: { xs: 4, sm: 3 },
-          borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <TextField
-          label="Nombre del Torneo *"
-          value={name}
-          onChange={handleNameChange}
-          fullWidth
-          variant="outlined"
-          sx={{
-            bgcolor: '#fafafa',
-            '& .MuiInputBase-input': { fontSize: { xs: '1.2rem', sm: '1.1rem' } },
-            '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#0288d1' },
-              '&:hover fieldset': { borderColor: '#0277bd' },
-              '&.Mui-focused fieldset': { borderColor: '#01579b' },
-            },
-            '& .MuiInputLabel-root': { color: '#0288d1' },
-            '& .MuiInputLabel-root.Mui-focused': { color: '#01579b' },
-          }}
-        />
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="club-label">Club</InputLabel>
-          <Select
-            labelId="club-label"
-            id="club"
-            value={formData.clubId}
-            label="Club"
-            onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value="">Ninguno</MenuItem>
-            {clubs.map(club => (
-              <MenuItem key={club._id} value={club._id}>{club.name}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
-          <Select
-            labelId="tournament-type-label"
-            id="tournament-type"
-            value={formData.type}
-            label="Tipo de Torneo"
-            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value="RoundRobin">Round Robin</MenuItem>
-            <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="sport-label">Deporte</InputLabel>
-          <Select
-            labelId="sport-label"
-            id="sport"
-            value={formData.sport}
-            label="Deporte"
-            onChange={(e) => setFormData({ ...formData, sport: e.target.value, category: '' })}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value="Tenis">Tenis</MenuItem>
-            <MenuItem value="Pádel">Pádel</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="category-label">Categoría *</InputLabel>
-          <Select
-            labelId="category-label"
-            id="category"
-            value={formData.category}
-            label="Categoría"
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            {categories.map(cat => (
-              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="format-mode-label">Modalidad</InputLabel>
-          <Select
-            labelId="format-mode-label"
-            id="format-mode"
-            value={formData.format.mode}
-            label="Modalidad"
-            onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value="Singles">Singles</MenuItem>
-            <MenuItem value="Dobles">Dobles</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="sets-label">Sets por Partido</InputLabel>
-          <Select
-            labelId="sets-label"
-            id="sets"
-            value={formData.format.sets}
-            label="Sets por Partido"
-            onChange={(e) => setFormData({ ...formData, format: { ...formData.format, sets: e.target.value } })}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value={1}>1 Set</MenuItem>
-            <MenuItem value={2}>2 Sets</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="players-per-group-label">Jugadores que pasan por grupo</InputLabel>
-          <Select
-            labelId="players-per-group-label"
-            id="players-per-group"
-            value={formData.playersPerGroupToAdvance}
-            label="Jugadores que pasan por grupo"
-            onChange={(e) => setFormData({ ...formData, playersPerGroupToAdvance: e.target.value })}
-            disabled={formData.type !== 'RoundRobin'}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value={1}>1</MenuItem>
-            <MenuItem value={2}>2</MenuItem>
-            <MenuItem value={3}>3</MenuItem>
-          </Select>
-        </FormControl>
-      </Stack>
-    );
-  };
-
-  const Step2 = () => {
-    const handleAddPlayer = (playerId) => {
-      const idAsString = String(playerId);
-      if (formData.format.mode === 'Singles') {
-        if (selectedPlayers.includes(idAsString)) {
-          addNotification('Jugador ya seleccionado', 'error');
-          return;
-        }
-        setSelectedPlayers(prev => [...prev, idAsString]);
-      } else {
-        if (pairPlayers.length >= 2) {
-          addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
-          return;
-        }
-        if (pairPlayers.includes(idAsString) || formData.participants.some(p => p.player1 === idAsString || p.player2 === idAsString)) {
-          addNotification('Jugador ya seleccionado o en una pareja', 'error');
-          return;
-        }
-        setPairPlayers(prev => [...prev, idAsString]);
-      }
-    };
-
-    const addPair = () => {
-      if (pairPlayers.length !== 2) {
-        addNotification('Selecciona exactamente 2 jugadores para formar una pareja', 'error');
-        return;
-      }
-      if (pairPlayers[0] === pairPlayers[1]) {
-        addNotification('No puedes seleccionar al mismo jugador dos veces', 'error');
-        return;
-      }
-      if (formData.participants.some(p => p.player1 === pairPlayers[0] || p.player2 === pairPlayers[0] || p.player1 === pairPlayers[1] || p.player2 === pairPlayers[1])) {
-        addNotification('Uno o ambos jugadores ya están en una pareja', 'error');
-        return;
-      }
-      setFormData(prev => ({
-        ...prev,
-        participants: [...prev.participants, { player1: pairPlayers[0], player2: pairPlayers[1], seed: false }],
-      }));
-      setPairPlayers([]);
-    };
-
-    const removeParticipant = (playerId) => {
-      const idAsString = String(playerId);
-      setSelectedPlayers(prev => prev.filter(id => id !== idAsString));
-    };
-
-    const removePair = (pair) => {
-      setFormData(prev => ({
-        ...prev,
-        participants: prev.participants.filter(p => !(p.player1 === pair.player1 && p.player2 === pair.player2)),
-      }));
-    };
-
-    const handleAddNewPlayer = (newPlayer) => {
-      const normalizedPlayer = { ...newPlayer, _id: String(newPlayer._id) };
-      setLocalPlayers(prev => [...prev, normalizedPlayer]);
-      if (formData.format.mode === 'Singles') {
-        setSelectedPlayers(prev => [...prev, normalizedPlayer._id]);
-      }
-      setNewPlayerDialogOpen(false);
-    };
-
-    const filteredPlayers = localPlayers.filter(player => {
-      const fullName = `${player.firstName} ${player.lastName}`.toLowerCase();
-      return fullName.includes(search.toLowerCase());
-    });
-
-    return (
-      <Stack
-        spacing={3}
-        sx={{
-          maxWidth: '90%',
-          width: { xs: '100%', sm: 600 },
-          mx: 'auto',
-          bgcolor: '#ffffff',
-          p: { xs: 4, sm: 3 },
-          borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <TextField
-          id="search-players"
-          label="Buscar Jugadores"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          fullWidth
-          variant="outlined"
-          sx={{
-            bgcolor: '#fafafa',
-            '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#0288d1' },
-              '&:hover fieldset': { borderColor: '#0277bd' },
-              '&.Mui-focused fieldset': { borderColor: '#01579b' },
-            },
-            '& .MuiInputLabel-root': { color: '#0288d1' },
-            '& .MuiInputLabel-root.Mui-focused': { color: '#01579b' },
-          }}
-        />
-        <Typography variant="subtitle1" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
-          Jugadores Disponibles
-        </Typography>
-        <Box
-          sx={{
-            maxHeight: '30vh',
-            overflowY: 'auto',
-            border: '1px solid #e0e0e0',
-            borderRadius: 2,
-            bgcolor: '#fafafa',
-            p: 1,
-          }}
-        >
-          {filteredPlayers.map(player => (
-            <Box
-              key={player._id}
-              sx={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                py: 1.5,
-                borderBottom: '1px solid #e0e0e0',
-                flexDirection: { xs: 'column', sm: 'row' },
-                gap: 1.5,
-              }}
-            >
-              <Typography sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
-                {`${player.firstName} ${player.lastName}`}
-              </Typography>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => handleAddPlayer(player._id)}
-                disabled={
-                  (formData.format.mode === 'Singles' && selectedPlayers.includes(String(player._id))) ||
-                  (formData.format.mode === 'Dobles' &&
-                    (pairPlayers.includes(String(player._id)) ||
-                      formData.participants.some(p => p.player1 === String(player._id) || p.player2 === String(player._id))))
-                }
-                sx={{
-                  bgcolor: '#0288d1',
-                  color: '#fff',
-                  fontSize: { xs: '0.9rem', sm: '1rem' },
-                  py: 1,
-                  px: 2,
-                  transition: 'all 0.2s',
-                  '&:hover': { bgcolor: '#0277bd' },
-                }}
-              >
-                Agregar
-              </Button>
-            </Box>
-          ))}
-        </Box>
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={() => setNewPlayerDialogOpen(true)}
-          sx={{
-            borderColor: '#388e3c',
-            color: '#388e3c',
-            fontSize: { xs: '0.9rem', sm: '1rem' },
-            py: 1,
-            transition: 'all 0.2s',
-            '&:hover': { borderColor: '#2e7d32', bgcolor: '#e8f5e9' },
-          }}
-        >
-          Agregar Jugador
-        </Button>
-        {formData.format.mode === 'Dobles' && (
-          <>
-            <Button
-              variant="contained"
-              onClick={addPair}
-              disabled={pairPlayers.length !== 2}
-              sx={{
-                bgcolor: '#388e3c',
-                color: '#fff',
-                fontSize: { xs: '0.9rem', sm: '1rem' },
-                py: 1,
-                transition: 'all 0.2s',
-                '&:hover': { bgcolor: '#2e7d32' },
-              }}
-            >
-              Formar Pareja
-            </Button>
-            <Typography variant="subtitle1" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
-              Parejas Seleccionadas
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-              {formData.participants.map((pair, idx) => (
-                <Chip
-                  key={idx}
-                  label={`${localPlayers.find(p => p._id === pair.player1)?.firstName} ${localPlayers.find(p => p._id === pair.player1)?.lastName} / ${localPlayers.find(p => p._id === pair.player2)?.firstName} ${localPlayers.find(p => p._id === pair.player2)?.lastName}`}
-                  onDelete={() => removePair(pair)}
-                  sx={{
-                    bgcolor: '#e3f2fd',
-                    color: '#01579b',
-                    fontSize: { xs: '0.9rem', sm: '1rem' },
-                    py: 1.5,
-                    px: 1,
-                  }}
-                />
-              ))}
-              {pairPlayers.map(playerId => (
-                <Chip
-                  key={playerId}
-                  label={`${localPlayers.find(p => p._id === playerId)?.firstName} ${localPlayers.find(p => p._id === playerId)?.lastName} (en espera)`}
-                  sx={{
-                    bgcolor: '#eeeeee',
-                    color: '#666',
-                    fontSize: { xs: '0.9rem', sm: '1rem' },
-                    py: 1.5,
-                    px: 1,
-                  }}
-                />
-              ))}
-            </Box>
-          </>
-        )}
-        {formData.format.mode === 'Singles' && (
-          <>
-            <Typography variant="subtitle1" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
-              Jugadores Seleccionados
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-              {selectedPlayers.map(playerId => (
-                <Chip
-                  key={playerId}
-                  label={`${localPlayers.find(p => p._id === playerId)?.firstName} ${localPlayers.find(p => p._id === playerId)?.lastName}`}
-                  onDelete={() => removeParticipant(playerId)}
-                  sx={{
-                    bgcolor: '#e3f2fd',
-                    color: '#01579b',
-                    fontSize: { xs: '0.9rem', sm: '1rem' },
-                    py: 1.5,
-                    px: 1,
-                  }}
-                />
-              ))}
-            </Box>
-          </>
-        )}
-        <NewPlayerDialog
-          open={newPlayerDialogOpen}
-          onClose={() => setNewPlayerDialogOpen(false)}
-          onAddPlayer={handleAddNewPlayer}
-        />
-      </Stack>
-    );
-  };
-
-  const Step3 = () => {
-    const generateAutoGroups = () => {
-      const shuffled = [...formData.participants].sort(() => 0.5 - Math.random());
-      const groups = [];
-      for (let i = 0; i < shuffled.length; i += formData.groupSize) {
-        const groupPlayers = shuffled.slice(i, i + formData.groupSize);
-        const matches = groupPlayers.flatMap((p1, idx) =>
-          groupPlayers.slice(idx + 1).map(p2 => ({
-            player1: p1,
-            player2: p2,
-            result: { sets: [], winner: null },
-            date: formData.schedule.group || null,
-          }))
-        );
-        groups.push({ name: `Grupo ${groups.length + 1}`, players: groupPlayers, matches, standings: [] });
-      }
-      return groups;
-    };
-
-    const generateAutoRounds = () => {
-      const seeded = formData.participants.filter(p => p.seed);
-      const unseeded = formData.participants.filter(p => !p.seed).sort(() => 0.5 - Math.random());
-      const participants = seeded.length >= 2 ? [seeded[0], ...unseeded, seeded[1]] : [...seeded, ...unseeded];
-      const totalSlots = Math.pow(2, Math.ceil(Math.log2(participants.length)));
-      const byes = totalSlots - participants.length;
-      const matches = [];
-      for (let i = 0; i < totalSlots / 2; i++) {
-        const p1 = i < participants.length ? participants[i] : { player1: null, name: 'BYE' };
-        const p2 = i < byes ? { player1: null, name: 'BYE' } : participants[totalSlots - 1 - i] || { player1: null, name: 'BYE' };
-        matches.push({ player1: p1, player2: p2, result: { sets: [], winner: p1.player1 && !p2.player1 ? p1.player1 : null }, date: formData.schedule.group || null });
-      }
-      return [{ round: 1, matches }];
-    };
-
-    return (
-      <Stack
-        spacing={3}
-        sx={{
-          maxWidth: '90%',
-          width: { xs: '100%', sm: 600 },
-          mx: 'auto',
-          bgcolor: '#ffffff',
-          p: { xs: 4, sm: 3 },
-          borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="group-size-label">Tamaño de Grupos (Round Robin)</InputLabel>
-          <Select
-            labelId="group-size-label"
-            id="group-size"
-            value={formData.groupSize}
-            label="Tamaño de Grupos (Round Robin)"
-            onChange={(e) => setFormData({ ...formData, groupSize: e.target.value })}
-            disabled={formData.type === 'Eliminatorio'}
-            sx={{
-              bgcolor: '#fafafa',
-              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            }}
-          >
-            <MenuItem value={3}>3 Jugadores</MenuItem>
-            <MenuItem value={4}>4 Jugadores</MenuItem>
-            <MenuItem value={5}>5 Jugadores</MenuItem>
-          </Select>
-        </FormControl>
-        <TextField
-          id="schedule-group"
-          label="Fecha General (Opcional)"
-          type="datetime-local"
-          value={formData.schedule.group ? formData.schedule.group.slice(0, 16) : ''}
-          onChange={(e) => setFormData({ ...formData, schedule: { ...formData.schedule, group: e.target.value || null } })}
-          fullWidth
-          variant="outlined"
-          InputLabelProps={{ shrink: true }}
-          sx={{
-            bgcolor: '#fafafa',
-            '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#0288d1' },
-              '&:hover fieldset': { borderColor: '#0277bd' },
-              '&.Mui-focused fieldset': { borderColor: '#01579b' },
-            },
-            '& .MuiInputLabel-root': { color: '#0288d1' },
-            '& .MuiInputLabel-root.Mui-focused': { color: '#01579b' },
-          }}
-        />
-        <Button
-          variant="contained"
-          onClick={() =>
-            setFormData({
-              ...formData,
-              groups: formData.type === 'RoundRobin' ? generateAutoGroups() : [],
-              rounds: formData.type === 'Eliminatorio' ? generateAutoRounds() : [],
-            })
-          }
-          sx={{
-            bgcolor: '#0288d1',
-            color: '#fff',
-            fontSize: { xs: '0.9rem', sm: '1rem' },
-            py: 1,
-            transition: 'all 0.2s',
-            '&:hover': { bgcolor: '#0277bd' },
-          }}
-        >
-          Generar Vista Previa
-        </Button>
-        {(formData.groups.length > 0 || formData.rounds.length > 0) && (
-          <Box>
-            {formData.type === 'RoundRobin'
-              ? formData.groups.map(group => (
-                  <Box key={group.name} sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
-                      {group.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                      {group.players.map(p => (
-                        <Chip
-                          key={p.player1}
-                          label={
-                            formData.format.mode === 'Singles'
-                              ? `${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName}`
-                              : `${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName} / ${localPlayers.find(pl => pl._id === p.player2)?.firstName} ${localPlayers.find(pl => pl._id === p.player2)?.lastName}`
-                          }
-                          sx={{
-                            bgcolor: '#e3f2fd',
-                            color: '#01579b',
-                            fontSize: { xs: '0.9rem', sm: '1rem' },
-                            py: 1.5,
-                            px: 1,
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                ))
-              : formData.rounds.map(round => (
-                  <Box key={round.round} sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
-                      Ronda {round.round}
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                      {round.matches.map((m, idx) => (
-                        <Chip
-                          key={idx}
-                          label={
-                            formData.format.mode === 'Singles'
-                              ? `${localPlayers.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`
-                              : `${localPlayers.find(p => p._id === m.player1.player1)?.firstName} / ${localPlayers.find(p => p._id === m.player1.player2)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName} / ${localPlayers.find(p => p._id === m.player2.player2)?.firstName || 'BYE'}`
-                          }
-                          sx={{
-                            bgcolor: '#e3f2fd',
-                            color: '#01579b',
-                            fontSize: { xs: '0.9rem', sm: '1rem' },
-                            py: 1.5,
-                            px: 1,
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                ))}
-          </Box>
-        )}
-      </Stack>
-    );
-  };
-
   const steps = ['Datos Básicos', 'Participantes', 'Grupos/Rondas'];
 
   return (
@@ -821,7 +238,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
         p: { xs: 3, sm: 4 },
         maxWidth: '100%',
         mx: 'auto',
-        bgcolor: '#f0f4f8',
+        bgcolor: '#f5f5f5',
         minHeight: '100vh',
       }}
     >
@@ -830,8 +247,8 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
         gutterBottom
         sx={{
           fontSize: { xs: '1.8rem', sm: '2rem' },
-          color: '#01579b',
-          fontWeight: 700,
+          color: '#333',
+          fontWeight: 600,
           textAlign: 'center',
         }}
       >
@@ -839,13 +256,16 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       </Typography>
       <Stepper
         activeStep={step}
+        orientation={isMobile ? 'vertical' : 'horizontal'} // Vertical en móvil
         sx={{
           mb: 3,
-          flexDirection: { xs: 'column', sm: 'row' },
           bgcolor: '#ffffff',
           p: 2,
           borderRadius: 2,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          width: { xs: '100%', sm: 'auto' }, // Ajuste en móvil
+          display: 'flex',
+          justifyContent: 'center',
         }}
       >
         {steps.map(label => (
@@ -885,13 +305,13 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             variant="contained"
             onClick={handleNext}
             sx={{
-              bgcolor: '#0288d1',
+              bgcolor: '#1976d2',
               color: '#fff',
               fontSize: { xs: '0.9rem', sm: '1rem' },
               py: 1,
               px: 3,
               transition: 'all 0.2s',
-              '&:hover': { bgcolor: '#0277bd' },
+              '&:hover': { bgcolor: '#1565c0' },
             }}
           >
             Siguiente
@@ -918,13 +338,13 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
               variant="outlined"
               onClick={() => handleSubmit(true)}
               sx={{
-                borderColor: '#0288d1',
-                color: '#0288d1',
+                borderColor: '#1976d2',
+                color: '#1976d2',
                 fontSize: { xs: '0.9rem', sm: '1rem' },
                 py: 1,
                 px: 3,
                 transition: 'all 0.2s',
-                '&:hover': { borderColor: '#0277bd', bgcolor: '#e3f2fd' },
+                '&:hover': { borderColor: '#1565c0', bgcolor: '#e3f2fd' },
               }}
             >
               Guardar Borrador
