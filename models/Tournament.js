@@ -21,7 +21,7 @@ const matchSchema = new mongoose.Schema({
     winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   },
   date: { type: String },
-});
+}, { _id: true }); // Genera IDs únicos para cada partido
 
 const groupSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -33,16 +33,16 @@ const groupSchema = new mongoose.Schema({
     setsWon: { type: Number, default: 0 },
     gamesWon: { type: Number, default: 0 },
   }],
-});
+}, { _id: true }); // IDs únicos para grupos
 
 const roundSchema = new mongoose.Schema({
   round: { type: Number, required: true },
   matches: [matchSchema],
-});
+}, { _id: true }); // IDs únicos para rondas
 
 const tournamentSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' }, // No obligatorio
+  club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
   type: { type: String, enum: ['RoundRobin', 'Eliminatorio'], required: true },
   sport: { type: String, enum: ['Tenis', 'Pádel'], required: true },
   category: {

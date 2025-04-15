@@ -518,6 +518,53 @@ app.get('/api/tournaments/:id', async (req, res) => {
   }
 });
 
+app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, async (req, res) => {
+  const { tournamentId, matchId } = req.params;
+  const { sets, winner } = req.body;
+
+  try {
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ message: 'Torneo no encontrado' });
+    }
+
+    let match;
+    if (tournament.type === 'RoundRobin') {
+      for (const group of tournament.groups) {
+        match = group.matches.id(matchId);
+        if (match) break;
+      }
+    } else {
+      for (const round of tournament.rounds) {
+        match = round.matches.id(matchId);
+        if (match) break;
+      }
+    }
+
+    if (!match) {
+      return res.status(404).json({ message: 'Partido no encontrado' });
+    }
+
+    // Validar que el ganador exista en la colección Player
+    if (winner) {
+      const playerExists = await Player.findById(winner);
+      if (!playerExists) {
+        return res.status(400).json({ message: 'El ganador no existe' });
+      }
+    }
+
+    // Actualizar el resultado del partido
+    match.result.sets = sets;
+    match.result.winner = winner;
+    await tournament.save();
+
+    res.json({ message: 'Resultado actualizado' });
+  } catch (error) {
+    console.error('Error updating match result:', error);
+    res.status(500).json({ message: 'Error al actualizar resultado', error: error.message });
+  }
+});
+
 // Iniciar el servidor
 connectDB().then(() => {
   const PORT = process.env.PORT || 5001;
