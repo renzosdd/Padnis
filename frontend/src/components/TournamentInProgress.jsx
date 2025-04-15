@@ -42,6 +42,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   const updateStandings = (tournamentData) => {
     const newStandings = tournamentData.groups.map(group => {
+      console.log('Group players:', group.players);
       const standings = group.players.map(p => ({
         playerId: p.player1,
         player2Id: p.player2 || null,
@@ -133,7 +134,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     });
   }, []);
 
-  const determineWinner = (sets) => {
+  const determineWinner = (sets, player1Id, player2Id) => {
     let setsWonByPlayer1 = 0;
     let setsWonByPlayer2 = 0;
     sets.forEach(set => {
@@ -149,7 +150,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
       }
     });
-    return { setsWonByPlayer1, setsWonByPlayer2 };
+    if (setsWonByPlayer1 > setsWonByPlayer2) {
+      return player1Id;
+    } else if (setsWonByPlayer2 > setsWonByPlayer1) {
+      return player2Id;
+    }
+    return null;
   };
 
   const submitMatchResult = async (retries = 2) => {
@@ -170,6 +176,23 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const { match, groupIndex, matchIndex } = selectedMatch;
       if (!match.player1?.player1 || !match.player2?.player1) {
         addNotification('Datos de jugadores incompletos', 'error');
+        console.error('Invalid match data:', match);
+        return;
+      }
+      const player1Id = match.player1.player1;
+      const player2Id = match.player2.player1;
+      const participant1 = tournament.participants.find(p => p.player1.toString() === player1Id.toString());
+      const participant2 = tournament.participants.find(p => p.player1.toString() === player2Id.toString());
+      if (!participant1 || !participant2) {
+        addNotification('No se encontraron los participantes en el torneo', 'error');
+        console.error('Invalid participants:', {
+          player1Id,
+          player2Id,
+          participants: tournament.participants.map(p => ({
+            player1: p.player1,
+            player2: p.player2,
+          })),
+        });
         return;
       }
       const updatedTournament = { ...tournament };
@@ -180,33 +203,20 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         tiebreak2: set.tiebreak2 > 0 ? set.tiebreak2 : undefined,
       }));
 
-      const { setsWonByPlayer1, setsWonByPlayer2 } = determineWinner(sets);
+      const winnerId = determineWinner(sets, player1Id, player2Id);
 
       if (tournament.type === 'RoundRobin') {
         updatedTournament.groups[groupIndex].matches[matchIndex].result.sets = sets;
-        if (setsWonByPlayer1 > setsWonByPlayer2) {
-          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
-        } else if (setsWonByPlayer2 > setsWonByPlayer1) {
-          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player2.player1;
-        } else {
-          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = null;
-        }
+        updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = winnerId;
       } else {
         updatedTournament.rounds[groupIndex].matches[matchIndex].result.sets = sets;
-        if (setsWonByPlayer1 > setsWonByPlayer2) {
-          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
-        } else if (setsWonByPlayer2 > setsWonByPlayer1) {
-          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player2.player1;
-        } else {
-          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = null;
-        }
+        updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = winnerId;
       }
 
       console.log('Submitting match result:', {
         match: { player1: match.player1, player2: match.player2 },
         sets,
-        winner: updatedTournament.groups?.[groupIndex]?.matches?.[matchIndex]?.result?.winner ||
-                updatedTournament.rounds?.[groupIndex]?.matches?.[matchIndex]?.result?.winner,
+        winnerId,
       });
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -235,7 +245,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     try {
       const topPlayers = standings.flatMap(group => 
         group.standings.slice(0, 2).map(s => {
-          const participant = tournament.participants.find(p => p.player1 === s.playerId);
+          const participant = tournament.participants.find(p => p.player1.toString() === s.playerId.toString());
           if (!participant) {
             console.warn(`Participant not found for playerId: ${s.playerId}`);
             return null;
@@ -302,7 +312,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
           const winnerId = m.result.winner || m.player1.player1;
-          const participant = tournament.participants.find(p => p.player1 === winnerId);
+          const participant = tournament.participants.find(p => p.player1.toString() === winnerId.toString());
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
@@ -386,32 +396,40 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   const renderBracket = () => {
     if (tournament.type !== 'Eliminatorio') return null;
-    const rounds = tournament.rounds;
+    console.log('Rendering bracket with rounds:', tournament.rounds);
+    const rounds = tournament.rounds || [];
+    if (rounds.length === 0) {
+      return <Typography>No hay rondas disponibles para mostrar.</Typography>;
+    }
     return (
       <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
         {rounds.map((round, index) => (
           <Box key={round.round} sx={{ mx: 2 }}>
             <Typography variant="h6">Ronda {round.round}</Typography>
-            {round.matches.map((match, idx) => (
-              <Box key={idx} sx={{ my: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 2 }}>
-                <Typography>
-                  {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
-                  {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                    <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
-                  )}
-                  {' vs '}
-                  {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
-                  {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                    <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
-                  )}
-                </Typography>
-                <Typography>
-                  {match.result.sets.length > 0 ? match.result.sets.map((set, i) => (
-                    <span key={i}>{set.player1}-{set.player2}{set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''} </span>
-                  )) : 'Pendiente'}
-                </Typography>
-              </Box>
-            ))}
+            {round.matches && round.matches.length > 0 ? (
+              round.matches.map((match, idx) => (
+                <Box key={idx} sx={{ my: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                  <Typography>
+                    {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
+                    {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
+                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                    )}
+                    {' vs '}
+                    {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
+                    {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
+                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                    )}
+                  </Typography>
+                  <Typography>
+                    {match.result.sets.length > 0 ? match.result.sets.map((set, i) => (
+                      <span key={i}>{set.player1}-{set.player2}{set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''} </span>
+                    )) : 'Pendiente'}
+                  </Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography>No hay partidos en esta ronda.</Typography>
+            )}
           </Box>
         ))}
       </Box>
@@ -637,10 +655,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 </TableHead>
                 <TableBody>
                   {group.standings.map((player, idx) => {
-                    const participant = tournament.participants.find(p => p.player1 === player.playerId);
+                    const participant = tournament.participants.find(p => p.player1.toString() === player.playerId.toString());
                     const player1Name = participant?.player1?.firstName ? `${participant.player1.firstName} ${participant.player1.lastName}` : 'Jugador no encontrado';
                     const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 ? `${participant.player2.firstName} ${participant.player2.lastName}` : '';
                     const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                    console.log('Position entry:', { playerId: player.playerId, participant, label });
                     return (
                       <TableRow key={idx}>
                         <TableCell>{label}</TableCell>
