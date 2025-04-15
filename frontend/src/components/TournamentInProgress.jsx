@@ -175,11 +175,23 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       return;
     }
     for (const set of validSets) {
-      if (set.player1 === set.player2 && set.player1 >= tournament.format.tiebreakSet) {
-        if (!set.tiebreak1 || !set.tiebreak2 || set.tiebreak1 === set.tiebreak2) {
-          addNotification('Ingresa puntajes de tiebreak válidos para sets empatados', 'error');
+      const { player1, player2, tiebreak1, tiebreak2 } = set;
+      if (player1 === 6 && player2 <= 4) continue;
+      if (player2 === 6 && player1 <= 4) continue;
+      if (player1 === 7 && player2 === 5) continue;
+      if (player2 === 7 && player1 === 5) continue;
+      if (player1 === 6 && player2 === 6) {
+        if (!tiebreak1 || !tiebreak2 || tiebreak1 === tiebreak2) {
+          addNotification('Ingresa puntajes de tiebreak válidos (diferencia mínima de 2)', 'error');
           return;
         }
+        if (Math.abs(tiebreak1 - tiebreak2) < 2 || (tiebreak1 < 7 && tiebreak2 < 7)) {
+          addNotification('El tiebreak debe ganarse por 2 puntos de diferencia, mínimo 7', 'error');
+          return;
+        }
+      } else {
+        addNotification('Puntaje de set inválido (debe ser 6-4, 7-5 o 6-6 con tiebreak)', 'error');
+        return;
       }
     }
     try {
@@ -209,10 +221,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
-      addNotification(`Error al actualizar el resultado del partido (código ${statusCode}): ${errorMessage}`, 'error');
+      addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}`, 'error');
       console.error('Error updating match result:', error);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
-        console.log(`Retrying submitMatchResult (${retries} attempts left)...`);
         setTimeout(() => submitMatchResult(retries - 1), 2000);
       }
     }
@@ -300,8 +311,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return null;
           }
           return {
-            player1: participant.player1._id ? participant.player1._id : participant.player1,
-            player2: tournament.format.mode === 'Dobles' ? (participant.player2 ? (participant.player2._id ? participant.player2._id : participant.player2) : null) : null,
+            player1: participant.player1._id ? participant.player1._id.toString() : participant.player1.toString(),
+            player2: tournament.format.mode === 'Dobles' && participant.player2 
+              ? (participant.player2._id ? participant.player2._id.toString() : participant.player2.toString()) 
+              : null,
           };
         })
         .filter(w => w !== null);
@@ -353,12 +366,31 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('Faltan completar algunos partidos', 'error');
         return;
       }
-      const updatedTournament = { ...tournament, status: 'Finalizado', draft: false };
+      let winner;
+      if (tournament.type === 'Eliminatorio') {
+        const finalRound = tournament.rounds[tournament.rounds.length - 1];
+        const finalMatch = finalRound.matches[0];
+        winner = finalMatch.result.winner;
+      } else if (tournament.type === 'RoundRobin') {
+        const allStandings = standings.flatMap(group => group.standings);
+        winner = allStandings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon)[0].playerId;
+      }
+      if (!winner) {
+        addNotification('No se pudo determinar un ganador', 'error');
+        return;
+      }
+      const updatedTournament = { 
+        ...tournament, 
+        status: 'Finalizado', 
+        draft: false, 
+        winner 
+      };
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       onFinishTournament(updatedTournament);
-      addNotification('Torneo finalizado con éxito', 'success');
+      const winnerPlayer = tournament.participants.find(p => p.player1._id.toString() === winner.toString());
+      addNotification(`Torneo finalizado con éxito. Ganador: ${winnerPlayer.player1.firstName} ${winnerPlayer.player1.lastName}`, 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';

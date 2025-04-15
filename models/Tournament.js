@@ -45,6 +45,7 @@ const tournamentSchema = new mongoose.Schema({
   club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
   type: { type: String, enum: ['RoundRobin', 'Eliminatorio'], required: true },
   sport: { type: String, enum: ['Tenis', 'Pádel'], required: true },
+  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   category: {
     type: String,
     required: true,

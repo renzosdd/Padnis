@@ -440,6 +440,11 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Validar que si se finaliza el torneo, haya un ganador declarado
+    if (updates.status === 'Finalizado' && !updates.winner) {
+      return res.status(400).json({ message: 'Debe declararse un ganador para finalizar el torneo' });
+    }
+
     Object.assign(tournament, updates);
     await tournament.save();
     const updatedTournament = await Tournament.findById(id)
@@ -474,102 +479,49 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/tournaments/:id', async (req, res) => {
+// Nota: Falta la ruta PUT para /api/tournaments/:id/matches/:matchId/result
+// Agregar esta ruta para soportar la actualización de resultados de partidos
+app.put('/api/tournaments/:id/matches/:matchId/result', authenticateToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    const token = req.headers['authorization']?.split(' ')[1];
-    let user = null;
-    if (token) {
-      try {
-        user = jwt.verify(token, process.env.JWT_SECRET);
-      } catch (err) {
-        console.log('Invalid token, proceeding as spectator');
-      }
+    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
+      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
     }
-    const tournament = await Tournament.findById(id)
-      .populate('creator', 'username')
-      .populate('club', 'name')
-      .populate({
-        path: 'participants.player1 participants.player2',
-        select: 'firstName lastName',
-      })
-      .populate({
-        path: 'groups.matches.player1 groups.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
-      })
-      .populate({
-        path: 'rounds.matches.player1 rounds.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
-      });
+    const { id, matchId } = req.params;
+    const { sets, winner } = req.body;
+
+    const tournament = await Tournament.findById(id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
-    if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
-      return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
-    }
-    res.json(tournament.toObject({ virtuals: true }));
-  } catch (error) {
-    console.error('Error fetching tournament by ID:', error.stack);
-    res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });
-  }
-});
-
-app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, async (req, res) => {
-  const { tournamentId, matchId } = req.params;
-  const { sets, winner } = req.body;
-
-  try {
-    const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) {
-      return res.status(404).json({ message: 'Torneo no encontrado' });
-    }
 
     let match;
     if (tournament.type === 'RoundRobin') {
       for (const group of tournament.groups) {
-        match = group.matches.id(matchId);
-        if (match) break;
+        match = group.matches.find(m => m._id.toString() === matchId);
+        if (match) {
+          match.result = { sets, winner };
+          break;
+        }
       }
-    } else {
+    } else if (tournament.type === 'Eliminatorio') {
       for (const round of tournament.rounds) {
-        match = round.matches.id(matchId);
-        if (match) break;
+        match = round.matches.find(m => m._id.toString() === matchId);
+        if (match) {
+          match.result = { sets, winner };
+          break;
+        }
       }
     }
+    if (!match) return res.status(404).json({ message: 'Partido no encontrado' });
 
-    if (!match) {
-      return res.status(404).json({ message: 'Partido no encontrado' });
-    }
-
-    // Validar que el ganador exista en la colección Player
-    if (winner) {
-      const playerExists = await Player.findById(winner);
-      if (!playerExists) {
-        return res.status(400).json({ message: 'El ganador no existe' });
-      }
-    }
-
-    // Actualizar el resultado del partido
-    match.result.sets = sets;
-    match.result.winner = winner;
     await tournament.save();
-
-    res.json({ message: 'Resultado actualizado' });
+    res.json({ message: 'Resultado del partido actualizado' });
   } catch (error) {
-    console.error('Error updating match result:', error);
-    res.status(500).json({ message: 'Error al actualizar resultado', error: error.message });
+    console.error('Error updating match result:', error.stack);
+    res.status(500).json({ message: 'Error al actualizar resultado del partido', error: error.message });
   }
 });
 
 // Iniciar el servidor
+const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
-  const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}).catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
 });
