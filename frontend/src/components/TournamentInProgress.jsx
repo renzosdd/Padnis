@@ -29,7 +29,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [matchScores, setMatchScores] = useState([]);
-  const [standings, setStandings] = useState([]);
+  const [standings, setStandings] = useState([]); // Inicializado como arreglo vacío
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
 
@@ -90,7 +90,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       });
       return {
         groupName: group.name,
-        standings926: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
+        standings: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
       };
     });
     setStandings(newStandings);
@@ -210,11 +210,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
       addNotification(`Error al actualizar el resultado del partido (código ${statusCode}): ${errorMessage}`, 'error');
-      console.error('Error updating match result:', {
-        status: statusCode,
-        message: errorMessage,
-        stack: error.stack,
-      });
+      console.error('Error updating match result:', error);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying submitMatchResult (${retries} attempts left)...`);
         setTimeout(() => submitMatchResult(retries - 1), 2000);
@@ -225,19 +221,28 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const generateKnockoutPhase = async () => {
     if (tournament.type !== 'RoundRobin') return;
     try {
-      const topPlayers = standings.flatMap(group => 
-        group.standings.slice(0, 2).map(s => {
-          const participant = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === s.playerId.toString());
+      const topPlayers = standings.flatMap(group => {
+        if (!group.standings || !Array.isArray(group.standings)) {
+          console.warn(`El grupo ${group.groupName} no tiene standings. Se omitirá.`);
+          return [];
+        }
+        return group.standings.slice(0, 2).map(s => {
+          const participant = tournament.participants.find(p => 
+            (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === s.playerId.toString()
+          );
           if (!participant) {
-            console.warn(`Participant not found for playerId: ${s.playerId}`);
+            console.warn(`No se encontró participante para playerId: ${s.playerId}`);
             return null;
           }
           return {
             player1: participant.player1._id ? participant.player1._id : participant.player1,
-            player2: tournament.format.mode === 'Dobles' && participant.player2 ? (participant.player2._id ? participant.player2._id : participant.player2) : null,
+            player2: tournament.format.mode === 'Dobles' && participant.player2 
+              ? (participant.player2._id ? participant.player2._id : participant.player2) 
+              : null,
           };
-        }).filter(p => p !== null)
-      );
+        }).filter(p => p !== null);
+      });
+
       if (topPlayers.length < 2) {
         addNotification('No hay suficientes clasificados para generar la fase eliminatoria', 'error');
         return;
@@ -287,7 +292,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
           const winnerId = m.result.winner || m.player1.player1._id || m.player1.player1;
-          const participant = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === winnerId.toString());
+          const participant = tournament.participants.find(p => 
+            (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === winnerId.toString()
+          );
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
@@ -559,9 +566,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             </Button>
           )}
           {tournament.type === 'RoundRobin' && (role === 'admin' || role === 'coach') && (
-           
-
- <Button
+            <Button
               variant="contained"
               onClick={generateKnockoutPhase}
               sx={{ mt: 2, ml: 2 }}
@@ -608,37 +613,49 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       {tabValue === 3 && tournament.type === 'RoundRobin' && (
         <Box>
           <Typography variant="h5" gutterBottom>Posiciones</Typography>
-          {standings.map(group => (
-            <Box key={group.groupName} sx={{ mb: 3 }}>
-              <Typography variant="h6">{group.groupName}</Typography>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador' : 'Equipo'}</TableCell>
-                    <TableCell>Victorias</TableCell>
-                    <TableCell>Sets Ganados</TableCell>
-                    <TableCell>Juegos Ganados</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {group.standings.map((player, idx) => {
-                    const participant = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player.playerId.toString());
-                    const player1Name = participant?.player1?.firstName ? `${participant.player1.firstName} ${participant.player1.lastName || ''}` : 'Jugador no encontrado';
-                    const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 ? `${participant.player2.firstName} ${participant.player2.lastName || ''}` : '';
-                    const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                    return (
-                      <TableRow key={idx}>
-                        <TableCell>{label}</TableCell>
-                        <TableCell>{player.wins}</TableCell>
-                        <TableCell>{player.setsWon}</TableCell>
-                        <TableCell>{player.gamesWon}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Box>
-          ))}
+          {standings && Array.isArray(standings) ? (
+            standings.map(group => (
+              <Box key={group.groupName} sx={{ mb: 3 }}>
+                <Typography variant="h6">{group.groupName}</Typography>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{tournament.format.mode === 'Singles' ? 'Jugador' : 'Equipo'}</TableCell>
+                      <TableCell>Victorias</TableCell>
+                      <TableCell>Sets Ganados</TableCell>
+                      <TableCell>Juegos Ganados</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {group.standings.map((player, idx) => {
+                      const participant = tournament.participants.find(p => 
+                        (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player.playerId.toString()
+                      );
+                      const player1Name = participant?.player1?.firstName 
+                        ? `${participant.player1.firstName} ${participant.player1.lastName || ''}` 
+                        : 'Jugador no encontrado';
+                      const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 
+                        ? `${participant.player2.firstName} ${participant.player2.lastName || ''}` 
+                        : '';
+                      const label = tournament.format.mode === 'Singles' 
+                        ? player1Name 
+                        : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell>{label}</TableCell>
+                          <TableCell>{player.wins}</TableCell>
+                          <TableCell>{player.setsWon}</TableCell>
+                          <TableCell>{player.gamesWon}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Box>
+            ))
+          ) : (
+            <Typography>No hay posiciones disponibles para mostrar.</Typography>
+          )}
         </Box>
       )}
 
