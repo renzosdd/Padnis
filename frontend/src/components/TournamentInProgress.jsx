@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -10,7 +10,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState(null);
-  const [setScores, setSetScores] = useState([]);
+  const [matchScores, setMatchScores] = useState([]);
   const [standings, setStandings] = useState([]);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
@@ -31,10 +31,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           player1: m.player1,
           player2: m.player2,
         }))));
+        console.log('Participants:', response.data.participants);
         updateStandings(response.data);
       }
     } catch (error) {
-      addNotification(`Error al cargar el torneo: ${error.response?.status || error.message}`, 'error');
+      addNotification(`Error al cargar el torneo: ${error.response?.data?.message || error.message}`, 'error');
       console.error('Error fetching tournament:', error);
     }
   };
@@ -43,7 +44,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     const newStandings = tournamentData.groups.map(group => {
       const standings = group.players.map(p => ({
         playerId: p.player1,
-        player2Id: p.player2,
+        player2Id: p.player2 || null,
         wins: 0,
         setsWon: 0,
         gamesWon: 0,
@@ -60,10 +61,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             if (p1 && p2) {
               p1.gamesWon += set.player1;
               p2.gamesWon += set.player2;
-              if (set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)) {
+              if (set.player1 > set.player2) {
                 p1.setsWon += 1;
-              } else if (set.player2 > set.player1 || (set.player1 === set.player2 && set.tiebreak2 > set.tiebreak1)) {
+              } else if (set.player2 > set.player1) {
                 p2.setsWon += 1;
+              } else if (set.player1 === set.player2 && set.tiebreak1 !== undefined && set.tiebreak2 !== undefined) {
+                if (set.tiebreak1 > set.tiebreak2) {
+                  p1.setsWon += 1;
+                } else if (set.tiebreak2 > set.tiebreak1) {
+                  p2.setsWon += 1;
+                }
               }
             }
           });
@@ -74,6 +81,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         standings: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
       };
     });
+    console.log('Calculated standings:', newStandings);
     setStandings(newStandings);
   };
 
@@ -95,48 +103,75 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           tiebreak2: set.tiebreak2 || 0,
         }))
       : Array(tournament?.format.sets || 1).fill({ player1: 0, player2: 0, tiebreak1: 0, tiebreak2: 0 });
-    setSetScores(initialSets);
+    setMatchScores(initialSets);
     setMatchDialogOpen(true);
   };
 
-  const handleScoreChange = (index, field, value) => {
-    setSetScores(prev => {
+  const handleScoreChange = useCallback((index, field, value) => {
+    const parsedValue = parseInt(value);
+    if (isNaN(parsedValue) || parsedValue < 0) return;
+    setMatchScores(prev => {
       const newScores = [...prev];
-      newScores[index] = { ...newScores[index], [field]: Math.max(0, parseInt(value) || 0) };
+      newScores[index] = { ...newScores[index], [field]: parsedValue };
       return newScores;
     });
-  };
+  }, []);
 
-  const incrementScore = (index, field) => {
-    setSetScores(prev => {
+  const incrementScore = useCallback((index, field) => {
+    setMatchScores(prev => {
       const newScores = [...prev];
       newScores[index] = { ...newScores[index], [field]: newScores[index][field] + 1 };
       return newScores;
     });
-  };
+  }, []);
 
-  const decrementScore = (index, field) => {
-    setSetScores(prev => {
+  const decrementScore = useCallback((index, field) => {
+    setMatchScores(prev => {
       const newScores = [...prev];
       newScores[index] = { ...newScores[index], [field]: Math.max(0, newScores[index][field] - 1) };
       return newScores;
     });
+  }, []);
+
+  const determineWinner = (sets) => {
+    let setsWonByPlayer1 = 0;
+    let setsWonByPlayer2 = 0;
+    sets.forEach(set => {
+      if (set.player1 > set.player2) {
+        setsWonByPlayer1 += 1;
+      } else if (set.player2 > set.player1) {
+        setsWonByPlayer2 += 1;
+      } else if (set.player1 === set.player2 && set.tiebreak1 !== undefined && set.tiebreak2 !== undefined) {
+        if (set.tiebreak1 > set.tiebreak2) {
+          setsWonByPlayer1 += 1;
+        } else if (set.tiebreak2 > set.tiebreak1) {
+          setsWonByPlayer2 += 1;
+        }
+      }
+    });
+    return { setsWonByPlayer1, setsWonByPlayer2 };
   };
 
   const submitMatchResult = async (retries = 2) => {
-    const validSets = setScores.filter(set => set.player1 > 0 || set.player2 > 0);
+    const validSets = matchScores.filter(set => set.player1 > 0 || set.player2 > 0);
     if (validSets.length !== tournament.format.sets) {
       addNotification(`Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos`, 'error');
       return;
     }
     for (const set of validSets) {
-      if (set.player1 === set.player2 && set.player1 >= tournament.format.tiebreakSet && (!set.tiebreak1 || !set.tiebreak2)) {
-        addNotification('Debes ingresar puntajes de tiebreak para sets empatados', 'error');
-        return;
+      if (set.player1 === set.player2 && set.player1 >= tournament.format.tiebreakSet) {
+        if (!set.tiebreak1 || !set.tiebreak2 || set.tiebreak1 === set.tiebreak2) {
+          addNotification('Ingresa puntajes de tiebreak válidos para sets empatados', 'error');
+          return;
+        }
       }
     }
     try {
       const { match, groupIndex, matchIndex } = selectedMatch;
+      if (!match.player1?.player1 || !match.player2?.player1) {
+        addNotification('Datos de jugadores incompletos', 'error');
+        return;
+      }
       const updatedTournament = { ...tournament };
       const sets = validSets.map(set => ({
         player1: set.player1,
@@ -145,34 +180,25 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         tiebreak2: set.tiebreak2 > 0 ? set.tiebreak2 : undefined,
       }));
 
+      const { setsWonByPlayer1, setsWonByPlayer2 } = determineWinner(sets);
+
       if (tournament.type === 'RoundRobin') {
         updatedTournament.groups[groupIndex].matches[matchIndex].result.sets = sets;
-        const setsWonByPlayer1 = sets.filter(set => 
-          set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)
-        ).length;
-        const setsWonByPlayer2 = sets.filter(set => 
-          set.player1 < set.player2 || (set.player1 === set.player2 && set.tiebreak1 < set.tiebreak2)
-        ).length;
         if (setsWonByPlayer1 > setsWonByPlayer2) {
-          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player1?.player1;
+          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
         } else if (setsWonByPlayer2 > setsWonByPlayer1) {
-          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player2?.player1;
+          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player2.player1;
         }
       } else {
         updatedTournament.rounds[groupIndex].matches[matchIndex].result.sets = sets;
-        const setsWonByPlayer1 = sets.filter(set => 
-          set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)
-        ).length;
-        const setsWonByPlayer2 = sets.filter(set => 
-          set.player1 < set.player2 || (set.player1 === set.player2 && set.tiebreak1 < set.tiebreak2)
-        ).length;
         if (setsWonByPlayer1 > setsWonByPlayer2) {
-          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player1?.player1;
+          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
         } else if (setsWonByPlayer2 > setsWonByPlayer1) {
-          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player2?.player1;
+          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player2.player1;
         }
       }
 
+      console.log('Submitting match result:', updatedTournament);
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -180,12 +206,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       await fetchTournament();
       addNotification('Resultado de partido actualizado', 'success');
     } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      addNotification(`Error al actualizar el resultado del partido: ${errorMessage}`, 'error');
+      console.error('Error updating match result:', error);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying submitMatchResult (${retries} attempts left)...`);
         setTimeout(() => submitMatchResult(retries - 1), 2000);
-      } else {
-        addNotification(`Error al actualizar el resultado del partido: ${error.response?.data?.message || error.message}`, 'error');
-        console.error('Error updating match result:', error);
       }
     }
   };
@@ -219,13 +245,15 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         ...tournament,
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
+      console.log('Generating knockout phase:', updatedTournament);
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
       addNotification('Fase eliminatoria generada', 'success');
     } catch (error) {
-      addNotification(`Error al generar la fase eliminatoria: ${error.response?.data?.message || error.message}`, 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      addNotification(`Error al generar la fase eliminatoria: ${errorMessage}`, 'error');
       console.error('Error generating knockout phase:', error);
     }
   };
@@ -279,7 +307,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       await fetchTournament();
       addNotification('Ronda avanzada con éxito', 'success');
     } catch (error) {
-      addNotification(`Error al avanzar la ronda: ${error.response?.data?.message || error.message}`, 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      addNotification(`Error al avanzar la ronda: ${errorMessage}`, 'error');
       console.error('Error advancing round:', error);
     }
   };
@@ -300,7 +329,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       onFinishTournament(updatedTournament);
       addNotification('Torneo finalizado con éxito', 'success');
     } catch (error) {
-      addNotification(`Error al finalizar el torneo: ${error.response?.data?.message || error.message}`, 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      addNotification(`Error al finalizar el torneo: ${errorMessage}`, 'error');
       console.error('Error finishing tournament:', error);
     }
   };
@@ -318,12 +348,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 <Typography>
                   {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
                   {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                    <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
+                    <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
                   )}
                   {' vs '}
                   {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
                   {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                    <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
+                    <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
                   )}
                 </Typography>
                 <Typography>
@@ -350,7 +380,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         <Tab label="Detalles" />
         <Tab label={tournament.type === 'RoundRobin' ? 'Grupos' : 'Rondas'} />
         <Tab label="Calendario" />
-        {tournament.type === 'RoundRobin' && <Tab label="Standings" />}
+        {tournament.type === 'RoundRobin' && <Tab label="Posiciones" />}
         {tournament.type === 'Eliminatorio' && <Tab label="Llave" />}
       </Tabs>
 
@@ -454,13 +484,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                         <TableCell>
                           {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
                           {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                            <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
+                            <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
                           )}
                         </TableCell>
                         <TableCell>
                           {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
                           {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                            <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
+                            <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
                           )}
                         </TableCell>
                         <TableCell>
@@ -520,18 +550,17 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-Tuesday, April 15, 2025
               {(tournament.type === 'RoundRobin' ? tournament.groups.flatMap(g => g.matches) : tournament.rounds.flatMap(r => r.matches)).map((match, idx) => (
                 <TableRow key={idx}>
                   <TableCell>
                     {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
                     {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
+                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
                     )}
                     {' vs '}
                     {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
                     {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
+                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
                     )}
                   </TableCell>
                   <TableCell>{match.date || 'No definida'}</TableCell>
@@ -544,7 +573,7 @@ Tuesday, April 15, 2025
 
       {tabValue === 3 && tournament.type === 'RoundRobin' && (
         <Box>
-          <Typography variant="h5" gutterBottom>Standings</Typography>
+          <Typography variant="h5" gutterBottom>Posiciones</Typography>
           {standings.map(group => (
             <Box key={group.groupName} sx={{ mb: 3 }}>
               <Typography variant="h6">{group.groupName}</Typography>
@@ -558,19 +587,20 @@ Tuesday, April 15, 2025
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {group.standings.map((player, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>
-                        {tournament.participants.find(p => p.player1 === player.playerId)?.player1.firstName || 'Jugador no encontrado'} {tournament.participants.find(p => p.player1 === player.playerId)?.player1.lastName || ''}
-                        {tournament.format.mode === 'Dobles' && player.player2Id && (
-                          <> / {tournament.participants.find(p => p.player1 === player.playerId)?.player2.firstName || 'Jugador no encontrado'} {tournament.participants.find(p => p.player1 === player.playerId)?.player2.lastName || ''}</>
-                        )}
-                      </TableCell>
-                      <TableCell>{player.wins}</TableCell>
-                      <TableCell>{player.setsWon}</TableCell>
-                      <TableCell>{player.gamesWon}</TableCell>
-                    </TableRow>
-                  ))}
+                  {group.standings.map((player, idx) => {
+                    const participant = tournament.participants.find(p => p.player1 === player.playerId);
+                    const player1Name = participant?.player1?.firstName ? `${participant.player1.firstName} ${participant.player1.lastName}` : 'Jugador no encontrado';
+                    const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 ? `${participant.player2.firstName} ${participant.player2.lastName}` : '';
+                    const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell>{label}</TableCell>
+                        <TableCell>{player.wins}</TableCell>
+                        <TableCell>{player.setsWon}</TableCell>
+                        <TableCell>{player.gamesWon}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Box>
@@ -599,15 +629,15 @@ Tuesday, April 15, 2025
               <Typography>
                 {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player1?.lastName || ''}
                 {tournament.format.mode === 'Dobles' && selectedMatch.match.player1?.player2 && (
-                  <> / {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player1?.player2?.lastName || ''}</>
+                  <> / {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player2?.lastName || ''}</>
                 )}
                 {' vs '}
                 {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player1?.lastName || ''}
                 {tournament.format.mode === 'Dobles' && selectedMatch.match.player2?.player2 && (
-                  <> / {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player2?.player2?.lastName || ''}</>
+                  <> / {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player2?.lastName || ''}</>
                 )}
               </Typography>
-              {setScores.map((set, index) => (
+              {matchScores.map((set, index) => (
                 index < tournament.format.sets && (
                   <Box key={index} sx={{ mt: 2 }}>
                     <Typography>Set {index + 1}</Typography>
