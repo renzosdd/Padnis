@@ -45,6 +45,14 @@ const tournamentSchema = new mongoose.Schema({
   club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club', required: true },
   type: { type: String, enum: ['RoundRobin', 'Eliminatorio'], required: true },
   sport: { type: String, enum: ['Tenis', 'Pádel'], required: true },
+  category: {
+    type: String,
+    required: true,
+    enum: {
+      values: ['A', 'B', 'C', 'D', 'E', 'Séptima', 'Sexta', 'Quinta', 'Cuarta', 'Tercera', 'Segunda', 'Primera'],
+      message: 'Categoría inválida para el deporte seleccionado',
+    },
+  },
   format: {
     mode: { type: String, enum: ['Singles', 'Dobles'], required: true },
     sets: { type: Number, required: true },

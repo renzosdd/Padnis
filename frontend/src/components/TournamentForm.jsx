@@ -90,6 +90,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     clubId: '',
     type: 'RoundRobin',
     sport: 'Tenis',
+    category: '',
     format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
     participants: [],
     groups: [],
@@ -110,7 +111,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   useEffect(() => {
     const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
     setLocalPlayers(normalizedPlayers);
-    console.log('LocalreceivePlayers:', normalizedPlayers);
+    console.log('Local Players:', normalizedPlayers);
     fetchClubs();
   }, [players]);
 
@@ -136,7 +137,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         addNotification('Selecciona un club', 'error');
         return;
       }
-      if (!formData.type || !formData.sport || !formData.format.mode) {
+      if (!formData.type || !formData.sport || !formData.format.mode || !formData.category) {
         addNotification('Completa todos los campos básicos', 'error');
         return;
       }
@@ -164,6 +165,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         clubId: formData.clubId,
         type: formData.type,
         sport: formData.sport,
+        category: formData.category,
         format: formData.format,
         participants: formData.participants,
         groups: formData.groups,
@@ -189,6 +191,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       clubId: '',
       type: 'RoundRobin',
       sport: 'Tenis',
+      category: '',
       format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
       participants: [],
       groups: [],
@@ -202,83 +205,103 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     setSearch('');
   };
 
-  const Step1 = () => (
-    <Box sx={{ maxWidth: 400, mx: 'auto' }}>
-      <TextField
-        label="Nombre del Torneo *"
-        value={formData.name}
-        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-        fullWidth
-        sx={{ mt: 2 }}
-      />
-      <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel id="club-label">Club *</InputLabel>
-        <Select
-          labelId="club-label"
-          id="club"
-          value={formData.clubId}
-          label="Club"
-          onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
-        >
-          {clubs.map(club => (
-            <MenuItem key={club._id} value={club._id}>{club.name}</MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
-        <Select
-          labelId="tournament-type-label"
-          id="tournament-type"
-          value={formData.type}
-          label="Tipo de Torneo"
-          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-        >
-          <MenuItem value="RoundRobin">Round Robin</MenuItem>
-          <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
-        </Select>
-      </FormControl>
-      <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel id="sport-label">Deporte</InputLabel>
-        <Select
-          labelId="sport-label"
-          id="sport"
-          value={formData.sport}
-          label="Deporte"
-          onChange={(e) => setFormData({ ...formData, sport: e.target.value })}
-        >
-          <MenuItem value="Tenis">Tenis</MenuItem>
-          <MenuItem value="Pádel">Pádel</MenuItem>
-        </Select>
-      </FormControl>
-      <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel id="format-mode-label">Modalidad</InputLabel>
-        <Select
-          labelId="format-mode-label"
-          id="format-mode"
-          value={formData.format.mode}
-          label="Modalidad"
-          onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}
-        >
-          <MenuItem value="Singles">Singles</MenuItem>
-          <MenuItem value="Dobles">Dobles</MenuItem>
-        </Select>
-      </FormControl>
-      <FormControl fullWidth sx={{ mt: 2 }}>
-        <InputLabel id="sets-label">Sets por Partido</InputLabel>
-        <Select
-          labelId="sets-label"
-          id="sets"
-          value={formData.format.sets}
-          label="Sets por Partido"
-          onChange={(e) => setFormData({ ...formData, format: { ...formData.format, sets: e.target.value } })}
-        >
-          <MenuItem value={1}>1 Set</MenuItem>
-          <MenuItem value={2}>2 Sets</MenuItem>
-        </Select>
-      </FormControl>
-    </Box>
-  );
+  const Step1 = () => {
+    const categories = formData.sport === 'Tenis' 
+      ? ['A', 'B', 'C', 'D', 'E']
+      : ['Séptima', 'Sexta', 'Quinta', 'Cuarta', 'Tercera', 'Segunda', 'Primera'];
+
+    return (
+      <Box sx={{ maxWidth: 400, mx: 'auto' }}>
+        <TextField
+          label="Nombre del Torneo *"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          fullWidth
+          sx={{ mt: 2 }}
+        />
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="club-label">Club *</InputLabel>
+          <Select
+            labelId="club-label"
+            id="club"
+            value={formData.clubId}
+            label="Club"
+            onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
+          >
+            {clubs.map(club => (
+              <MenuItem key={club._id} value={club._id}>{club.name}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
+          <Select
+            labelId="tournament-type-label"
+            id="tournament-type"
+            value={formData.type}
+            label="Tipo de Torneo"
+            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+          >
+            <MenuItem value="RoundRobin">Round Robin</MenuItem>
+            <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="sport-label">Deporte</InputLabel>
+          <Select
+            labelId="sport-label"
+            id="sport"
+            value={formData.sport}
+            label="Deporte"
+            onChange={(e) => setFormData({ ...formData, sport: e.target.value, category: '' })}
+          >
+            <MenuItem value="Tenis">Tenis</MenuItem>
+            <MenuItem value="Pádel">Pádel</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="category-label">Categoría *</InputLabel>
+          <Select
+            labelId="category-label"
+            id="category"
+            value={formData.category}
+            label="Categoría"
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          >
+            {categories.map(cat => (
+              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="format-mode-label">Modalidad</InputLabel>
+          <Select
+            labelId="format-mode-label"
+            id="format-mode"
+            value={formData.format.mode}
+            label="Modalidad"
+            onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}
+          >
+            <MenuItem value="Singles">Singles</MenuItem>
+            <MenuItem value="Dobles">Dobles</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl fullWidth sx={{ mt: 2 }}>
+          <InputLabel id="sets-label">Sets por Partido</InputLabel>
+          <Select
+            labelId="sets-label"
+            id="sets"
+            value={formData.format.sets}
+            label="Sets por Partido"
+            onChange={(e) => setFormData({ ...formData, format: { ...formData.format, sets: e.target.value } })}
+          >
+            <MenuItem value={1}>1 Set</MenuItem>
+            <MenuItem value={2}>2 Sets</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+    );
+  };
 
   const Step2 = () => {
     const handleAddPlayer = (playerId) => {
@@ -515,7 +538,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         <Button
           variant="outlined"
           onClick={() => setFormData({
-            ...prev,
+            ...formData,
             groups: formData.type === 'RoundRobin' ? generateAutoGroups() : [],
             rounds: formData.type === 'Eliminatorio' ? generateAutoRounds() : [],
           })}

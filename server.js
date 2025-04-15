@@ -240,7 +240,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     if (req.user.role !== 'admin' && req.user.role !== 'coach') {
       return res.status(403).json({ message: 'Requiere rol de admin o coach' });
     }
-    const { name, clubId, type, sport, format, participants, groups, rounds, schedule, draft } = req.body;
+    const { name, clubId, type, sport, category, format, participants, groups, rounds, schedule, draft } = req.body;
 
     if (!name) return res.status(400).json({ message: 'El nombre del torneo es obligatorio' });
     if (!clubId) return res.status(400).json({ message: 'El club es obligatorio' });
@@ -249,6 +249,13 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     }
     if (!sport || !['Tenis', 'Pádel'].includes(sport)) {
       return res.status(400).json({ message: 'Deporte inválido' });
+    }
+    if (!category) return res.status(400).json({ message: 'La categoría es obligatoria' });
+    if (sport === 'Tenis' && !['A', 'B', 'C', 'D', 'E'].includes(category)) {
+      return res.status(400).json({ message: 'Categoría inválida para Tenis' });
+    }
+    if (sport === 'Pádel' && !['Séptima', 'Sexta', 'Quinta', 'Cuarta', 'Tercera', 'Segunda', 'Primera'].includes(category)) {
+      return res.status(400).json({ message: 'Categoría inválida para Pádel' });
     }
     if (!format || !['Singles', 'Dobles'].includes(format.mode)) {
       return res.status(400).json({ message: 'Formato inválido' });
@@ -271,6 +278,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       club: clubId,
       type,
       sport,
+      category,
       format,
       participants,
       groups: type === 'RoundRobin' && groups ? groups : [],
@@ -282,7 +290,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     });
 
     await tournament.save();
-    console.log('Tournament created:', { name, type, sport, draft });
+    console.log('Tournament created:', { name, type, sport, category, draft });
     res.status(201).json(tournament);
   } catch (error) {
     console.error('Error creating tournament:', error.stack);

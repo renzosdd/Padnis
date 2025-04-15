@@ -128,14 +128,13 @@ const App = () => {
   };
 
   const registerPlayer = async (player) => {};
-  
+
   const updatePlayer = (updatedPlayer) => {
     dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p)));
   };
 
-  const createTournament = async (tournament) => {
-    // Evitar duplicados refrescando la lista directamente
-    await fetchTournaments();
+  const createTournament = async () => {
+    await fetchTournaments(); // Refrescar lista sin duplicados
   };
 
   const handlePlayerAdded = () => fetchPlayers();
@@ -251,6 +250,7 @@ const App = () => {
                         <Typography variant="h6">{tournament.name}</Typography>
                         <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
                         <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
+                        <Typography>Categoría: {tournament.category || 'No definida'}</Typography>
                         <Button
                           variant="outlined"
                           onClick={() => setSelectedTournamentId(tournament._id)}
@@ -290,6 +290,7 @@ const App = () => {
                       <Typography variant="h6">{tournament.name}</Typography>
                       <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
                       <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
+                      <Typography>Categoría: {tournament.category || 'No definida'}</Typography>
                       <Typography>Estado: {tournament.status}</Typography>
                     </Box>
                   ))
