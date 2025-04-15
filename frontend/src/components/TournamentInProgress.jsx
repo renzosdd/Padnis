@@ -2,7 +2,25 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Box, Typography, Button, Tabs, Tab, Table, TableBody, TableCell, TableHead, TableRow, Dialog, DialogTitle, DialogContent, DialogActions, Chip, IconButton, TextField } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Button,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Chip,
+  IconButton,
+  TextField,
+} from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
@@ -208,13 +226,39 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       if (tournament.type === 'RoundRobin') {
         updatedTournament.groups[groupIndex].matches[matchIndex].result.sets = sets;
         updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = winnerId;
+        // Preserve original player IDs
+        updatedTournament.groups[groupIndex].matches[matchIndex].player1.player1 = player1Id;
+        updatedTournament.groups[groupIndex].matches[matchIndex].player2.player1 = player2Id;
+        if (tournament.format.mode === 'Dobles') {
+          updatedTournament.groups[groupIndex].matches[matchIndex].player1.player2 = match.player1.player2?._id ? match.player1.player2._id.toString() : null;
+          updatedTournament.groups[groupIndex].matches[matchIndex].player2.player2 = match.player2.player2?._id ? match.player2.player2._id.toString() : null;
+        }
       } else {
         updatedTournament.rounds[groupIndex].matches[matchIndex].result.sets = sets;
         updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = winnerId;
+        updatedTournament.rounds[groupIndex].matches[matchIndex].player1.player1 = player1Id;
+        updatedTournament.rounds[groupIndex].matches[matchIndex].player2.player1 = player2Id;
+        if (tournament.format.mode === 'Dobles') {
+          updatedTournament.rounds[groupIndex].matches[matchIndex].player1.player2 = match.player1.player2?._id ? match.player1.player2._id.toString() : null;
+          updatedTournament.rounds[groupIndex].matches[matchIndex].player2.player2 = match.player2.player2?._id ? match.player2.player2._id.toString() : null;
+        }
       }
 
       console.log('Submitting match result:', {
-        match: { player1: match.player1, player2: match.player2 },
+        match: {
+          player1: {
+            player1: updatedTournament.groups?.[groupIndex]?.matches?.[matchIndex]?.player1?.player1 ||
+                     updatedTournament.rounds?.[groupIndex]?.matches?.[matchIndex]?.player1?.player1,
+            player2: updatedTournament.groups?.[groupIndex]?.matches?.[matchIndex]?.player1?.player2 ||
+                     updatedTournament.rounds?.[groupIndex]?.matches?.[matchIndex]?.player1?.player2,
+          },
+          player2: {
+            player1: updatedTournament.groups?.[groupIndex]?.matches?.[matchIndex]?.player2?.player1 ||
+                     updatedTournament.rounds?.[groupIndex]?.matches?.[matchIndex]?.player2?.player1,
+            player2: updatedTournament.groups?.[groupIndex]?.matches?.[matchIndex]?.player2?.player2 ||
+                     updatedTournament.rounds?.[groupIndex]?.matches?.[matchIndex]?.player2?.player2,
+          },
+        },
         sets,
         winnerId,
       });
