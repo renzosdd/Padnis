@@ -44,21 +44,21 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     const newStandings = tournamentData.groups.map(group => {
       console.log('Group players:', group.players);
       const standings = group.players.map(p => ({
-        playerId: p.player1,
-        player2Id: p.player2 || null,
+        playerId: p.player1._id ? p.player1._id : p.player1,
+        player2Id: p.player2 ? (p.player2._id ? p.player2._id : p.player2) : null,
         wins: 0,
         setsWon: 0,
         gamesWon: 0,
       }));
       group.matches.forEach(match => {
         if (match.result.winner) {
-          const winner = standings.find(s => s.playerId === match.result.winner);
+          const winner = standings.find(s => s.playerId.toString() === match.result.winner.toString());
           if (winner) {
             winner.wins += 1;
           }
           match.result.sets.forEach(set => {
-            const p1 = standings.find(s => s.playerId === match.player1?.player1);
-            const p2 = standings.find(s => s.playerId === match.player2?.player1);
+            const p1 = standings.find(s => s.playerId.toString() === (match.player1?.player1?._id || match.player1?.player1).toString());
+            const p2 = standings.find(s => s.playerId.toString() === (match.player2?.player1?._id || match.player2?.player1).toString());
             if (p1 && p2) {
               p1.gamesWon += set.player1;
               p2.gamesWon += set.player2;
@@ -174,23 +174,23 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
     try {
       const { match, groupIndex, matchIndex } = selectedMatch;
-      if (!match.player1?.player1 || !match.player2?.player1) {
+      if (!match.player1?.player1?._id || !match.player2?.player1?._id) {
         addNotification('Datos de jugadores incompletos', 'error');
         console.error('Invalid match data:', match);
         return;
       }
-      const player1Id = match.player1.player1;
-      const player2Id = match.player2.player1;
-      const participant1 = tournament.participants.find(p => p.player1.toString() === player1Id.toString());
-      const participant2 = tournament.participants.find(p => p.player1.toString() === player2Id.toString());
+      const player1Id = match.player1.player1._id.toString();
+      const player2Id = match.player2.player1._id.toString();
+      const participant1 = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player1Id);
+      const participant2 = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player2Id);
       if (!participant1 || !participant2) {
         addNotification('No se encontraron los participantes en el torneo', 'error');
         console.error('Invalid participants:', {
           player1Id,
           player2Id,
           participants: tournament.participants.map(p => ({
-            player1: p.player1,
-            player2: p.player2,
+            player1: p.player1._id ? p.player1._id : p.player1,
+            player2: p.player2 ? (p.player2._id ? p.player2._id : p.player2) : null,
           })),
         });
         return;
@@ -245,14 +245,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     try {
       const topPlayers = standings.flatMap(group => 
         group.standings.slice(0, 2).map(s => {
-          const participant = tournament.participants.find(p => p.player1.toString() === s.playerId.toString());
+          const participant = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === s.playerId.toString());
           if (!participant) {
             console.warn(`Participant not found for playerId: ${s.playerId}`);
             return null;
           }
           return {
-            player1: participant.player1,
-            player2: tournament.format.mode === 'Dobles' && participant.player2 ? participant.player2 : null,
+            player1: participant.player1._id ? participant.player1._id : participant.player1,
+            player2: tournament.format.mode === 'Dobles' && participant.player2 ? (participant.player2._id ? participant.player2._id : participant.player2) : null,
           };
         }).filter(p => p !== null)
       );
@@ -311,15 +311,15 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
-          const winnerId = m.result.winner || m.player1.player1;
-          const participant = tournament.participants.find(p => p.player1.toString() === winnerId.toString());
+          const winnerId = m.result.winner || m.player1.player1._id || m.player1.player1;
+          const participant = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === winnerId.toString());
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
           }
           return {
-            player1: winnerId,
-            player2: tournament.format.mode === 'Dobles' ? participant.player2 || null : null,
+            player1: participant.player1._id ? participant.player1._id : participant.player1,
+            player2: tournament.format.mode === 'Dobles' ? (participant.player2 ? (participant.player2._id ? participant.player2._id : participant.player2) : null) : null,
           };
         })
         .filter(w => w !== null);
@@ -655,9 +655,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 </TableHead>
                 <TableBody>
                   {group.standings.map((player, idx) => {
-                    const participant = tournament.participants.find(p => p.player1.toString() === player.playerId.toString());
-                    const player1Name = participant?.player1?.firstName ? `${participant.player1.firstName} ${participant.player1.lastName}` : 'Jugador no encontrado';
-                    const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 ? `${participant.player2.firstName} ${participant.player2.lastName}` : '';
+                    const participant = tournament.participants.find(p => (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === player.playerId.toString());
+                    const player1Name = participant?.player1?.firstName ? `${participant.player1.firstName} ${participant.player1.lastName || ''}` : 'Jugador no encontrado';
+                    const player2Name = tournament.format.mode === 'Dobles' && participant?.player2 ? `${participant.player2.firstName} ${participant.player2.lastName || ''}` : '';
                     const label = tournament.format.mode === 'Singles' ? player1Name : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
                     console.log('Position entry:', { playerId: player.playerId, participant, label });
                     return (
