@@ -188,6 +188,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
         } else if (setsWonByPlayer2 > setsWonByPlayer1) {
           updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = match.player2.player1;
+        } else {
+          updatedTournament.groups[groupIndex].matches[matchIndex].result.winner = null;
         }
       } else {
         updatedTournament.rounds[groupIndex].matches[matchIndex].result.sets = sets;
@@ -195,10 +197,17 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player1.player1;
         } else if (setsWonByPlayer2 > setsWonByPlayer1) {
           updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = match.player2.player1;
+        } else {
+          updatedTournament.rounds[groupIndex].matches[matchIndex].result.winner = null;
         }
       }
 
-      console.log('Submitting match result:', updatedTournament);
+      console.log('Submitting match result:', {
+        match: { player1: match.player1, player2: match.player2 },
+        sets,
+        winner: updatedTournament.groups?.[groupIndex]?.matches?.[matchIndex]?.result?.winner ||
+                updatedTournament.rounds?.[groupIndex]?.matches?.[matchIndex]?.result?.winner,
+      });
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -207,8 +216,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       addNotification('Resultado de partido actualizado', 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
-      addNotification(`Error al actualizar el resultado del partido: ${errorMessage}`, 'error');
-      console.error('Error updating match result:', error);
+      const statusCode = error.response?.status || 'desconocido';
+      addNotification(`Error al actualizar el resultado del partido (código ${statusCode}): ${errorMessage}`, 'error');
+      console.error('Error updating match result:', {
+        status: statusCode,
+        message: errorMessage,
+        stack: error.stack,
+      });
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying submitMatchResult (${retries} attempts left)...`);
         setTimeout(() => submitMatchResult(retries - 1), 2000);
@@ -220,11 +234,19 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     if (tournament.type !== 'RoundRobin') return;
     try {
       const topPlayers = standings.flatMap(group => 
-        group.standings.slice(0, 2).map(s => ({
-          player1: s.playerId,
-          player2: tournament.format.mode === 'Dobles' ? s.player2Id : null,
-        }))
+        group.standings.slice(0, 2).map(s => {
+          const participant = tournament.participants.find(p => p.player1 === s.playerId);
+          if (!participant) {
+            console.warn(`Participant not found for playerId: ${s.playerId}`);
+            return null;
+          }
+          return {
+            player1: participant.player1,
+            player2: tournament.format.mode === 'Dobles' && participant.player2 ? participant.player2 : null,
+          };
+        }).filter(p => p !== null)
       );
+      console.log('Top players:', topPlayers);
       if (topPlayers.length < 2) {
         addNotification('No hay suficientes clasificados para generar la fase eliminatoria', 'error');
         return;
@@ -234,12 +256,17 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       for (let i = 0; i < shuffled.length; i += 2) {
         if (i + 1 < shuffled.length) {
           matches.push({
-            player1: shuffled[i],
-            player2: shuffled[i + 1],
+            player1: { player1: shuffled[i].player1, player2: shuffled[i].player2 },
+            player2: { player1: shuffled[i + 1].player1, player2: shuffled[i + 1].player2 },
             result: { sets: [], winner: null },
             date: null,
           });
         }
+      }
+      console.log('Generated matches:', matches);
+      if (matches.length === 0) {
+        addNotification('No se pudieron generar partidos para la fase eliminatoria', 'error');
+        return;
       }
       const updatedTournament = {
         ...tournament,
@@ -253,8 +280,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       addNotification('Fase eliminatoria generada', 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
-      addNotification(`Error al generar la fase eliminatoria: ${errorMessage}`, 'error');
-      console.error('Error generating knockout phase:', error);
+      const statusCode = error.response?.status || 'desconocido';
+      addNotification(`Error al generar la fase eliminatoria (código ${statusCode}): ${errorMessage}`, 'error');
+      console.error('Error generating knockout phase:', {
+        status: statusCode,
+        message: errorMessage,
+        stack: error.stack,
+      });
     }
   };
 
@@ -268,12 +300,19 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
-        .map(m => ({
-          player1: m.result.winner || m.player1.player1,
-          player2: tournament.format.mode === 'Dobles' 
-            ? tournament.participants.find(p => p.player1 === (m.result.winner || m.player1.player1))?.player2 || null
-            : null,
-        }));
+        .map(m => {
+          const winnerId = m.result.winner || m.player1.player1;
+          const participant = tournament.participants.find(p => p.player1 === winnerId);
+          if (!participant) {
+            console.warn(`Participant not found for winnerId: ${winnerId}`);
+            return null;
+          }
+          return {
+            player1: winnerId,
+            player2: tournament.format.mode === 'Dobles' ? participant.player2 || null : null,
+          };
+        })
+        .filter(w => w !== null);
       if (winners.length < 1) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
         return;
@@ -282,14 +321,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       for (let i = 0; i < winners.length; i += 2) {
         if (i + 1 < winners.length) {
           matches.push({
-            player1: winners[i],
-            player2: winners[i + 1],
+            player1: { player1: winners[i].player1, player2: winners[i].player2 },
+            player2: { player1: winners[i + 1].player1, player2: winners[i + 1].player2 },
             result: { sets: [], winner: null },
             date: null,
           });
         } else {
           matches.push({
-            player1: winners[i],
+            player1: { player1: winners[i].player1, player2: winners[i].player2 },
             player2: { player1: null, name: 'BYE' },
             result: { sets: [], winner: winners[i].player1 },
             date: null,
@@ -308,8 +347,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       addNotification('Ronda avanzada con éxito', 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
-      addNotification(`Error al avanzar la ronda: ${errorMessage}`, 'error');
-      console.error('Error advancing round:', error);
+      const statusCode = error.response?.status || 'desconocido';
+      addNotification(`Error al avanzar la ronda (código ${statusCode}): ${errorMessage}`, 'error');
+      console.error('Error advancing round:', {
+        status: statusCode,
+        message: errorMessage,
+        stack: error.stack,
+      });
     }
   };
 
@@ -330,8 +374,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       addNotification('Torneo finalizado con éxito', 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
-      addNotification(`Error al finalizar el torneo: ${errorMessage}`, 'error');
-      console.error('Error finishing tournament:', error);
+      const statusCode = error.response?.status || 'desconocido';
+      addNotification(`Error al finalizar el torneo (código ${statusCode}): ${errorMessage}`, 'error');
+      console.error('Error finishing tournament:', {
+        status: statusCode,
+        message: errorMessage,
+        stack: error.stack,
+      });
     }
   };
 
