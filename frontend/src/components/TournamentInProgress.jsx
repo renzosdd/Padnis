@@ -90,7 +90,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       });
       return {
         groupName: group.name,
-        standings: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
+        standings926: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
       };
     });
     setStandings(newStandings);
@@ -160,7 +160,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
       }
     });
-    if (setsWonByPlayer1 > setsWonBy/DateTimePlayer2) {
+    if (setsWonByPlayer1 > setsWonByPlayer2) {
       return player1Id;
     } else if (setsWonByPlayer2 > setsWonByPlayer1) {
       return player2Id;
@@ -559,7 +559,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             </Button>
           )}
           {tournament.type === 'RoundRobin' && (role === 'admin' || role === 'coach') && (
-            <Button
+           
+
+ <Button
               variant="contained"
               onClick={generateKnockoutPhase}
               sx={{ mt: 2, ml: 2 }}
