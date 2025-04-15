@@ -226,7 +226,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           console.warn(`El grupo ${group.groupName} no tiene standings. Se omitirá.`);
           return [];
         }
-        return group.standings.slice(0, 2).map(s => {
+        return group.standings.slice(0, tournament.playersPerGroupToAdvance || 2).map(s => {
           const participant = tournament.participants.find(p => 
             (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === s.playerId.toString()
           );
@@ -235,9 +235,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return null;
           }
           return {
-            player1: participant.player1._id ? participant.player1._id : participant.player1,
+            player1: participant.player1._id ? participant.player1._id.toString() : participant.player1.toString(),
             player2: tournament.format.mode === 'Dobles' && participant.player2 
-              ? (participant.player2._id ? participant.player2._id : participant.player2) 
+              ? (participant.player2._id ? participant.player2._id.toString() : participant.player2.toString()) 
               : null,
           };
         }).filter(p => p !== null);

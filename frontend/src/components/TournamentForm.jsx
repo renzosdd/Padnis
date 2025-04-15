@@ -105,7 +105,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
   );
 };
 
-const TournamentForm = ({ players, onCreateTournament }) => {
+const TournamentForm = React.memo(({ players, onCreateTournament }) => {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [formData, setFormData] = useState({
@@ -120,6 +120,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     schedule: { group: null, matches: [] },
     groupSize: 4,
     autoGenerate: true,
+    playersPerGroupToAdvance: 2, // Nuevo campo
   });
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [pairPlayers, setPairPlayers] = useState([]);
@@ -133,7 +134,6 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   useEffect(() => {
     const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
     setLocalPlayers(normalizedPlayers);
-    console.log('Local Players:', normalizedPlayers);
     fetchClubs();
   }, [players]);
 
@@ -193,6 +193,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         groups: formData.groups,
         rounds: formData.rounds,
         schedule: formData.schedule,
+        playersPerGroupToAdvance: formData.playersPerGroupToAdvance, // Incluir aquí
         draft,
       };
       const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
@@ -221,6 +222,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       schedule: { group: null, matches: [] },
       groupSize: 4,
       autoGenerate: true,
+      playersPerGroupToAdvance: 2,
     });
     setSelectedPlayers([]);
     setPairPlayers([]);
@@ -240,7 +242,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           width: { xs: '100%', sm: 400 },
           mx: 'auto',
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 4, sm: 3 },
           borderRadius: 2,
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
         }}
@@ -253,11 +255,14 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           variant="outlined"
           sx={{
             bgcolor: '#fafafa',
-            '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
+            '& .MuiInputBase-input': { fontSize: { xs: '1.2rem', sm: '1.1rem' } },
             '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#1976d2' },
-              '&:hover fieldset': { borderColor: '#1565c0' },
+              '& fieldset': { borderColor: '#0288d1' },
+              '&:hover fieldset': { borderColor: '#0277bd' },
+              '&.Mui-focused fieldset': { borderColor: '#01579b' },
             },
+            '& .MuiInputLabel-root': { color: '#0288d1' },
+            '& .MuiInputLabel-root.Mui-focused': { color: '#01579b' },
           }}
         />
         <FormControl fullWidth variant="outlined">
@@ -365,6 +370,25 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             <MenuItem value={2}>2 Sets</MenuItem>
           </Select>
         </FormControl>
+        <FormControl fullWidth variant="outlined">
+          <InputLabel id="players-per-group-label">Jugadores que pasan por grupo</InputLabel>
+          <Select
+            labelId="players-per-group-label"
+            id="players-per-group"
+            value={formData.playersPerGroupToAdvance}
+            label="Jugadores que pasan por grupo"
+            onChange={(e) => setFormData({ ...formData, playersPerGroupToAdvance: e.target.value })}
+            disabled={formData.type !== 'RoundRobin'}
+            sx={{
+              bgcolor: '#fafafa',
+              '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
+            }}
+          >
+            <MenuItem value={1}>1</MenuItem>
+            <MenuItem value={2}>2</MenuItem>
+            <MenuItem value={3}>3</MenuItem>
+          </Select>
+        </FormControl>
       </Stack>
     );
   };
@@ -372,17 +396,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const Step2 = () => {
     const handleAddPlayer = (playerId) => {
       const idAsString = String(playerId);
-      console.log('Adding player with ID:', idAsString);
       if (formData.format.mode === 'Singles') {
         if (selectedPlayers.includes(idAsString)) {
           addNotification('Jugador ya seleccionado', 'error');
           return;
         }
-        setSelectedPlayers(prev => {
-          const newSelected = [...prev, idAsString];
-          console.log('Updated selectedPlayers:', newSelected);
-          return newSelected;
-        });
+        setSelectedPlayers(prev => [...prev, idAsString]);
       } else {
         if (pairPlayers.length >= 2) {
           addNotification('Solo puedes seleccionar 2 jugadores para formar una pareja', 'error');
@@ -392,11 +411,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           addNotification('Jugador ya seleccionado o en una pareja', 'error');
           return;
         }
-        setPairPlayers(prev => {
-          const newPair = [...prev, idAsString];
-          console.log('Updated pairPlayers:', newPair);
-          return newPair;
-        });
+        setPairPlayers(prev => [...prev, idAsString]);
       }
     };
 
@@ -454,7 +469,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           width: { xs: '100%', sm: 600 },
           mx: 'auto',
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 4, sm: 3 },
           borderRadius: 2,
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
         }}
@@ -470,9 +485,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             bgcolor: '#fafafa',
             '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
             '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#1976d2' },
-              '&:hover fieldset': { borderColor: '#1565c0' },
+              '& fieldset': { borderColor: '#0288d1' },
+              '&:hover fieldset': { borderColor: '#0277bd' },
+              '&.Mui-focused fieldset': { borderColor: '#01579b' },
             },
+            '& .MuiInputLabel-root': { color: '#0288d1' },
+            '& .MuiInputLabel-root.Mui-focused': { color: '#01579b' },
           }}
         />
         <Typography variant="subtitle1" sx={{ fontSize: { xs: '1rem', sm: '1.1rem' }, color: '#333' }}>
@@ -515,13 +533,13 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                       formData.participants.some(p => p.player1 === String(player._id) || p.player2 === String(player._id))))
                 }
                 sx={{
-                  bgcolor: '#1976d2',
+                  bgcolor: '#0288d1',
                   color: '#fff',
                   fontSize: { xs: '0.9rem', sm: '1rem' },
                   py: 1,
                   px: 2,
                   transition: 'all 0.2s',
-                  '&:hover': { bgcolor: '#1565c0' },
+                  '&:hover': { bgcolor: '#0277bd' },
                 }}
               >
                 Agregar
@@ -572,7 +590,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   onDelete={() => removePair(pair)}
                   sx={{
                     bgcolor: '#e3f2fd',
-                    color: '#1565c0',
+                    color: '#01579b',
                     fontSize: { xs: '0.9rem', sm: '1rem' },
                     py: 1.5,
                     px: 1,
@@ -608,7 +626,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                   onDelete={() => removeParticipant(playerId)}
                   sx={{
                     bgcolor: '#e3f2fd',
-                    color: '#1565c0',
+                    color: '#01579b',
                     fontSize: { xs: '0.9rem', sm: '1rem' },
                     py: 1.5,
                     px: 1,
@@ -669,7 +687,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           width: { xs: '100%', sm: 600 },
           mx: 'auto',
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 4, sm: 3 },
           borderRadius: 2,
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
         }}
@@ -706,9 +724,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             bgcolor: '#fafafa',
             '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
             '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#1976d2' },
-              '&:hover fieldset': { borderColor: '#1565c0' },
+              '& fieldset': { borderColor: '#0288d1' },
+              '&:hover fieldset': { borderColor: '#0277bd' },
+              '&.Mui-focused fieldset': { borderColor: '#01579b' },
             },
+            '& .MuiInputLabel-root': { color: '#0288d1' },
+            '& .MuiInputLabel-root.Mui-focused': { color: '#01579b' },
           }}
         />
         <Button
@@ -721,12 +742,12 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             })
           }
           sx={{
-            bgcolor: '#1976d2',
+            bgcolor: '#0288d1',
             color: '#fff',
             fontSize: { xs: '0.9rem', sm: '1rem' },
             py: 1,
             transition: 'all 0.2s',
-            '&:hover': { bgcolor: '#1565c0' },
+            '&:hover': { bgcolor: '#0277bd' },
           }}
         >
           Generar Vista Previa
@@ -750,7 +771,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                           }
                           sx={{
                             bgcolor: '#e3f2fd',
-                            color: '#1565c0',
+                            color: '#01579b',
                             fontSize: { xs: '0.9rem', sm: '1rem' },
                             py: 1.5,
                             px: 1,
@@ -776,7 +797,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                           }
                           sx={{
                             bgcolor: '#e3f2fd',
-                            color: '#1565c0',
+                            color: '#01579b',
                             fontSize: { xs: '0.9rem', sm: '1rem' },
                             py: 1.5,
                             px: 1,
@@ -800,7 +821,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         p: { xs: 3, sm: 4 },
         maxWidth: '100%',
         mx: 'auto',
-        bgcolor: '#f5f5f5',
+        bgcolor: '#f0f4f8',
         minHeight: '100vh',
       }}
     >
@@ -809,8 +830,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         gutterBottom
         sx={{
           fontSize: { xs: '1.8rem', sm: '2rem' },
-          color: '#333',
-          fontWeight: 600,
+          color: '#01579b',
+          fontWeight: 700,
           textAlign: 'center',
         }}
       >
@@ -864,13 +885,13 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             variant="contained"
             onClick={handleNext}
             sx={{
-              bgcolor: '#1976d2',
+              bgcolor: '#0288d1',
               color: '#fff',
               fontSize: { xs: '0.9rem', sm: '1rem' },
               py: 1,
               px: 3,
               transition: 'all 0.2s',
-              '&:hover': { bgcolor: '#1565c0' },
+              '&:hover': { bgcolor: '#0277bd' },
             }}
           >
             Siguiente
@@ -897,13 +918,13 @@ const TournamentForm = ({ players, onCreateTournament }) => {
               variant="outlined"
               onClick={() => handleSubmit(true)}
               sx={{
-                borderColor: '#1976d2',
-                color: '#1976d2',
+                borderColor: '#0288d1',
+                color: '#0288d1',
                 fontSize: { xs: '0.9rem', sm: '1rem' },
                 py: 1,
                 px: 3,
                 transition: 'all 0.2s',
-                '&:hover': { borderColor: '#1565c0', bgcolor: '#e3f2fd' },
+                '&:hover': { borderColor: '#0277bd', bgcolor: '#e3f2fd' },
               }}
             >
               Guardar Borrador
@@ -913,6 +934,6 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       </Stack>
     </Box>
   );
-};
+});
 
 export default TournamentForm;
