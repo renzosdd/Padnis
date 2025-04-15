@@ -20,6 +20,8 @@ import {
   DialogActions,
   TextField,
   Stack,
+  Checkbox,
+  ListItemText,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useMediaQuery } from '@mui/material';
@@ -106,7 +108,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
   );
 };
 
-const TournamentForm = React.memo(({ players, onCreateTournament }) => {
+const TournamentForm = ({ players, onCreateTournament }) => {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [formData, setFormData] = useState({
@@ -121,7 +123,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
     schedule: { group: null, matches: [] },
     groupSize: 4,
     autoGenerate: true,
-    playersPerGroupToAdvance: 2, // Nuevo campo para Round Robin
+    seededPlayers: [],
   });
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [pairPlayers, setPairPlayers] = useState([]);
@@ -131,7 +133,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
   const [clubs, setClubs] = useState([]);
   const { user } = useAuth();
   const { addNotification } = useNotification();
-  const isMobile = useMediaQuery('(max-width:600px)'); // Detectar móviles
+  const isMobile = useMediaQuery('(max-width:600px)');
 
   useEffect(() => {
     const normalizedPlayers = players.map(p => ({ ...p, _id: String(p._id) }));
@@ -174,7 +176,12 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       if (formData.format.mode === 'Singles') {
         setFormData(prev => ({
           ...prev,
-          participants: selectedPlayers.map(id => ({ player1: id, player2: null, seed: false })),
+          participants: selectedPlayers.map(id => ({ player1: id, player2: null, seed: formData.seededPlayers.includes(id) })),
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          participants: prev.participants.map(pair => ({ ...pair, seed: formData.seededPlayers.includes(pair.player1) || formData.seededPlayers.includes(pair.player2) })),
         }));
       }
     }
@@ -194,7 +201,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
         groups: formData.groups,
         rounds: formData.rounds,
         schedule: formData.schedule,
-        playersPerGroupToAdvance: formData.playersPerGroupToAdvance,
+        seededPlayers: formData.seededPlayers,
         draft,
       };
       const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
@@ -204,7 +211,9 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       addNotification(draft ? 'Borrador guardado' : 'Torneo creado', 'success');
       resetForm();
     } catch (error) {
-      addNotification(error.response?.data?.message || 'Error al guardar torneo', 'error');
+      const errorMessage = error.response?.data?.message || 'Error al crear el torneo';
+      addNotification(errorMessage, 'error');
+      console.error('Error al crear el torneo:', error);
     }
   };
 
@@ -223,7 +232,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       schedule: { group: null, matches: [] },
       groupSize: 4,
       autoGenerate: true,
-      playersPerGroupToAdvance: 2,
+      seededPlayers: [],
     });
     setSelectedPlayers([]);
     setPairPlayers([]);
@@ -254,14 +263,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
           onChange={handleNameChange}
           fullWidth
           variant="outlined"
-          sx={{
-            bgcolor: '#fafafa',
-            '& .MuiInputBase-input': { fontSize: { xs: '1rem', sm: '1.1rem' } },
-            '& .MuiOutlinedInput-root': {
-              '& fieldset': { borderColor: '#1976d2' },
-              '&:hover fieldset': { borderColor: '#1565c0' },
-            },
-          }}
         />
         <FormControl fullWidth variant="outlined">
           <InputLabel id="club-label">Club</InputLabel>
@@ -271,7 +272,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             value={formData.clubId}
             label="Club"
             onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
-            sx={{ bgcolor: '#fafafa' }}
           >
             <MenuItem value="">Ninguno</MenuItem>
             {clubs.map(club => (
@@ -287,7 +287,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             value={formData.type}
             label="Tipo de Torneo"
             onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-            sx={{ bgcolor: '#fafafa' }}
           >
             <MenuItem value="RoundRobin">Round Robin</MenuItem>
             <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
@@ -301,7 +300,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             value={formData.sport}
             label="Deporte"
             onChange={(e) => setFormData({ ...formData, sport: e.target.value, category: '' })}
-            sx={{ bgcolor: '#fafafa' }}
           >
             <MenuItem value="Tenis">Tenis</MenuItem>
             <MenuItem value="Pádel">Pádel</MenuItem>
@@ -315,7 +313,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             value={formData.category}
             label="Categoría"
             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            sx={{ bgcolor: '#fafafa' }}
           >
             {categories.map(cat => (
               <MenuItem key={cat} value={cat}>{cat}</MenuItem>
@@ -330,7 +327,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             value={formData.format.mode}
             label="Modalidad"
             onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}
-            sx={{ bgcolor: '#fafafa' }}
           >
             <MenuItem value="Singles">Singles</MenuItem>
             <MenuItem value="Dobles">Dobles</MenuItem>
@@ -344,26 +340,9 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             value={formData.format.sets}
             label="Sets por Partido"
             onChange={(e) => setFormData({ ...formData, format: { ...formData.format, sets: e.target.value } })}
-            sx={{ bgcolor: '#fafafa' }}
           >
             <MenuItem value={1}>1 Set</MenuItem>
             <MenuItem value={2}>2 Sets</MenuItem>
-          </Select>
-        </FormControl>
-        <FormControl fullWidth variant="outlined">
-          <InputLabel id="players-per-group-label">Jugadores que pasan por grupo</InputLabel>
-          <Select
-            labelId="players-per-group-label"
-            id="players-per-group"
-            value={formData.playersPerGroupToAdvance}
-            label="Jugadores que pasan por grupo"
-            onChange={(e) => setFormData({ ...formData, playersPerGroupToAdvance: e.target.value })}
-            disabled={formData.type !== 'RoundRobin'}
-            sx={{ bgcolor: '#fafafa' }}
-          >
-            <MenuItem value={1}>1</MenuItem>
-            <MenuItem value={2}>2</MenuItem>
-            <MenuItem value={3}>3</MenuItem>
           </Select>
         </FormControl>
       </Stack>
@@ -394,7 +373,7 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
 
     const addPair = () => {
       if (pairPlayers.length !== 2) {
-        addNotification('Selecciona exactamente Modificación2 jugadores para formar una pareja', 'error');
+        addNotification('Selecciona exactamente 2 jugadores para formar una pareja', 'error');
         return;
       }
       if (pairPlayers[0] === pairPlayers[1]) {
@@ -436,6 +415,15 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       const fullName = `${player.firstName} ${player.lastName}`.toLowerCase();
       return fullName.includes(search.toLowerCase());
     });
+
+    const handleSeededPlayersChange = (event) => {
+      const selected = event.target.value;
+      if (selected.length > 6) {
+        addNotification('Solo puedes seleccionar hasta 6 cabezas de serie', 'error');
+        return;
+      }
+      setFormData({ ...formData, seededPlayers: selected });
+    };
 
     return (
       <Stack
@@ -512,6 +500,30 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
             </Box>
           </>
         )}
+        <FormControl fullWidth variant="outlined">
+          <InputLabel id="seeded-players-label">Cabezas de Serie (hasta 6)</InputLabel>
+          <Select
+            labelId="seeded-players-label"
+            id="seeded-players"
+            multiple
+            value={formData.seededPlayers}
+            onChange={handleSeededPlayersChange}
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {selected.map((value) => (
+                  <Chip key={value} label={localPlayers.find(p => p._id === value)?.firstName} />
+                ))}
+              </Box>
+            )}
+          >
+            {localPlayers.map((player) => (
+              <MenuItem key={player._id} value={player._id}>
+                <Checkbox checked={formData.seededPlayers.indexOf(player._id) > -1} />
+                <ListItemText primary={`${player.firstName} ${player.lastName}`} />
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <NewPlayerDialog open={newPlayerDialogOpen} onClose={() => setNewPlayerDialogOpen(false)} onAddPlayer={handleAddNewPlayer} />
       </Stack>
     );
@@ -519,10 +531,12 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
 
   const Step3 = () => {
     const generateAutoGroups = () => {
-      const shuffled = [...formData.participants].sort(() => 0.5 - Math.random());
+      const seeded = formData.seededPlayers.map(id => ({ player1: id, seed: true }));
+      const unseeded = formData.participants.filter(p => !formData.seededPlayers.includes(p.player1)).sort(() => 0.5 - Math.random());
+      const participants = [...seeded, ...unseeded];
       const groups = [];
-      for (let i = 0; i < shuffled.length; i += formData.groupSize) {
-        const groupPlayers = shuffled.slice(i, i + formData.groupSize);
+      for (let i = 0; i < participants.length; i += formData.groupSize) {
+        const groupPlayers = participants.slice(i, i + formData.groupSize);
         const matches = groupPlayers.flatMap((p1, idx) =>
           groupPlayers.slice(idx + 1).map(p2 => ({
             player1: p1,
@@ -537,9 +551,9 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
     };
 
     const generateAutoRounds = () => {
-      const seeded = formData.participants.filter(p => p.seed);
-      const unseeded = formData.participants.filter(p => !p.seed).sort(() => 0.5 - Math.random());
-      const participants = seeded.length >= 2 ? [seeded[0], ...unseeded, seeded[1]] : [...seeded, ...unseeded];
+      const seeded = formData.seededPlayers.map(id => ({ player1: id, seed: true }));
+      const unseeded = formData.participants.filter(p => !formData.seededPlayers.includes(p.player1)).sort(() => 0.5 - Math.random());
+      const participants = [...seeded, ...unseeded];
       const totalSlots = Math.pow(2, Math.ceil(Math.log2(participants.length)));
       const byes = totalSlots - participants.length;
       const matches = [];
@@ -684,6 +698,6 @@ const TournamentForm = React.memo(({ players, onCreateTournament }) => {
       </Stack>
     </Box>
   );
-});
+};
 
 export default TournamentForm;
