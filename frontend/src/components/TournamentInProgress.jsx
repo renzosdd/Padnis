@@ -28,7 +28,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       setTournament(response.data);
       console.log('Tournament fetched:', response.data);
       if (response.data.type === 'RoundRobin') {
-        console.log('Group matches:', response.data.groups.map(g => g.matches));
+        console.log('Group matches:', response.data.groups.map(g => g.matches.map(m => ({
+          player1: m.player1,
+          player2: m.player2,
+        }))));
         updateStandings(response.data);
       }
     } catch (error) {
@@ -236,12 +239,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('Faltan completar partidos de la ronda actual', 'error');
         return;
       }
-      const winners = currentRound.matches.map(m => ({
-        player1: m.result.winner,
-        player2: tournament.format.mode === 'Dobles' 
-          ? tournament.participants.find(p => p.player1 === m.result.winner)?.player2 
-          : null,
-      }));
+      const winners = currentRound.matches
+        .filter(m => m.result.winner) // Solo incluir partidos con ganador válido
+        .map(m => ({
+          player1: m.result.winner,
+          player2: tournament.format.mode === 'Dobles' 
+            ? tournament.participants.find(p => p.player1 === m.result.winner)?.player2 || null
+            : null,
+        }));
       if (winners.length < 2) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
         return;
@@ -268,13 +273,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         ...tournament,
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
+      console.log('Advancing round with tournament:', updatedTournament);
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
       addNotification('Ronda avanzada con éxito', 'success');
     } catch (error) {
-      addNotification('Error al avanzar la ronda', 'error');
+      addNotification(`Error al avanzar la ronda: ${error.response?.data?.message || error.message}`, 'error');
       console.error('Error advancing round:', error);
     }
   };
@@ -613,7 +619,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                         label="Puntaje Jugador 1"
                         type="number"
                         value={set.player1}
-                        onChange={(e) => handleScoreChange(index, 'player1', e.targetValue)}
+                        onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
                         inputProps={{ min: 0 }}
                         sx={{ width: 100, mx: 1 }}
                       />

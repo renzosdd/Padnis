@@ -134,7 +134,7 @@ const App = () => {
   };
 
   const createTournament = async () => {
-    await fetchTournaments(); // Refrescar lista sin duplicados
+    await fetchTournaments();
   };
 
   const handlePlayerAdded = () => fetchPlayers();

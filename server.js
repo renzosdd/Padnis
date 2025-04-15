@@ -351,8 +351,53 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     }
     const { id } = req.params;
     const updates = req.body;
+
     const tournament = await Tournament.findById(id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
+
+    // Validar IDs de jugadores en las actualizaciones
+    if (updates.participants) {
+      const playerIds = updates.participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
+      const playersExist = await Player.find({ _id: { $in: playerIds } });
+      if (playersExist.length !== playerIds.length) {
+        return res.status(400).json({ message: 'Algunos jugadores no existen' });
+      }
+    }
+    if (updates.groups) {
+      for (const group of updates.groups) {
+        if (group.matches) {
+          const matchPlayerIds = group.matches.flatMap(m => [
+            m.player1?.player1,
+            m.player1?.player2,
+            m.player2?.player1,
+            m.player2?.player2,
+            m.result?.winner,
+          ].filter(Boolean));
+          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
+          if (playersExist.length !== matchPlayerIds.length) {
+            return res.status(400).json({ message: 'Algunos jugadores en los partidos no existen' });
+          }
+        }
+      }
+    }
+    if (updates.rounds) {
+      for (const round of updates.rounds) {
+        if (round.matches) {
+          const matchPlayerIds = round.matches.flatMap(m => [
+            m.player1?.player1,
+            m.player1?.player2,
+            m.player2?.player1,
+            m.player2?.player2,
+            m.result?.winner,
+          ].filter(Boolean));
+          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
+          if (playersExist.length !== matchPlayerIds.length) {
+            return res.status(400).json({ message: 'Algunos jugadores en los partidos no existen' });
+          }
+        }
+      }
+    }
+
     Object.assign(tournament, updates);
     await tournament.save();
     const updatedTournament = await Tournament.findById(id)
