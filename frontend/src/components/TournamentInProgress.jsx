@@ -366,9 +366,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           const winnerId = m.result.winner || (typeof m.player1.player1 === 'object' && m.player1.player1._id
             ? m.player1.player1._id.toString()
             : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : m.player1.player1.toString()));
-          const participant = tournament.participants.find(p => 
-            (typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString())) === winnerId.toString()
-          );
+          const participant = tournament.participants.find(p => {
+            const pId = typeof p.player1 === 'object' && p.player1._id
+              ? p.player1._id.toString()
+              : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
+            return pId === winnerId.toString();
+          });
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
@@ -381,6 +384,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 ? participant.player2._id.toString()
                 : (typeof participant.player2 === 'object' && participant.player2.$oid ? participant.player2.$oid : participant.player2.toString()))
             : null;
+          if (!player1Id || (tournament.format.mode === 'Dobles' && !player2Id)) {
+            console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id, winnerId });
+            return null;
+          }
           return {
             player1: player1Id,
             player2: player2Id,
@@ -388,6 +395,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           };
         })
         .filter(w => w !== null);
+      console.log('Winners for new round:', winners);
       if (winners.length < 1) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
         return;

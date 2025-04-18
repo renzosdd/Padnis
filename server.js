@@ -305,12 +305,12 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     const playerIds = participants.flatMap(p => {
       const ids = [];
       if (p.player1) {
-        const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString();
+        const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
         if (id && mongoose.isValidObjectId(id)) ids.push(id);
         else console.warn('Invalid participant player1 ID:', p.player1);
       }
       if (p.player2) {
-        const id = typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : p.player2.toString();
+        const id = typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : (typeof p.player2 === 'object' && p.player2.$oid ? p.player2.$oid : p.player2.toString());
         if (id && mongoose.isValidObjectId(id)) ids.push(id);
         else console.warn('Invalid participant player2 ID:', p.player2);
       }
@@ -324,7 +324,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     if (playersExist.length !== playerIds.length) {
       const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
       console.error('Invalid participant IDs:', invalidIds);
-      return res.status(400).json({ message: `Algunos jugadores no existen: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
+      return res.status(400).json({ message: `Algunos jugadores no existen: ${invalidIds.join(', ')}` });
     }
 
     const tournament = new Tournament({
@@ -350,195 +350,6 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error creating tournament:', error.stack);
     res.status(500).json({ message: 'Error al crear torneo', error: error.message });
-  }
-});
-
-
-app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
-      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
-    }
-    const { id } = req.params;
-    const updates = req.body;
-
-    const tournament = await Tournament.findById(id);
-    if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
-
-    if (updates.participants) {
-      const playerIds = updates.participants.flatMap(p => {
-        const ids = [];
-        if (p.player1) {
-          const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
-          if (id && mongoose.isValidObjectId(id)) ids.push(id);
-          else console.warn('Invalid participant player1 ID:', p.player1);
-        }
-        if (p.player2) {
-          const id = typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : (typeof p.player2 === 'object' && p.player2.$oid ? p.player2.$oid : p.player2.toString());
-          if (id && mongoose.isValidObjectId(id)) ids.push(id);
-          else console.warn('Invalid participant player2 ID:', p.player2);
-        }
-        return ids;
-      }).filter(Boolean);
-      console.log('Validating participant IDs:', playerIds);
-      if (playerIds.length === 0 && updates.participants.length > 0) {
-        return res.status(400).json({ message: 'Ningún ID de participante válido proporcionado' });
-      }
-      const playersExist = await Player.find({ _id: { $in: playerIds } });
-      if (playersExist.length !== playerIds.length) {
-        const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-        console.error('Invalid participant IDs:', invalidIds);
-        return res.status(400).json({ message: `Algunos jugadores no existen en participantes: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
-      }
-    }
-    if (updates.groups) {
-      for (const group of updates.groups) {
-        if (group.matches) {
-          const matchPlayerIds = group.matches.flatMap((m, index) => {
-            const ids = [];
-            if (m.player1?.player1) {
-              const id = typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : m.player1.player1.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player1.player1 ID in group ${group.name}, match ${index}:`, m.player1.player1);
-            }
-            if (m.player1?.player2) {
-              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : m.player1.player2.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player1.player2 ID in group ${group.name}, match ${index}:`, m.player1.player2);
-            }
-            if (m.player2?.player1) {
-              const id = typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : (typeof m.player2.player1 === 'object' && m.player2.player1.$oid ? m.player2.player1.$oid : m.player2.player1.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player2.player1 ID in group ${group.name}, match ${index}:`, m.player2.player1);
-            }
-            if (m.player2?.player2) {
-              const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : m.player2.player2.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2.player2);
-            }
-            if (m.result?.winner) {
-              const id = typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : (typeof m.result.winner === 'object' && m.result.winner.$oid ? m.result.winner.$oid : m.result.winner.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match winner ID in group ${group.name}, match ${index}:`, m.result.winner);
-            }
-            return ids;
-          }).filter(Boolean);
-          console.log('Validating group match IDs for group', group.name, ':', matchPlayerIds);
-          if (matchPlayerIds.length === 0 && group.matches.length > 0) {
-            console.error('No valid IDs found in group matches for group:', group.name);
-            return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de grupos para el grupo ${group.name}` });
-          }
-          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
-          if (playersExist.length !== matchPlayerIds.length) {
-            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid group match IDs for group', group.name, ':', invalidIds);
-            return res.status(400).json({ message: `Algunos jugadores en los partidos de grupos no existen en el grupo ${group.name}: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
-          }
-        }
-      }
-    }
-    if (updates.rounds) {
-      for (const round of updates.rounds) {
-        if (round.matches) {
-          const matchPlayerIds = round.matches.flatMap((m, index) => {
-            const ids = [];
-            if (m.player1?.player1) {
-              const id = typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : m.player1.player1.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1.player1);
-            }
-            if (m.player1?.player2) {
-              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : m.player1.player2.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1.player2);
-            }
-            if (m.player2?.player1 && !m.player2.name) {
-              const id = typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : (typeof m.player2.player1 === 'object' && m.player2.player1.$oid ? m.player2.player1.$oid : m.player2.player1.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player1 ID in round ${round.round}, match ${index}:`, m.player2.player1);
-            }
-            if (m.player2?.player2 && !m.player2.name) {
-              const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : m.player2.player2.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2.player2);
-            }
-            if (m.result?.winner) {
-              const id = typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : (typeof m.result.winner === 'object' && m.result天子w.winner.$oid ? m.result.winner.$oid : m.result.winner.toString());
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result.winner);
-            }
-            return ids;
-          }).filter(Boolean);
-          console.log('Validating round match IDs for round', round.round, ':', matchPlayerIds);
-          if (matchPlayerIds.length === 0 && round.matches.length > 0 && !round.matches.some(m => m.player2?.name === 'BYE')) {
-            console.error('No valid IDs found in round matches for round:', round.round);
-            return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
-          }
-          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
-          if (playersExist.length !== matchPlayerIds.length) {
-            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid round match IDs for round', round.round, ':', invalidIds);
-            return res.status(400).json({ message: `Algunos jugadores en los partidos de rondas no existen en la ronda ${round.round}: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
-          }
-        }
-      }
-    }
-
-    if (updates.status === 'Finalizado' && (!updates.winner || !updates.runnerUp)) {
-      return res.status(400).json({ message: 'Debe declararse un ganador y un segundo puesto para finalizar el torneo' });
-    }
-
-    if (updates.winner && updates.runnerUp) {
-      const winner = await Player.findById(updates.winner);
-      const runnerUp = await Player.findById(updates.runnerUp);
-      if (!winner || !runnerUp) {
-        return res.status(400).json({ message: 'Ganador o segundo puesto no encontrado' });
-      }
-      await Player.updateMany(
-        { _id: { $in: [updates.winner, updates.runnerUp] } },
-        {
-          $push: {
-            achievements: {
-              tournamentId: id,
-              position: { $cond: [{ $eq: ['$_id', updates.winner] }, 'Winner', 'RunnerUp'] },
-              date: new Date(),
-            },
-          },
-        }
-      );
-    }
-
-    Object.assign(tournament, updates);
-    await tournament.save();
-    const updatedTournament = await Tournament.findById(id)
-      .populate('creator', 'username')
-      .populate('club', 'name')
-      .populate({
-        path: 'participants.player1 participants.player2',
-        select: 'firstName lastName',
-      })
-      .populate({
-        path: 'groups.matches.player1 groups.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
-      })
-      .populate({
-        path: 'rounds.matches.player1 rounds.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
-      });
-    res.json(updatedTournament);
-  } catch (error) {
-    console.error('Error updating tournament:', {
-      message: error.message,
-      stack: error.stack,
-      updates: JSON.stringify(req.body, null, 2),
-    });
-    res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
   }
 });
 
@@ -628,6 +439,190 @@ app.get('/api/tournaments/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching tournament by ID:', error.stack);
     res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });
+  }
+});
+
+app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
+      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
+    }
+    const { id } = req.params;
+    const updates = req.body;
+
+    const tournament = await Tournament.findById(id);
+    if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
+
+    if (updates.participants) {
+      const playerIds = updates.participants.flatMap((p, index) => {
+        const ids = [];
+        if (p.player1) {
+          const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
+          if (id && mongoose.isValidObjectId(id)) ids.push(id);
+          else console.warn(`Invalid participant player1 ID at index ${index}:`, p.player1);
+        }
+        if (p.player2) {
+          const id = typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : (typeof p.player2 === 'object' && p.player2.$oid ? p.player2.$oid : p.player2.toString());
+          if (id && mongoose.isValidObjectId(id)) ids.push(id);
+          else console.warn(`Invalid participant player2 ID at index ${index}:`, p.player2);
+        }
+        return ids;
+      }).filter(Boolean);
+      console.log('Validating participant IDs:', playerIds);
+      if (playerIds.length === 0 && updates.participants.length > 0) {
+        return res.status(400).json({ message: 'Ningún ID de participante válido proporcionado' });
+      }
+      const playersExist = await Player.find({ _id: { $in: playerIds } });
+      if (playersExist.length !== playerIds.length) {
+        const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+        console.error('Invalid participant IDs:', invalidIds);
+        return res.status(400).json({ message: `Algunos jugadores no existen en participantes: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
+      }
+    }
+    if (updates.groups) {
+      for (const group of updates.groups) {
+        if (group.matches) {
+          const matchPlayerIds = group.matches.flatMap((m, index) => {
+            const ids = [];
+            if (m.player1?.player1) {
+              const id = typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : m.player1.player1.toString());
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid group match player1.player1 ID in group ${group.name}, match ${index}:`, m.player1.player1);
+            }
+            if (m.player1?.player2) {
+              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : m.player1.player2.toString());
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid group match player1.player2 ID in group ${group.name}, match ${index}:`, m.player1.player2);
+            }
+            if (m.player2?.player1 && !m.player2.name) {
+              const id = typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : (typeof m.player2.player1 === 'object' && m.player2.player1.$oid ? m.player2.player1.$oid : m.player2.player1.toString());
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid group match player2.player1 ID in group ${group.name}, match ${index}:`, m.player2.player1);
+            }
+            if (m.player2?.player2 && !m.player2.name) {
+              const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : m.player2.player2.toString());
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2.player2);
+            }
+            if (m.result?.winner) {
+              const id = typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : (typeof m.result.winner === 'object' && m.result.winner.$oid ? m.result.winner.$oid : m.result.winner.toString());
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid group match winner ID in group ${group.name}, match ${index}:`, m.result.winner);
+            }
+            return ids;
+          }).filter(Boolean);
+          console.log('Validating group match IDs for group', group.name, ':', matchPlayerIds);
+          if (matchPlayerIds.length === 0 && group.matches.length > 0) {
+            console.error('No valid IDs found in group matches for group:', group.name);
+            return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de grupos para el grupo ${group.name}` });
+          }
+          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
+          if (playersExist.length !== matchPlayerIds.length) {
+            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+            console.error('Invalid group match IDs for group', group.name, ':', invalidIds);
+            return res.status(400).json({ message: `Algunos jugadores en los partidos de grupos no existen en el grupo ${group.name}: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
+          }
+        }
+      }
+    }
+    if (updates.rounds) {
+      for (const round of updates.rounds) {
+        if (round.matches) {
+          const matchPlayerIds = round.matches.flatMap((m, index) => {
+            const ids = [];
+            if (m.player1?.player1) {
+              const id = typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : (typeof m.player1.player1 === 'string' ? m.player1.player1 : null));
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1.player1);
+            }
+            if (m.player1?.player2) {
+              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : (typeof m.player1.player2 === 'string' ? m.player1.player2 : null));
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1.player2);
+            }
+            if (m.player2?.player1 && !m.player2.name) {
+              const id = typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : (typeof m.player2.player1 === 'object' && m.player2.player1.$oid ? m.player2.player1.$oid : (typeof m.player2.player1 === 'string' ? m.player2.player1 : null));
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match player2.player1 ID in round ${round.round}, match ${index}:`, m.player2.player1);
+            }
+            if (m.player2?.player2 && !m.player2.name) {
+              const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : (typeof m.player2.player2 === 'string' ? m.player2.player2 : null));
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2.player2);
+            }
+            if (m.result?.winner) {
+              const id = typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : (typeof m.result.winner === 'object' && m.result.winner.$oid ? m.result.winner.$oid : (typeof m.result.winner === 'string' ? m.result.winner : null));
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result.winner);
+            }
+            return ids;
+          }).filter(Boolean);
+          console.log('Validating round match IDs for round', round.round, ':', matchPlayerIds);
+          if (matchPlayerIds.length === 0 && round.matches.length > 0 && !round.matches.some(m => m.player2?.name === 'BYE')) {
+            console.error('No valid IDs found in round matches for round:', round.round);
+            return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
+          }
+          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
+          if (playersExist.length !== matchPlayerIds.length) {
+            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+            console.error('Invalid round match IDs for round', round.round, ':', invalidIds);
+            return res.status(400).json({ message: `Algunos jugadores en los partidos de rondas no existen en la ronda ${round.round}: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
+          }
+        }
+      }
+    }
+
+    if (updates.status === 'Finalizado' && (!updates.winner || !updates.runnerUp)) {
+      return res.status(400).json({ message: 'Debe declararse un ganador y un segundo puesto para finalizar el torneo' });
+    }
+
+    if (updates.winner && updates.runnerUp) {
+      const winner = await Player.findById(updates.winner);
+      const runnerUp = await Player.findById(updates.runnerUp);
+      if (!winner || !runnerUp) {
+        return res.status(400).json({ message: 'Ganador o segundo puesto no encontrado' });
+      }
+      await Player.updateMany(
+        { _id: { $in: [updates.winner, updates.runnerUp] } },
+        {
+          $push: {
+            achievements: {
+              tournamentId: id,
+              position: { $cond: [{ $eq: ['$_id', updates.winner] }, 'Winner', 'RunnerUp'] },
+              date: new Date(),
+            },
+          },
+        }
+      );
+    }
+
+    Object.assign(tournament, updates);
+    await tournament.save();
+    const updatedTournament = await Tournament.findById(id)
+      .populate('creator', 'username')
+      .populate('club', 'name')
+      .populate({
+        path: 'participants.player1 participants.player2',
+        select: 'firstName lastName',
+      })
+      .populate({
+        path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
+      })
+      .populate({
+        path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
+      });
+    res.json(updatedTournament);
+  } catch (error) {
+    console.error('Error updating tournament:', {
+      message: error.message,
+      stack: error.stack,
+      updates: JSON.stringify(req.body, null, 2),
+    });
+    res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
   }
 });
 
