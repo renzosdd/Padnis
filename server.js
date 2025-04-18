@@ -365,18 +365,17 @@ app.get('/api/tournaments', async (req, res) => {
         console.log('Invalid token, proceeding as spectator');
       }
     }
-    const query = {};
+    const query = { draft: false }; // Ensure non-draft tournaments
     if (status) {
       query.status = status;
     } else {
       query.status = 'En curso';
-      query.draft = false;
     }
-    // Admins see all tournaments; non-admins see non-draft or their own drafts
-    if (user && user.role !== 'admin') {
+    // Admins and creators see drafts; others see only non-draft
+    if (user && user.role === 'admin') {
+      delete query.draft; // Admins see all tournaments
+    } else if (user) {
       query.$or = [{ creator: user._id }, { draft: false }];
-    } else if (!user) {
-      query.draft = false;
     }
     console.log('Fetching tournaments with query:', query);
     const tournaments = await Tournament.find(query)

@@ -89,20 +89,24 @@ const App = () => {
   const fetchTournaments = async (retries = 2) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${BACKEND_URL}/api/tournaments?status=En%20curso`, {
+      const url = `${BACKEND_URL}/api/tournaments?status=En%20curso`;
+      console.log('Fetching tournaments from:', url, 'with token:', token ? 'present' : 'missing');
+      const response = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 30000,
       });
-      console.log('API response (App.jsx):', response.data); // Debug log
+      console.log('API response (App.jsx):', response.data);
       if (!Array.isArray(response.data)) {
         throw new Error('Unexpected response format: Data is not an array');
       }
       setTournaments(response.data);
     } catch (error) {
+      const errorMessage = error.response?.data?.message || `Error al cargar torneos: ${error.message}`;
+      console.error('Error fetching tournaments:', error);
+      addNotification(errorMessage, 'error');
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         setTimeout(() => fetchTournaments(retries - 1), 2000);
       } else {
-        addNotification('No se pudieron cargar los torneos.', 'error');
         setTournaments([]);
       }
     }
@@ -239,10 +243,10 @@ const App = () => {
               {view === 'activos' && !selectedTournamentId && (
                 <Box>
                   <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
-                  {tournaments.filter(t => t.status === 'En curso' && !t.draft).length === 0 ? (
+                  {tournaments.length === 0 ? (
                     <Typography>No hay torneos activos actualmente.</Typography>
                   ) : (
-                    tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
+                    tournaments.map(tournament => (
                       <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
                         <Typography variant="h6">{tournament.name}</Typography>
                         <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
@@ -280,10 +284,10 @@ const App = () => {
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
-                {tournaments.filter(t => t.status === 'En curso' && !t.draft).length === 0 ? (
+                {tournaments.length === 0 ? (
                   <Typography>No hay torneos activos actualmente.</Typography>
                 ) : (
-                  tournaments.filter(t => t.status === 'En curso' && !t.draft).map(tournament => (
+                  tournaments.map(tournament => (
                     <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
                       <Typography variant="h6">{tournament.name}</Typography>
                       <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
