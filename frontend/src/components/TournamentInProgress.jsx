@@ -234,7 +234,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, {
         sets,
         winner: winnerId,
-        isKnockout: roundIndex !== null, // Indicate if this is a knockout match
+        isKnockout: roundIndex !== null,
       }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -343,7 +343,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const advanceEliminationRound = async () => {
-    if (tournament.type !== 'Eliminatorio' && !tournament.rounds.length) return;
+    if (!tournament.rounds.length) return;
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
       if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
@@ -406,7 +406,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
-      addNotification('Ronda avanzada con éxito', 'success');
+      addNotification(`Avanzado a Ronda ${tournament.rounds.length + 1}${matches.length === 1 ? ' (Final)' : ''}`, 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
@@ -427,8 +427,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       let winner;
       if (tournament.rounds.length > 0) {
         const finalRound = tournament.rounds[tournament.rounds.length - 1];
-        const finalMatch = finalRound.matches[0];
-        winner = finalMatch.result.winner;
+        if (finalRound.matches.length !== 1 || !finalRound.matches[0].result.winner) {
+          addNotification('La ronda final no está completa o no tiene un ganador', 'error');
+          return;
+        }
+        winner = finalRound.matches[0].result.winner;
       } else if (tournament.type === 'RoundRobin') {
         const allStandings = standings.flatMap(group => group.standings);
         winner = allStandings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon)[0].playerId;
@@ -460,10 +463,19 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const getPlayerName = (playerId, player2Id = null) => {
-    const participant = tournament.participants.find(p => 
-      (typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString()) === playerId.toString()
-    );
+    const normalizeId = (id) => {
+      if (typeof id === 'object' && id.$oid) return id.$oid;
+      if (typeof id === 'object' && id._id) return id._id.toString();
+      return id.toString();
+    };
+    const participant = tournament.participants.find(p => {
+      const pId = typeof p.player1 === 'object' && p.player1._id
+        ? p.player1._id.toString()
+        : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
+      return pId === normalizeId(playerId);
+    });
     if (!participant) {
+      console.warn(`Participant not found for playerId: ${playerId}`);
       return 'Jugador no encontrado';
     }
     const player1Name = participant.player1?.firstName
@@ -665,7 +677,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
-                                  {match.player1?.player1?.firstName?.charAt(0) || '?'}
+                                  {getPlayerName(match.player1.player1).charAt(0)}
                                 </Avatar>
                                 <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
                                   {getPlayerName(match.player1.player1, match.player1.player2)}
@@ -673,7 +685,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                               </Box>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
-                                  {match.player2?.player1?.firstName?.charAt(0) || '?'}
+                                  {getPlayerName(match.player2.player1).charAt(0)}
                                 </Avatar>
                                 <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
                                   {getPlayerName(match.player2.player1, match.player2.player2)}
@@ -783,7 +795,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                         const participant = tournament.participants.find(p =>
                           (typeof p.player1 === 'object' && p.player1._id
                             ? p.player1._id.toString()
-                            : p.player1.toString()) === player.playerId.toString()
+                            : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString())) === player.playerId.toString()
                         );
                         const player1Name = participant?.player1?.firstName
                           ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
@@ -890,7 +902,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                           <IconButton
                             onClick={() => decrementScore(index, 'player1')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                           >
                             <Remove />
                           </IconButton>
@@ -904,7 +916,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                           <IconButton
                             onClick={() => incrementScore(index, 'player1')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                           >
                             <Add />
                           </IconButton>
@@ -916,7 +928,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                           <IconButton
                             onClick={() => decrementScore(index, 'player2')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                           >
                             <Remove />
                           </IconButton>
@@ -930,7 +942,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                           <IconButton
                             onClick={() => incrementScore(index, 'player2')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                           >
                             <Add />
                           </IconButton>
@@ -945,7 +957,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 <IconButton
                                   onClick={() => decrementScore(index, 'tiebreak1')}
                                   size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                                 >
                                   <Remove />
                                 </IconButton>
@@ -959,7 +971,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 <IconButton
                                   onClick={() => incrementScore(index, 'tiebreak1')}
                                   size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                                 >
                                   <Add />
                                 </IconButton>
@@ -971,7 +983,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 <IconButton
                                   onClick={() => decrementScore(index, 'tiebreak2')}
                                   size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                                 >
                                   <Remove />
                                 </IconButton>
@@ -985,7 +997,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 <IconButton
                                   onClick={() => incrementScore(index, 'tiebreak2')}
                                   size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' } }}
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
                                 >
                                   <Add />
                                 </IconButton>
