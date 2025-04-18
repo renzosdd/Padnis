@@ -305,7 +305,8 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     const playerIds = participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
     const playersExist = await Player.find({ _id: { $in: playerIds } });
     if (playersExist.length !== playerIds.length) {
-      return res.status(400).json({ message: 'Algunos jugadores no existen' });
+      const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+      return res.status(400).json({ message: `Algunos jugadores no existen: ${invalidIds.join(', ')}` });
     }
 
     const tournament = new Tournament({
@@ -397,8 +398,9 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       console.log('Validating participant IDs:', playerIds);
       const playersExist = await Player.find({ _id: { $in: playerIds } });
       if (playersExist.length !== playerIds.length) {
-        console.log('Invalid participant IDs:', playerIds.filter(id => !playersExist.some(p => p._id.toString() === id)));
-        return res.status(400).json({ message: 'Algunos jugadores no existen' });
+        const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+        console.error('Invalid participant IDs:', invalidIds);
+        return res.status(400).json({ message: `Algunos jugadores no existen en participantes: ${invalidIds.join(', ')}` });
       }
     }
     if (updates.groups) {
@@ -414,8 +416,9 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           console.log('Validating group match IDs:', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
-            console.log('Invalid group match IDs:', matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id)));
-            return res.status(400).json({ message: 'Algunos jugadores en los partidos no existen' });
+            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+            console.error('Invalid group match IDs:', invalidIds);
+            return res.status(400).json({ message: `Algunos jugadores en los partidos de grupos no existen: ${invalidIds.join(', ')}` });
           }
         }
       }
@@ -433,8 +436,9 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           console.log('Validating round match IDs:', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
-            console.log('Invalid round match IDs:', matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id)));
-            return res.status(400).json({ message: 'Algunos jugadores en los partidos no existen' });
+            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+            console.error('Invalid round match IDs:', invalidIds);
+            return res.status(400).json({ message: `Algunos jugadores en los partidos de rondas no existen: ${invalidIds.join(', ')}` });
           }
         }
       }
@@ -552,7 +556,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     if (winner) {
       const playerExists = await Player.findById(winner);
       if (!playerExists) {
-        return res.status(400).json({ message: 'El ganador no existe' });
+        return res.status(400).json({ message: `El ganador con ID ${winner} no existe` });
       }
     }
 
@@ -562,7 +566,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
 
     res.json({ message: 'Resultado actualizado' });
   } catch (error) {
-    console.error('Error updating match result:', error);
+    console.error('Error updating match result:', error.stack);
     res.status(500).json({ message: 'Error al actualizar resultado', error: error.message });
   }
 });
