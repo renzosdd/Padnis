@@ -262,7 +262,7 @@ app.put('/api/players/:playerId', authenticateToken, async (req, res) => {
     Object.assign(player, updates);
     await player.save();
     res.json({ ...player.toObject(), _id: String(player._id) });
-  } catch (Destring error) {
+  } catch (error) {
     console.error('Error updating player:', error.stack);
     res.status(500).json({ message: 'Error al actualizar jugador', error: error.message });
   }
@@ -469,7 +469,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             }
             return ids;
           }).filter(Boolean);
-          console.log('Validating group match IDs:', matchPlayerIds);
+          console.log('Validating group match IDs for group', group.name, ':', matchPlayerIds);
           if (matchPlayerIds.length === 0 && group.matches.length > 0) {
             console.error('No valid IDs found in group matches for group:', group.name);
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de grupos para el grupo ${group.name}` });
@@ -494,7 +494,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1.player1);
             }
             if (m.player1?.player2) {
-              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : m.player1.player2.toString();
+              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : m.player1.player2.toString();  // Corregido a "player2"
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1.player2);
             }
@@ -515,7 +515,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             }
             return ids;
           }).filter(Boolean);
-          console.log('Validating round match IDs:', matchPlayerIds);
+          console.log('Validating round match IDs for round', round.round, ':', matchPlayerIds);
           if (matchPlayerIds.length === 0 && round.matches.length > 0) {
             console.error('No valid IDs found in round matches for round:', round.round);
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
@@ -636,7 +636,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     }
 
     if (!match) {
-      return res.status(400).json({ message: 'Partido no encontrado' });
+      return res.status(404).json({ message: 'Partido no encontrado' });
     }
 
     if (winner) {
