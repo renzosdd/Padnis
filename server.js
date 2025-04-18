@@ -353,54 +353,6 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/tournaments', async (req, res) => {
-  try {
-    const { status } = req.query;
-    const token = req.headers['authorization']?.split(' ')[1];
-    let user = null;
-    if (token) {
-      try {
-        user = jwt.verify(token, process.env.JWT_SECRET);
-      } catch (err) {
-        console.log('Invalid token, proceeding as spectator');
-      }
-    }
-    const query = { draft: false };
-    if (status) {
-      query.status = status;
-    } else {
-      query.status = 'En curso';
-    }
-    if (user && user.role === 'admin') {
-      delete query.draft; // Admins see all tournaments
-    } else if (user) {
-      query.$or = [{ creator: user._id }, { draft: false }];
-    }
-    console.log('Fetching tournaments with query:', query);
-    const tournaments = await Tournament.find(query)
-      .populate('creator', 'username')
-      .populate('club', 'name')
-      .populate({
-        path: 'participants.player1 participants.player2',
-        select: 'firstName lastName',
-      })
-      .populate({
-        path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
-        select: 'firstName lastName',
-        options: { strictPopulate: false }, // Fallback for schema mismatches
-      })
-      .populate({
-        path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
-        select: 'firstName lastName',
-        options: { strictPopulate: false },
-      });
-    console.log('Tournaments fetched:', { query, count: tournaments.length, tournaments });
-    res.json(tournaments);
-  } catch (error) {
-    console.error('Error fetching tournaments:', error.stack);
-    res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
-  }
-});
 
 app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   try {
@@ -590,6 +542,55 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/tournaments', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const token = req.headers['authorization']?.split(' ')[1];
+    let user = null;
+    if (token) {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (err) {
+        console.log('Invalid token, proceeding as spectator');
+      }
+    }
+    const query = { draft: false };
+    if (status) {
+      query.status = status;
+    } else {
+      query.status = 'En curso';
+    }
+    if (user && user.role === 'admin') {
+      delete query.draft; // Admins see all tournaments
+    } else if (user) {
+      query.$or = [{ creator: user._id }, { draft: false }];
+    }
+    console.log('Fetching tournaments with query:', query);
+    const tournaments = await Tournament.find(query)
+      .populate('creator', 'username')
+      .populate('club', 'name')
+      .populate({
+        path: 'participants.player1 participants.player2',
+        select: 'firstName lastName',
+      })
+      .populate({
+        path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
+      })
+      .populate({
+        path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
+      });
+    console.log('Tournaments fetched:', { query, count: tournaments.length, tournaments });
+    res.json(tournaments);
+  } catch (error) {
+    console.error('Error fetching tournaments:', error.stack);
+    res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
+  }
+});
+
 app.get('/api/tournaments/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -610,18 +611,14 @@ app.get('/api/tournaments/:id', async (req, res) => {
         select: 'firstName lastName',
       })
       .populate({
-        path: 'groups.matches.player1 groups.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
+        path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
       })
       .populate({
-        path: 'rounds.matches.player1 groups.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
+        path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
       });
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
