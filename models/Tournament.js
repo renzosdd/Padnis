@@ -86,8 +86,8 @@ const tournamentSchema = new mongoose.Schema({
   draft: { type: Boolean, default: true },
   status: { type: String, enum: ['Pendiente', 'En curso', 'Finalizado'], default: 'Pendiente' },
   playersPerGroupToAdvance: Number,
-  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // New field for tournament winner
-  runnerUp: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // New field for tournament runner-up
+  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+  runnerUp: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Tournament', tournamentSchema);

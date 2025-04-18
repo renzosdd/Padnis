@@ -365,13 +365,12 @@ app.get('/api/tournaments', async (req, res) => {
         console.log('Invalid token, proceeding as spectator');
       }
     }
-    const query = { draft: false }; // Ensure non-draft tournaments
+    const query = { draft: false };
     if (status) {
       query.status = status;
     } else {
       query.status = 'En curso';
     }
-    // Admins and creators see drafts; others see only non-draft
     if (user && user.role === 'admin') {
       delete query.draft; // Admins see all tournaments
     } else if (user) {
@@ -386,18 +385,14 @@ app.get('/api/tournaments', async (req, res) => {
         select: 'firstName lastName',
       })
       .populate({
-        path: 'groups.matches.player1 groups.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
+        path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false }, // Fallback for schema mismatches
       })
       .populate({
-        path: 'rounds.matches.player1 rounds.matches.player2',
-        populate: {
-          path: 'player1 player2',
-          select: 'firstName lastName',
-        },
+        path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
+        select: 'firstName lastName',
+        options: { strictPopulate: false },
       });
     console.log('Tournaments fetched:', { query, count: tournaments.length, tournaments });
     res.json(tournaments);
