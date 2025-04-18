@@ -530,48 +530,56 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (updates.rounds) {
       for (const round of updates.rounds) {
         if (round.matches) {
-          const matchPlayerIds = round.matches.flatMap((m, index) => {
-            const ids = [];
+          const matchPlayerIds = [];
+          const validationErrors = [];
+          round.matches.forEach((m, index) => {
             if (!m.player1 || !m.player2) {
-              console.warn(`Missing player1 or player2 in round ${round.round}, match ${index}:`, m);
-              return ids;
+              validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1 o player2`);
+              return;
             }
             if (m.player1.player1) {
               const id = typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : (typeof m.player1.player1 === 'string' ? m.player1.player1 : null));
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1.player1);
+              if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+              else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player1.player1: ${JSON.stringify(m.player1.player1)}`);
             } else {
-              console.warn(`Missing player1.player1 in round ${round.round}, match ${index}:`, m.player1);
+              validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1.player1`);
             }
-            if (m.player1.player2 && tournament.format.mode === 'Dobles') {
-              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : (typeof m.player1.player2 === 'string' ? m.player1.player2 : null));
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1.player2);
-            } else if (tournament.format.mode === 'Dobles' && !m.player1.player2) {
-              console.warn(`Missing player1.player2 for doubles mode in round ${round.round}, match ${index}:`, m.player1);
+            if (tournament.format.mode === 'Dobles') {
+              if (m.player1.player2) {
+                const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : (typeof m.player1.player2 === 'string' ? m.player1.player2 : null));
+                if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+                else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player1.player2: ${JSON.stringify(m.player1.player2)}`);
+              } else if (!m.player2.name) {
+                validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1.player2 para modo Dobles`);
+              }
             }
             if (m.player2.player1 && !m.player2.name) {
               const id = typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : (typeof m.player2.player1 === 'object' && m.player2.player1.$oid ? m.player2.player1.$oid : (typeof m.player2.player1 === 'string' ? m.player2.player1 : null));
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player1 ID in round ${round.round}, match ${index}:`, m.player2.player1);
+              if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+              else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player2.player1: ${JSON.stringify(m.player2.player1)}`);
             } else if (!m.player2.name && !m.player2.player1) {
-              console.warn(`Missing player2.player1 in round ${round.round}, match ${index}:`, m.player2);
+              validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player2.player1`);
             }
-            if (m.player2.player2 && !m.player2.name && tournament.format.mode === 'Dobles') {
-              const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : (typeof m.player2.player2 === 'string' ? m.player2.player2 : null));
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2.player2);
-            } else if (tournament.format.mode === 'Dobles' && !m.player2.name && !m.player2.player2) {
-              console.warn(`Missing player2.player2 for doubles mode in round ${round.round}, match ${index}:`, m.player2);
+            if (tournament.format.mode === 'Dobles' && !m.player2.name) {
+              if (m.player2.player2) {
+                const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : (typeof m.player2.player2 === 'string' ? m.player2.player2 : null));
+                if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+                else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player2.player2: ${JSON.stringify(m.player2.player2)}`);
+              } else {
+                validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player2.player2 para modo Dobles`);
+              }
             }
             if (m.result?.winner) {
               const id = typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : (typeof m.result.winner === 'object' && m.result.winner.$oid ? m.result.winner.$oid : (typeof m.result.winner === 'string' ? m.result.winner : null));
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result.winner);
+              if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+              else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para winner: ${JSON.stringify(m.result.winner)}`);
             }
-            return ids;
-          }).filter(Boolean);
+          });
           console.log('Validating round match IDs for round', round.round, ':', matchPlayerIds);
+          if (validationErrors.length > 0) {
+            console.error('Validation errors in round matches for round:', round.round, ':', validationErrors);
+            return res.status(400).json({ message: `Errores de validación en la ronda ${round.round}: ${validationErrors.join('; ')}` });
+          }
           if (matchPlayerIds.length === 0 && round.matches.length > 0 && !round.matches.some(m => m.player2?.name === 'BYE')) {
             console.error('No valid IDs found in round matches for round:', round.round);
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
@@ -593,7 +601,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               if (teams[i].player2?.player2) teamIds.push(teams[i].player2.player2.toString());
               if (teamIds.length !== expectedIdsPerTeam * 2) {
                 console.error(`Invalid number of player IDs in round ${round.round}, match ${i}:`, teamIds);
-                return res.status(400).json({ message: `Faltan IDs de jugadores para el modo Dobles en la ronda ${round.round}, partido ${i}` });
+                return res.status(400).json({ message: `Faltan IDs de jugadores para el modo Dobles en la ronda ${round.round}, partido ${i}: ${teamIds.join(', ')}` });
               }
             }
           }

@@ -395,7 +395,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           };
         })
         .filter(w => w !== null);
-      console.log('Winners for new round:', winners);
+      console.log('Winners for new round (detailed):', JSON.stringify(winners, null, 2));
       if (winners.length < 1) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
         return;
@@ -421,7 +421,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const updatePayload = {
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
-      console.log('Advancing round payload:', updatePayload);
+      console.log('Advancing round payload:', JSON.stringify(updatePayload, null, 2));
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
