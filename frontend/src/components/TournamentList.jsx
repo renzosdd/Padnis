@@ -15,9 +15,13 @@ const TournamentList = () => {
         const response = await axios.get('https://padnis.onrender.com/api/tournaments?status=En%20curso', {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
+        console.log('API response:', response.data); // Debug log
+        if (!Array.isArray(response.data)) {
+          throw new Error('Unexpected response format: Data is not an array');
+        }
         setTournaments(response.data);
       } catch (error) {
-        const errorMessage = error.response?.data?.message || 'Error al cargar torneos activos';
+        const errorMessage = error.response?.data?.message || `Error al cargar torneos activos: ${error.message}`;
         addNotification(errorMessage, 'error');
         console.error('Error al cargar torneos:', error);
       } finally {

@@ -89,10 +89,14 @@ const App = () => {
   const fetchTournaments = async (retries = 2) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${BACKEND_URL}/api/tournaments`, {
+      const response = await axios.get(`${BACKEND_URL}/api/tournaments?status=En%20curso`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         timeout: 30000,
       });
+      console.log('API response (App.jsx):', response.data); // Debug log
+      if (!Array.isArray(response.data)) {
+        throw new Error('Unexpected response format: Data is not an array');
+      }
       setTournaments(response.data);
     } catch (error) {
       if (retries > 0 && error.code === 'ERR_NETWORK') {

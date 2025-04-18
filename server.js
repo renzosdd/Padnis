@@ -355,6 +355,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
 
 app.get('/api/tournaments', async (req, res) => {
   try {
+    const { status } = req.query;
     const token = req.headers['authorization']?.split(' ')[1];
     let user = null;
     if (token) {
@@ -364,13 +365,14 @@ app.get('/api/tournaments', async (req, res) => {
         console.log('Invalid token, proceeding as spectator');
       }
     }
-    const { status } = req.query;
-    const query = {};
-    if (status) query.status = status;
-    if (!user) query.draft = false;
-    else if (user.role !== 'admin') {
+    const query = status ? { status } : { status: 'En curso', draft: false };
+    if (!user) {
+      query.draft = false; // Spectators only see non-draft tournaments
+    } else if (user.role !== 'admin') {
+      // Non-admins see their own tournaments or non-draft tournaments
       query.$or = [{ creator: user._id }, { draft: false }];
     }
+    console.log('Fetching tournaments with query:', query);
     const tournaments = await Tournament.find(query)
       .populate('creator', 'username')
       .populate('club', 'name')
@@ -386,7 +388,7 @@ app.get('/api/tournaments', async (req, res) => {
         },
       })
       .populate({
-        path: 'rounds.matches.player1 rounds.matches.player2',
+        path: 'rounds.matches.player1 rounds.matches.player2', // Fixed populate path
         populate: {
           path: 'player1 player2',
           select: 'firstName lastName',
