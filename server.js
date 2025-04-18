@@ -478,7 +478,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       if (playersExist.length !== playerIds.length) {
         const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
         console.error('Invalid participant IDs:', invalidIds);
-        return res.status(400).json({ message: `Algunos jugadores no existen en participantes: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
+        return res.status(400).json({ message: `Algunos jugadores no existen en participantes: ${invalidIds.join(', ')}` });
       }
     }
     if (updates.groups) {
@@ -522,7 +522,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
             console.error('Invalid group match IDs for group', group.name, ':', invalidIds);
-            return res.status(400).json({ message: `Algunos jugadores en los partidos de grupos no existen en el grupo ${group.name}: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
+            return res.status(400).json({ message: `Algunos jugadores en los partidos de grupos no existen en el grupo ${group.name}: ${invalidIds.join(', ')}` });
           }
         }
       }
@@ -544,30 +544,20 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             } else {
               validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1.player1`);
             }
-            if (tournament.format.mode === 'Dobles') {
-              if (m.player1.player2) {
-                const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : (typeof m.player1.player2 === 'string' ? m.player1.player2 : null));
-                if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
-                else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player1.player2: ${JSON.stringify(m.player1.player2)}`);
-              } else if (!m.player2.name) {
-                validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1.player2 para modo Dobles`);
-              }
+            if (tournament.format.mode === 'Dobles' && m.player1.player2) {
+              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : (typeof m.player1.player2 === 'string' ? m.player1.player2 : null));
+              if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+              else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player1.player2: ${JSON.stringify(m.player1.player2)}`);
             }
             if (m.player2.player1 && !m.player2.name) {
               const id = typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : (typeof m.player2.player1 === 'object' && m.player2.player1.$oid ? m.player2.player1.$oid : (typeof m.player2.player1 === 'string' ? m.player2.player1 : null));
               if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
               else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player2.player1: ${JSON.stringify(m.player2.player1)}`);
-            } else if (!m.player2.name && !m.player2.player1) {
-              validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player2.player1`);
             }
-            if (tournament.format.mode === 'Dobles' && !m.player2.name) {
-              if (m.player2.player2) {
-                const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : (typeof m.player2.player2 === 'string' ? m.player2.player2 : null));
-                if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
-                else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player2.player2: ${JSON.stringify(m.player2.player2)}`);
-              } else {
-                validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player2.player2 para modo Dobles`);
-              }
+            if (tournament.format.mode === 'Dobles' && m.player2.player2 && !m.player2.name) {
+              const id = typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : (typeof m.player2.player2 === 'object' && m.player2.player2.$oid ? m.player2.player2.$oid : (typeof m.player2.player2 === 'string' ? m.player2.player2 : null));
+              if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
+              else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player2.player2: ${JSON.stringify(m.player2.player2)}`);
             }
             if (m.result?.winner) {
               const id = typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : (typeof m.result.winner === 'object' && m.result.winner.$oid ? m.result.winner.$oid : (typeof m.result.winner === 'string' ? m.result.winner : null));
@@ -588,22 +578,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
             console.error('Invalid round match IDs for round', round.round, ':', invalidIds);
-            return res.status(400).json({ message: `Algunos jugadores en los partidos de rondas no existen en la ronda ${round.round}: ${invalidIds.length > 0 ? invalidIds.join(', ') : 'IDs no especificados'}` });
-          }
-          if (tournament.format.mode === 'Dobles') {
-            const expectedIdsPerTeam = 2; // Both player1 and player2 required
-            const teams = round.matches.filter(m => !m.player2?.name); // Exclude BYE matches
-            for (let i = 0; i < teams.length; i++) {
-              const teamIds = [];
-              if (teams[i].player1?.player1) teamIds.push(teams[i].player1.player1.toString());
-              if (teams[i].player1?.player2) teamIds.push(teams[i].player1.player2.toString());
-              if (teams[i].player2?.player1) teamIds.push(teams[i].player2.player1.toString());
-              if (teams[i].player2?.player2) teamIds.push(teams[i].player2.player2.toString());
-              if (teamIds.length !== expectedIdsPerTeam * 2) {
-                console.error(`Invalid number of player IDs in round ${round.round}, match ${i}:`, teamIds);
-                return res.status(400).json({ message: `Faltan IDs de jugadores para el modo Dobles en la ronda ${round.round}, partido ${i}: ${teamIds.join(', ')}` });
-              }
-            }
+            return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para la ronda ${round.round}: ${invalidIds.join(', ')}` });
           }
         }
       }
