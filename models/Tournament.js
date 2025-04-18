@@ -21,7 +21,7 @@ const matchSchema = new mongoose.Schema({
     winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   },
   date: { type: String },
-}, { _id: true }); // Genera IDs únicos para cada partido
+}, { _id: true });
 
 const groupSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -33,19 +33,18 @@ const groupSchema = new mongoose.Schema({
     setsWon: { type: Number, default: 0 },
     gamesWon: { type: Number, default: 0 },
   }],
-}, { _id: true }); // IDs únicos para grupos
+}, { _id: true });
 
 const roundSchema = new mongoose.Schema({
   round: { type: Number, required: true },
   matches: [matchSchema],
-}, { _id: true }); // IDs únicos para rondas
+}, { _id: true });
 
 const tournamentSchema = new mongoose.Schema({
   name: { type: String, required: true },
   club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
   type: { type: String, enum: ['RoundRobin', 'Eliminatorio'], required: true },
   sport: { type: String, enum: ['Tenis', 'Pádel'], required: true },
-  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   category: {
     type: String,
     required: true,
@@ -71,6 +70,7 @@ const tournamentSchema = new mongoose.Schema({
   creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   draft: { type: Boolean, default: true },
   status: { type: String, enum: ['Pendiente', 'En curso', 'Finalizado'], default: 'Pendiente' },
+  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // Campo para almacenar el ganador
 });
 
 module.exports = mongoose.model('Tournament', tournamentSchema);

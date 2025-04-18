@@ -60,6 +60,7 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
       addNotification('Jugador creado y agregado', 'success');
     } catch (error) {
       addNotification(error.response?.data?.message || 'Error al crear jugador', 'error');
+      console.error('Error al crear jugador:', error);
     }
   };
 
@@ -124,6 +125,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     groupSize: 4,
     autoGenerate: true,
     seededPlayers: [],
+    playersPerGroupToAdvance: 2,
   });
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [pairPlayers, setPairPlayers] = useState([]);
@@ -131,7 +133,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const [newPlayerDialogOpen, setNewPlayerDialogOpen] = useState(false);
   const [localPlayers, setLocalPlayers] = useState([]);
   const [clubs, setClubs] = useState([]);
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { addNotification } = useNotification();
   const isMobile = useMediaQuery('(max-width:600px)');
 
@@ -149,6 +151,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       setClubs(response.data);
     } catch (error) {
       addNotification('Error al cargar clubes', 'error');
+      console.error('Error al cargar clubes:', error);
     }
   };
 
@@ -202,13 +205,15 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         rounds: formData.rounds,
         schedule: formData.schedule,
         seededPlayers: formData.seededPlayers,
+        playersPerGroupToAdvance: formData.playersPerGroupToAdvance,
         draft,
+        status: draft ? 'Pendiente' : 'En curso', // Asegurar estado correcto
       };
       const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!draft) onCreateTournament(response.data);
-      addNotification(draft ? 'Borrador guardado' : 'Torneo creado', 'success');
+      addNotification(draft ? 'Borrador guardado' : 'Torneo creado y activado', 'success');
       resetForm();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Error al crear el torneo';
@@ -233,6 +238,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       groupSize: 4,
       autoGenerate: true,
       seededPlayers: [],
+      playersPerGroupToAdvance: 2,
     });
     setSelectedPlayers([]);
     setPairPlayers([]);
@@ -248,8 +254,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Stack
         spacing={3}
         sx={{
-          maxWidth: '90%',
-          width: { xs: '100%', sm: 400 },
+          maxWidth: 600, // Igualar ancho al Stepper
+          width: '100%',
           mx: 'auto',
           bgcolor: '#ffffff',
           p: 3,
@@ -345,6 +351,21 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             <MenuItem value={2}>2 Sets</MenuItem>
           </Select>
         </FormControl>
+        <FormControl fullWidth variant="outlined">
+          <InputLabel id="players-per-group-label">Jugadores que pasan por grupo</InputLabel>
+          <Select
+            labelId="players-per-group-label"
+            id="players-per-group"
+            value={formData.playersPerGroupToAdvance}
+            label="Jugadores que pasan por grupo"
+            onChange={(e) => setFormData({ ...formData, playersPerGroupToAdvance: e.target.value })}
+            disabled={formData.type !== 'RoundRobin'}
+          >
+            <MenuItem value={1}>1</MenuItem>
+            <MenuItem value={2}>2</MenuItem>
+            <MenuItem value={3}>3</MenuItem>
+          </Select>
+        </FormControl>
       </Stack>
     );
   };
@@ -429,8 +450,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Stack
         spacing={3}
         sx={{
-          maxWidth: '90%',
-          width: { xs: '100%', sm: 600 },
+          maxWidth: 600, // Igualar ancho al Stepper
+          width: '100%',
           mx: 'auto',
           bgcolor: '#ffffff',
           p: 3,
@@ -569,8 +590,8 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Stack
         spacing={3}
         sx={{
-          maxWidth: '90%',
-          width: { xs: '100%', sm: 600 },
+          maxWidth: 600, // Igualar ancho al Stepper
+          width: '100%',
           mx: 'auto',
           bgcolor: '#ffffff',
           p: 3,
@@ -664,7 +685,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.8rem', sm: '2rem' }, color: '#333', fontWeight: 600, textAlign: 'center' }}>
         Crear Torneo
       </Typography>
-      <Stepper activeStep={step} orientation={isMobile ? 'vertical' : 'horizontal'} sx={{ mb: 3, bgcolor: '#ffffff', p: 2, borderRadius: 2, boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+      <Stepper activeStep={step} orientation={isMobile ? 'vertical' : 'horizontal'} sx={{ mb: 3, bgcolor: '#ffffff', p: 2, borderRadius: 2, boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', maxWidth: 600, mx: 'auto' }}>
         {steps.map(label => (
           <Step key={label}>
             <StepLabel sx={{ fontSize: { xs: '0.9rem', sm: '1rem' }, color: '#333' }}>{label}</StepLabel>
@@ -674,7 +695,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       {step === 0 && <Step1 />}
       {step === 1 && <Step2 />}
       {step === 2 && <Step3 />}
-      <Stack direction="row" spacing={2} justifyContent="space-between" sx={{ mt: 3, px: 2 }}>
+      <Stack direction="row" spacing={2} justifyContent="space-between" sx={{ mt: 3, px: 2, maxWidth: 600, mx: 'auto' }}>
         {step > 0 && (
           <Button variant="outlined" onClick={() => setStep(step - 1)} sx={{ borderColor: '#d32f2f', color: '#d32f2f', fontSize: { xs: '0.9rem', sm: '1rem' }, py: 1, px: 3, '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' } }}>
             Atrás

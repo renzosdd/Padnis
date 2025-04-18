@@ -185,7 +185,6 @@ app.delete('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
     const { id } = req.params;
     const club = await Club.findById(id);
     if (!club) return res.status(404).json({ message: 'Club no encontrado' });
-    // Verificar si el club está asociado a algún torneo
     const tournaments = await Tournament.find({ club: id });
     if (tournaments.length > 0) {
       return res.status(400).json({ message: 'No se puede eliminar el club porque está asociado a torneos' });
@@ -275,7 +274,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     if (req.user.role !== 'admin' && req.user.role !== 'coach') {
       return res.status(403).json({ message: 'Requiere rol de admin o coach' });
     }
-    const { name, clubId, type, sport, category, format, participants, groups, rounds, schedule, draft } = req.body;
+    const { name, clubId, type, sport, category, format, participants, groups, rounds, schedule, draft, playersPerGroupToAdvance } = req.body;
 
     if (!name) return res.status(400).json({ message: 'El nombre del torneo es obligatorio' });
     if (!type || !['RoundRobin', 'Eliminatorio'].includes(type)) {
@@ -323,6 +322,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       creator: req.user._id,
       draft: draft !== undefined ? draft : true,
       status: draft ? 'Pendiente' : 'En curso',
+      playersPerGroupToAdvance: type === 'RoundRobin' ? playersPerGroupToAdvance : undefined,
     });
 
     await tournament.save();
@@ -373,6 +373,7 @@ app.get('/api/tournaments', async (req, res) => {
           select: 'firstName lastName',
         },
       });
+    console.log('Tournaments fetched:', { query, count: tournaments.length });
     res.json(tournaments);
   } catch (error) {
     console.error('Error fetching tournaments:', error.stack);
@@ -391,7 +392,6 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     const tournament = await Tournament.findById(id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
-    // Validar IDs de jugadores en las actualizaciones
     if (updates.participants) {
       const playerIds = updates.participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
       console.log('Validating participant IDs:', playerIds);
@@ -440,7 +440,6 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       }
     }
 
-    // Validar que si se finaliza el torneo, haya un ganador declarado
     if (updates.status === 'Finalizado' && !updates.winner) {
       return res.status(400).json({ message: 'Debe declararse un ganador para finalizar el torneo' });
     }
@@ -479,49 +478,100 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Nota: Falta la ruta PUT para /api/tournaments/:id/matches/:matchId/result
-// Agregar esta ruta para soportar la actualización de resultados de partidos
-app.put('/api/tournaments/:id/matches/:matchId/result', authenticateToken, async (req, res) => {
+app.get('/api/tournaments/:id', async (req, res) => {
   try {
-    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
-      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
+    const { id } = req.params;
+    const token = req.headers['authorization']?.split(' ')[1];
+    let user = null;
+    if (token) {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (err) {
+        console.log('Invalid token, proceeding as spectator');
+      }
     }
-    const { id, matchId } = req.params;
-    const { sets, winner } = req.body;
-
-    const tournament = await Tournament.findById(id);
+    const tournament = await Tournament.findById(id)
+      .populate('creator', 'username')
+      .populate('club', 'name')
+      .populate({
+        path: 'participants.player1 participants.player2',
+        select: 'firstName lastName',
+      })
+      .populate({
+        path: 'groups.matches.player1 groups.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      })
+      .populate({
+        path: 'rounds.matches.player1 rounds.matches.player2',
+        populate: {
+          path: 'player1 player2',
+          select: 'firstName lastName',
+        },
+      });
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
+    if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
+      return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
+    }
+    res.json(tournament.toObject({ virtuals: true }));
+  } catch (error) {
+    console.error('Error fetching tournament by ID:', error.stack);
+    res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });
+  }
+});
+
+app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, async (req, res) => {
+  const { tournamentId, matchId } = req.params;
+  const { sets, winner } = req.body;
+
+  try {
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ message: 'Torneo no encontrado' });
+    }
 
     let match;
     if (tournament.type === 'RoundRobin') {
       for (const group of tournament.groups) {
-        match = group.matches.find(m => m._id.toString() === matchId);
-        if (match) {
-          match.result = { sets, winner };
-          break;
-        }
+        match = group.matches.id(matchId);
+        if (match) break;
       }
-    } else if (tournament.type === 'Eliminatorio') {
+    } else {
       for (const round of tournament.rounds) {
-        match = round.matches.find(m => m._id.toString() === matchId);
-        if (match) {
-          match.result = { sets, winner };
-          break;
-        }
+        match = round.matches.id(matchId);
+        if (match) break;
       }
     }
-    if (!match) return res.status(404).json({ message: 'Partido no encontrado' });
 
+    if (!match) {
+      return res.status(404).json({ message: 'Partido no encontrado' });
+    }
+
+    if (winner) {
+      const playerExists = await Player.findById(winner);
+      if (!playerExists) {
+        return res.status(400).json({ message: 'El ganador no existe' });
+      }
+    }
+
+    match.result.sets = sets;
+    match.result.winner = winner;
     await tournament.save();
-    res.json({ message: 'Resultado del partido actualizado' });
+
+    res.json({ message: 'Resultado actualizado' });
   } catch (error) {
-    console.error('Error updating match result:', error.stack);
-    res.status(500).json({ message: 'Error al actualizar resultado del partido', error: error.message });
+    console.error('Error updating match result:', error);
+    res.status(500).json({ message: 'Error al actualizar resultado', error: error.message });
   }
 });
 
 // Iniciar el servidor
-const PORT = process.env.PORT || 5000;
 connectDB().then(() => {
+  const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}).catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

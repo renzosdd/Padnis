@@ -49,27 +49,28 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
     } catch (error) {
       addNotification(`Error al cargar el torneo: ${error.response?.data?.message || error.message}`, 'error');
+      console.error('Error al cargar torneo:', error);
     }
   };
 
   const updateStandings = (tournamentData) => {
     const newStandings = tournamentData.groups.map(group => {
       const standings = group.players.map(p => ({
-        playerId: p.player1._id ? p.player1._id : p.player1,
-        player2Id: p.player2 ? (p.player2._id ? p.player2._id : p.player2) : null,
+        playerId: p.player1._id ? p.player1._id.toString() : p.player1,
+        player2Id: p.player2 ? (p.player2._id ? p.player2._id.toString() : p.player2) : null,
         wins: 0,
         setsWon: 0,
         gamesWon: 0,
       }));
       group.matches.forEach(match => {
         if (match.result.winner) {
-          const winner = standings.find(s => s.playerId.toString() === match.result.winner.toString());
+          const winner = standings.find(s => s.playerId === match.result.winner.toString());
           if (winner) {
             winner.wins += 1;
           }
           match.result.sets.forEach(set => {
-            const p1 = standings.find(s => s.playerId.toString() === (match.player1?.player1?._id || match.player1?.player1).toString());
-            const p2 = standings.find(s => s.playerId.toString() === (match.player2?.player1?._id || match.player2?.player1).toString());
+            const p1 = standings.find(s => s.playerId === (match.player1?.player1?._id?.toString() || match.player1?.player1));
+            const p2 = standings.find(s => s.playerId === (match.player2?.player1?._id?.toString() || match.player2?.player1));
             if (p1 && p2) {
               p1.gamesWon += set.player1;
               p2.gamesWon += set.player2;
@@ -419,7 +420,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     </Avatar>
                     {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
                     {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
                     )}
                   </Typography>
                   <Typography sx={{ display: 'flex', alignItems: 'center' }}>
@@ -428,7 +429,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     </Avatar>
                     {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
                     {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
                     )}
                   </Typography>
                   <Typography>
@@ -538,22 +539,22 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                             </Avatar>
                             {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
                             {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
                             )}
                           </TableCell>
                           <TableCell sx={{ display: 'flex', alignItems: 'center' }}>
                             <Avatar sx={{ mr: 1, bgcolor: '#0288d1' }}>
                               {match.player2?.player1?.firstName?.charAt(0) || '?'}
                             </Avatar>
-                            {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
+                            {match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}
                             {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
                             )}
                           </TableCell>
                           <TableCell>
                             {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
                               <Typography key={idx}>
-                                {set.player1} - {set.player2} {set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
+                                {set.player1} - {set.player2} ${set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
                               </Typography>
                             )) : 'Pendiente'}
                           </TableCell>
@@ -597,7 +598,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                             </Avatar>
                             {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
                             {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
                             )}
                           </TableCell>
                           <TableCell sx={{ display: 'flex', alignItems: 'center' }}>
@@ -606,13 +607,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                             </Avatar>
                             {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
                             {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
+                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
                             )}
                           </TableCell>
                           <TableCell>
                             {match.result.sets.length > 0 ? match.result.sets.map((set, idx) => (
                               <Typography key={idx}>
-                                {set.player1} - {set.player2} {set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
+                                {set.player1} - {set.player2} ${set.tiebreak1 && set.tiebreak2 ? `(${set.tiebreak1}-${set.tiebreak2})` : ''}
                               </Typography>
                             )) : 'Pendiente'}
                           </TableCell>
@@ -728,20 +729,20 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             {selectedMatch && (
               <>
                 <Typography>
-                  {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player1?.lastName || ''}
+                  {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player1?.player1?.lastName || ''}
                   {tournament.format.mode === 'Dobles' && selectedMatch.match.player1?.player2 && (
-                    <> / {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player2?.lastName || ''}</>
+                    <> / ${selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player1?.player2?.lastName || ''}</>
                   )}
                   {' vs '}
-                  {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player1?.lastName || ''}
+                  {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player2?.player1?.lastName || ''}
                   {tournament.format.mode === 'Dobles' && selectedMatch.match.player2?.player2 && (
-                    <> / {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player2?.lastName || ''}</>
+                    <> / ${selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player2?.player2?.lastName || ''}</>
                   )}
                 </Typography>
                 {matchScores.map((set, index) => (
                   index < tournament.format.sets && (
                     <Box key={index} sx={{ mt: 2 }}>
-                      <Typography>Set {index + 1}</Typography>
+                      <Typography>Set ${index + 1}</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                         <IconButton onClick={() => decrementScore(index, 'player1')} size="small">
                           <Remove />
