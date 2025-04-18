@@ -21,6 +21,9 @@ import {
   IconButton,
   TextField,
   Avatar,
+  Card,
+  CardContent,
+  Grid,
 } from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 
@@ -56,8 +59,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const updateStandings = (tournamentData) => {
     const newStandings = tournamentData.groups.map(group => {
       const standings = group.players.map(p => ({
-        playerId: p.player1._id ? p.player1._id.toString() : p.player1,
-        player2Id: p.player2 ? (p.player2._id ? p.player2._id.toString() : p.player2) : null,
+        playerId: typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString(),
+        player2Id: p.player2 ? (typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : p.player2.toString()) : null,
         wins: 0,
         setsWon: 0,
         gamesWon: 0,
@@ -73,8 +76,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             console.warn(`Winner ID ${winnerId} not found in standings for group ${group.name}`);
           }
           match.result.sets.forEach(set => {
-            const p1Id = match.player1.player1._id?.toString() || match.player1.player1;
-            const p2Id = match.player2.player1._id?.toString() || match.player2.player1;
+            const p1Id = typeof match.player1.player1 === 'object' && match.player1.player1._id
+              ? match.player1.player1._id.toString()
+              : match.player1.player1.toString();
+            const p2Id = typeof match.player2.player1 === 'object' && match.player2.player1._id
+              ? match.player2.player1._id.toString()
+              : match.player2.player1.toString();
             const p1 = standings.find(s => s.playerId === p1Id);
             const p2 = standings.find(s => s.playerId === p2Id);
             if (p1 && p2) {
@@ -111,12 +118,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     setTabValue(newValue);
   };
 
-  const openMatchDialog = (match, groupIndex, matchIndex) => {
+  const openMatchDialog = (match, groupIndex, matchIndex, roundIndex = null) => {
     if (role !== 'admin' && role !== 'coach') {
       addNotification('Solo admin o coach pueden actualizar partidos', 'error');
       return;
     }
-    setSelectedMatch({ match, groupIndex, matchIndex, matchId: match._id });
+    setSelectedMatch({ match, groupIndex, matchIndex, roundIndex, matchId: match._id });
     const initialSets = match.result.sets.length > 0 
       ? match.result.sets.map(set => ({
           player1: set.player1,
@@ -217,8 +224,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         tiebreak1: set.tiebreak1 > 0 ? set.tiebreak1 : undefined,
         tiebreak2: set.tiebreak2 > 0 ? set.tiebreak2 : undefined,
       }));
-      const player1Id = selectedMatch.match.player1.player1._id.toString();
-      const player2Id = selectedMatch.match.player2.player1._id.toString();
+      const player1Id = typeof selectedMatch.match.player1.player1 === 'object' && selectedMatch.match.player1.player1._id
+        ? selectedMatch.match.player1.player1._id.toString()
+        : selectedMatch.match.player1.player1.toString();
+      const player2Id = typeof selectedMatch.match.player2.player1 === 'object' && selectedMatch.match.player2.player1._id
+        ? selectedMatch.match.player2.player1._id.toString()
+        : selectedMatch.match.player2.player1.toString();
       const winnerId = determineWinner(sets, player1Id, player2Id);
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, {
         sets,
@@ -250,7 +261,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('Faltan completar algunos partidos en los grupos', 'error');
         return;
       }
-  
+
       const validParticipantIds = tournament.participants.map(p => {
         const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString();
         return id;
@@ -287,14 +298,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           };
         }).filter(p => p !== null);
       });
-  
+
       if (topPlayers.length < 2) {
         addNotification('No hay suficientes clasificados para generar la fase eliminatoria', 'error');
         return;
       }
-  
+
       console.log('Top players for knockout phase:', topPlayers);
-  
+
       const shuffled = topPlayers.sort(() => 0.5 - Math.random());
       const matches = [];
       for (let i = 0; i < shuffled.length; i += 2) {
@@ -311,10 +322,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('No se pudieron generar partidos para la fase eliminatoria', 'error');
         return;
       }
-  
+
       console.log('Generated matches:', matches);
-  
-      // Send only the rounds update, not the entire tournament
+
       const updatePayload = {
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
@@ -332,7 +342,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const advanceEliminationRound = async () => {
-    if (tournament.type !== 'Eliminatorio') return;
+    if (tournament.type !== 'Eliminatorio' && !tournament.rounds.length) return;
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
       if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
@@ -342,9 +352,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
-          const winnerId = m.result.winner || m.player1.player1._id || m.player1.player1;
+          const winnerId = m.result.winner || (typeof m.player1.player1 === 'object' && m.player1.player1._id
+            ? m.player1.player1._id.toString()
+            : m.player1.player1.toString());
           const participant = tournament.participants.find(p => 
-            (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === winnerId.toString()
+            (typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString()) === winnerId.toString()
           );
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
@@ -386,11 +398,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           });
         }
       }
-      const updatedTournament = {
-        ...tournament,
+      const updatePayload = {
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
-      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
+      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
@@ -405,7 +416,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   const handleFinishTournament = async () => {
     try {
-      const allMatchesCompleted = tournament.type === 'RoundRobin'
+      const allMatchesCompleted = tournament.type === 'RoundRobin' && !tournament.rounds.length
         ? tournament.groups.every(group => group.matches.every(match => match.result.winner !== null))
         : tournament.rounds.every(round => round.matches.every(match => match.result.winner !== null || match.player2?.name === 'BYE'));
       if (!allMatchesCompleted) {
@@ -413,7 +424,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
       let winner;
-      if (tournament.type === 'Eliminatorio') {
+      if (tournament.rounds.length > 0) {
         const finalRound = tournament.rounds[tournament.rounds.length - 1];
         const finalMatch = finalRound.matches[0];
         winner = finalMatch.result.winner;
@@ -425,18 +436,20 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('No se pudo determinar un ganador', 'error');
         return;
       }
-      const updatedTournament = { 
-        ...tournament, 
+      const updatePayload = { 
         status: 'Finalizado', 
         draft: false, 
         winner 
       };
-      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
+      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      onFinishTournament(updatedTournament);
-      const winnerPlayer = tournament.participants.find(p => p.player1._id.toString() === winner.toString());
+      await fetchTournament();
+      const winnerPlayer = tournament.participants.find(p => 
+        (typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString()) === winner.toString()
+      );
       addNotification(`Torneo finalizado con éxito. Ganador: ${winnerPlayer.player1.firstName} ${winnerPlayer.player1.lastName}`, 'success');
+      onFinishTournament(tournament);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
@@ -446,113 +459,69 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const renderBracket = () => {
-    if (tournament.type !== 'Eliminatorio') return null;
-    const rounds = tournament.rounds || [];
-    if (rounds.length === 0) {
+    if (!tournament.rounds || tournament.rounds.length === 0) {
       return <Typography>No hay rondas disponibles para mostrar.</Typography>;
     }
     return (
-      <Box sx={{
-        mt: 4,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        width: '100%',
-        overflowX: 'hidden',
-        '@media (min-width: 600px)': {
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-        },
-      }}>
-        {rounds.map((round, index) => (
-          <Box
-            key={round.round}
-            sx={{
-              width: '100%',
-              maxWidth: '100%',
-              p: 2,
-              bgcolor: '#f5f5f5',
-              borderRadius: 2,
-              '@media (min-width: 600px)': {
-                width: 'calc(50% - 16px)',
-              },
-              '@media (min-width: 900px)': {
-                width: 'calc(33.33% - 16px)',
-              },
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{
-                fontSize: 'clamp(1rem, 5vw, 1.25rem)',
-                mb: 2,
-                textAlign: 'center',
-              }}
-            >
+      <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {tournament.rounds.map((round, roundIndex) => (
+          <Box key={round.round} sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}>
               Ronda {round.round}
             </Typography>
-            {round.matches && round.matches.length > 0 ? (
-              round.matches.map((match, idx) => (
-                <Box
-                  key={idx}
-                  sx={{
-                    mb: 2,
-                    p: 2,
-                    border: '1px solid #e0e0e0',
-                    borderRadius: 2,
-                    bgcolor: '#ffffff',
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-                      mb: 1,
-                    }}
-                  >
-                    <Avatar sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}>
-                      {match.player1?.player1?.firstName?.charAt(0) || '?'}
-                    </Avatar>
-                    {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
-                    {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                      <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
-                    )}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-                      mb: 1,
-                    }}
-                  >
-                    <Avatar sx={{ mr: 1, bgcolor: '#0288d1', width: 32, height: 32 }}>
-                      {match.player2?.player1?.firstName?.charAt(0) || '?'}
-                    </Avatar>
-                    {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
-                    {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                      <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} {match.player2?.player2?.lastName || ''}</>
-                    )}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                    {match.result.sets.length > 0
-                      ? match.result.sets.map((set, i) => (
-                          <span key={i}>
-                            {set.player1}-{set.player2}
-                            {set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''}{' '}
-                          </span>
-                        ))
-                      : 'Pendiente'}
-                  </Typography>
-                </Box>
-              ))
-            ) : (
-              <Typography sx={{ textAlign: 'center' }}>
-                No hay partidos en esta ronda.
-              </Typography>
-            )}
+            <Grid container spacing={2}>
+              {round.matches.map((match, matchIndex) => (
+                <Grid item xs={12} key={matchIndex}>
+                  <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
+                            {match.player1?.player1?.firstName?.charAt(0) || '?'}
+                          </Avatar>
+                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                            {match.player1?.name || `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${match.player1?.player1?.lastName || ''}`}
+                            {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
+                              <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} {match.player1?.player2?.lastName || ''}</>
+                            )}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
+                            {match.player2?.player1?.firstName?.charAt(0) || '?'}
+                          </Avatar>
+                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                            {match.player2?.name || `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${match.player2?.player1?.lastName || ''}`}
+                            {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
+                              <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
+                            )}
+                          </Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary' }}>
+                          {match.result.sets.length > 0
+                            ? match.result.sets.map((set, i) => (
+                                <span key={i}>
+                                  {set.player1}-{set.player2}
+                                  {set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''}{' '}
+                                </span>
+                              ))
+                            : 'Pendiente'}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => openMatchDialog(match, null, matchIndex, roundIndex)}
+                          disabled={match.result.winner !== null}
+                          sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                        >
+                          Actualizar Resultado
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           </Box>
         ))}
       </Box>
@@ -564,7 +533,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   return (
     <Box
       sx={{
-        p: { xs: 2, sm: 4 },
+        p: { xs: 2, sm: 3 },
         bgcolor: '#f0f4f8',
         minHeight: '100vh',
         width: '100%',
@@ -574,7 +543,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       <Box
         sx={{
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 2,
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
           maxWidth: '100%',
@@ -601,38 +570,38 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           scrollButtons="auto"
         >
           <Tab label="Detalles" />
-          <Tab label={tournament.type === 'RoundRobin' ? 'Grupos' : 'Rondas'} />
-          {tournament.type === 'RoundRobin' && <Tab label="Posiciones" />}
-          {tournament.type === 'Eliminatorio' && <Tab label="Llave" />}
+          <Tab label="Grupos" />
+          <Tab label="Posiciones" />
+          {tournament.rounds.length > 0 && <Tab label="Llave" />}
         </Tabs>
 
         {tabValue === 0 && (
           <Box>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Nombre:</strong> {tournament.name}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Club:</strong> {tournament.club?.name || 'No definido'}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Categoría:</strong> {tournament.category || 'No definida'}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Tipo:</strong> {tournament.type}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Deporte:</strong> {tournament.sport}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Modalidad:</strong> {tournament.format.mode}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Sets por partido:</strong> {tournament.format.sets}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Juegos por set:</strong> {tournament.format.gamesPerSet}
             </Typography>
-            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
               <strong>Participantes:</strong>
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 1 }}>
@@ -663,204 +632,89 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
         {tabValue === 1 && (
           <Box sx={{ width: '100%', overflowX: 'hidden' }}>
-            {tournament.type === 'RoundRobin' ? (
-              tournament.groups.map((group, groupIndex) => (
-                <Box key={group.name} sx={{ mb: 3 }}>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                  >
-                    {group.name}
-                  </Typography>
-                  <Table sx={{ width: '100%', tableLayout: 'fixed' }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          {tournament.format.mode === 'Singles' ? 'Jugador 1' : 'Equipo 1'}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          {tournament.format.mode === 'Singles' ? 'Jugador 2' : 'Equipo 2'}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          Resultado
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          Fecha
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          Acción
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {group.matches.map((match, matchIndex) => (
-                        <TableRow key={matchIndex}>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}>
+            {tournament.groups.map((group, groupIndex) => (
+              <Box key={group.name} sx={{ mb: 3 }}>
+                <Typography
+                  variant="h6"
+                  sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                >
+                  {group.name}
+                </Typography>
+                <Grid container spacing={2}>
+                  {group.matches.map((match, matchIndex) => (
+                    <Grid item xs={12} key={matchIndex}>
+                      <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
                                 {match.player1?.player1?.firstName?.charAt(0) || '?'}
                               </Avatar>
-                              {match.player1?.player1?.firstName || 'Jugador no encontrado'}{' '}
-                              {match.player1?.player1?.lastName || ''}
-                              {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                                <>
-                                  {' / '}
-                                  {match.player1?.player2?.firstName || 'Jugador no encontrado'}{' '}
-                                  {match.player1?.player2?.lastName || ''}
-                                </>
-                              )}
+                              <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                {match.player1?.player1?.firstName || 'Jugador no encontrado'} {match.player1?.player1?.lastName || ''}
+                                {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
+                                  <> / {match.player1?.player2?.firstName || 'Jugador no encontrado'} ${match.player1?.player2?.lastName || ''}</>
+                                )}
+                              </Typography>
                             </Box>
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar sx={{ mr: 1, bgcolor: '#0288d1', width: 32, height: 32 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
                                 {match.player2?.player1?.firstName?.charAt(0) || '?'}
                               </Avatar>
-                              {match.player2?.player1?.firstName || 'Jugador no encontrado'}{' '}
-                              {match.player2?.player1?.lastName || ''}
-                              {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                                <>
-                                  {' / '}
-                                  {match.player2?.player2?.firstName || 'Jugador no encontrado'}{' '}
-                                  {match.player2?.player2?.lastName || ''}
-                                </>
-                              )}
+                              <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                {match.player2?.player1?.firstName || 'Jugador no encontrado'} {match.player2?.player1?.lastName || ''}
+                                {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
+                                  <> / {match.player2?.player2?.firstName || 'Jugador no encontrado'} ${match.player2?.player2?.lastName || ''}</>
+                                )}
+                              </Typography>
                             </Box>
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            {match.result.sets.length > 0
-                              ? match.result.sets.map((set, idx) => (
-                                  <Typography key={idx}>
-                                    {set.player1} - {set.player2}{' '}
-                                    {set.tiebreak1 && set.tiebreak2
-                                      ? `(${set.tiebreak1}-${set.tiebreak2})`
-                                      : ''}
-                                  </Typography>
-                                ))
-                              : 'Pendiente'}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            {match.date || 'No definida'}
-                          </TableCell>
-                          <TableCell>
+                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary' }}>
+                              {match.result.sets.length > 0
+                                ? match.result.sets.map((set, idx) => (
+                                    <span key={idx}>
+                                      {set.player1} - {set.player2}{' '}
+                                      {set.tiebreak1 && set.tiebreak2
+                                        ? `(${set.tiebreak1}-${set.tiebreak2})`
+                                        : ''}
+                                    </span>
+                                  ))
+                                : 'Pendiente'}
+                            </Typography>
+                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary' }}>
+                              Fecha: {match.date || 'No definida'}
+                            </Typography>
                             <Button
                               variant="outlined"
                               size="small"
                               onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
                               disabled={match.result.winner !== null}
-                              sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                              sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
                             >
-                              Actualizar
+                              Actualizar Resultado
                             </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Box>
-              ))
-            ) : (
-              tournament.rounds.map((round, roundIndex) => (
-                <Box key={round.round} sx={{ mb: 3 }}>
-                  <Typography
-                    variant="h6"
-                    sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                  >
-                    Ronda {round.round}
-                  </Typography>
-                  <Table sx={{ width: '100%', tableLayout: 'fixed' }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          {tournament.format.mode === 'Singles' ? 'Jugador 1' : 'Equipo 1'}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          {tournament.format.mode === 'Singles' ? 'Jugador 2' : 'Equipo 2'}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          Resultado
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          Fecha
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                          Acción
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {round.matches.map((match, matchIndex) => (
-                        <TableRow key={matchIndex}>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}>
-                                {match.player1?.player1?.firstName?.charAt(0) || '?'}
-                              </Avatar>
-                              {match.player1?.name ||
-                                `${match.player1?.player1?.firstName || 'Jugador no encontrado'} ${
-                                  match.player1?.player1?.lastName || ''
-                                }`}
-                              {tournament.format.mode === 'Dobles' && match.player1?.player2 && (
-                                <>
-                                  {' / '}
-                                  {match.player1?.player2?.firstName || 'Jugador no encontrado'}{' '}
-                                  {match.player1?.player2?.lastName || ''}
-                                </>
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar sx={{ mr: 1, bgcolor: '#0288d1', width: 32, height: 32 }}>
-                                {match.player2?.player1?.firstName?.charAt(0) || '?'}
-                              </Avatar>
-                              {match.player2?.name ||
-                                `${match.player2?.player1?.firstName || 'Jugador no encontrado'} ${
-                                  match.player2?.player1?.lastName || ''
-                                }`}
-                              {tournament.format.mode === 'Dobles' && match.player2?.player2 && (
-                                <>
-                                  {' / '}
-                                  {match.player2?.player2?.firstName || 'Jugador no encontrado'}{' '}
-                                  {match.player2?.player2?.lastName || ''}
-                                </>
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            {match.result.sets.length > 0
-                              ? match.result.sets.map((set, idx) => (
-                                  <Typography key={idx}>
-                                    {set.player1} - {set.player2}{' '}
-                                    {set.tiebreak1 && set.tiebreak2
-                                      ? `(${set.tiebreak1}-${set.tiebreak2})`
-                                      : ''}
-                                  </Typography>
-                                ))
-                              : 'Pendiente'}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                            {match.date || 'No definida'}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              onClick={() => openMatchDialog(match, roundIndex, matchIndex)}
-                              disabled={match.result.winner !== null}
-                              sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                            >
-                              Actualizar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Box>
-              ))
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            ))}
+            {(role === 'admin' || role === 'coach') && !tournament.rounds.length && (
+              <Button
+                variant="contained"
+                onClick={generateKnockoutPhase}
+                sx={{
+                  mt: 2,
+                  bgcolor: '#0288d1',
+                  '&:hover': { bgcolor: '#0277bd' },
+                  fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+                }}
+              >
+                Generar Fase Eliminatoria
+              </Button>
             )}
-            {tournament.type === 'Eliminatorio' && (role === 'admin' || role === 'coach') && (
+            {(role === 'admin' || role === 'coach') && tournament.rounds.length > 0 && (
               <Button
                 variant="contained"
                 onClick={advanceEliminationRound}
@@ -874,25 +728,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 Avanzar a la Siguiente Ronda
               </Button>
             )}
-            {tournament.type === 'RoundRobin' && (role === 'admin' || role === 'coach') && (
-              <Button
-                variant="contained"
-                onClick={generateKnockoutPhase}
-                sx={{
-                  mt: 2,
-                  ml: { xs: 0, sm: 2 },
-                  bgcolor: '#0288d1',
-                  '&:hover': { bgcolor: '#0277bd' },
-                  fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-                }}
-              >
-                Generar Fase Eliminatoria
-              </Button>
-            )}
           </Box>
         )}
 
-        {tabValue === 2 && tournament.type === 'RoundRobin' && (
+        {tabValue === 2 && (
           <Box sx={{ width: '100%', overflowX: 'hidden' }}>
             <Typography
               variant="h5"
@@ -910,7 +749,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   >
                     {group.groupName}
                   </Typography>
-                  <Table sx={{ width: '100%', tableLayout: 'fixed' }}>
+                  <Table sx={{ width: '100%' }}>
                     <TableHead>
                       <TableRow>
                         <TableCell sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
@@ -930,8 +769,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     <TableBody>
                       {group.standings.map((player, idx) => {
                         const participant = tournament.participants.find(p =>
-                          (p.player1._id ? p.player1._id.toString() : p.player1.toString()) ===
-                          player.playerId.toString()
+                          (typeof p.player1 === 'object' && p.player1._id
+                            ? p.player1._id.toString()
+                            : p.player1.toString()) === player.playerId.toString()
                         );
                         const player1Name = participant?.player1?.firstName
                           ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
@@ -980,7 +820,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           </Box>
         )}
 
-        {tabValue === 3 && tournament.type === 'Eliminatorio' && renderBracket()}
+        {tabValue === 3 && renderBracket()}
 
         {(role === 'admin' || role === 'coach') && (
           <Button
@@ -1006,24 +846,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             {selectedMatch && (
               <>
                 <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 2 }}>
-                  {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'}{' '}
-                  {selectedMatch.match.player1?.player1?.lastName || ''}
+                  {selectedMatch.match.player1?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player1?.player1?.lastName || ''}
                   {tournament.format.mode === 'Dobles' && selectedMatch.match.player1?.player2 && (
-                    <>
-                      {' / '}
-                      {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'}{' '}
-                      {selectedMatch.match.player1?.player2?.lastName || ''}
-                    </>
+                    <> / {selectedMatch.match.player1?.player2?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player1?.player2?.lastName || ''}</>
                   )}
                   {' vs '}
-                  {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'}{' '}
-                  {selectedMatch.match.player2?.player1?.lastName || ''}
+                  {selectedMatch.match.player2?.player1?.firstName || 'Jugador no encontrado'} {selectedMatch.match.player2?.player1?.lastName || ''}
                   {tournament.format.mode === 'Dobles' && selectedMatch.match.player2?.player2 && (
-                    <>
-                      {' / '}
-                      {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'}{' '}
-                      {selectedMatch.match.player2?.player2?.lastName || ''}
-                    </>
+                    <> / {selectedMatch.match.player2?.player2?.firstName || 'Jugador no encontrado'} ${selectedMatch.match.player2?.player2?.lastName || ''}</>
                   )}
                 </Typography>
                 {matchScores.map((set, index) =>
@@ -1040,7 +870,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                           <Remove />
                         </IconButton>
                         <TextField
-                          label="Puntaje Jugador 1"
+                          label="Puntaje Equipo 1"
                           type="number"
                           value={set.player1}
                           onChange={e => handleScoreChange(index, 'player1', e.target.value)}
@@ -1062,7 +892,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                           <Remove />
                         </IconButton>
                         <TextField
-                          label="Puntaje Jugador 2"
+                          label="Puntaje Equipo 2"
                           type="number"
                           value={set.player2}
                           onChange={e => handleScoreChange(index, 'player2', e.target.value)}
@@ -1087,7 +917,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 <Remove />
                               </IconButton>
                               <TextField
-                                label="Tiebreak Jugador 1"
+                                label="Tiebreak Equipo 1"
                                 type="number"
                                 value={set.tiebreak1}
                                 onChange={e =>
@@ -1111,7 +941,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 <Remove />
                               </IconButton>
                               <TextField
-                                label="Tiebreak Jugador 2"
+                                label="Tiebreak Equipo 2"
                                 type="number"
                                 value={set.tiebreak2}
                                 onChange={e =>

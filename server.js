@@ -595,7 +595,7 @@ app.get('/api/tournaments/:id', async (req, res) => {
         },
       })
       .populate({
-        path: 'rounds.matches.player1 rounds.matches.player2',
+        path: 'rounds.matches.player1 groups.matches.player2',
         populate: {
           path: 'player1 player2',
           select: 'firstName lastName',
@@ -623,15 +623,22 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     }
 
     let match;
+    let matchType = '';
     if (tournament.type === 'RoundRobin') {
       for (const group of tournament.groups) {
         match = group.matches.id(matchId);
-        if (match) break;
+        if (match) {
+          matchType = `group ${group.name}`;
+          break;
+        }
       }
     } else {
       for (const round of tournament.rounds) {
         match = round.matches.id(matchId);
-        if (match) break;
+        if (match) {
+          matchType = `round ${round.round}`;
+          break;
+        }
       }
     }
 
@@ -650,6 +657,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     match.result.winner = winner;
     await tournament.save();
 
+    console.log(`Match result updated for tournament ${tournamentId}, ${matchType}, match ${matchId}:`, { sets, winner });
     res.json({ message: 'Resultado actualizado' });
   } catch (error) {
     console.error('Error updating match result:', error.stack);
