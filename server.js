@@ -394,7 +394,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
     if (updates.participants) {
-      const playerIds = updates.participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
+      const playerIds = updates.participants.flatMap(p => [p.player1, p.player2].filter(Boolean).map(id => id.toString()));
       console.log('Validating participant IDs:', playerIds);
       const playersExist = await Player.find({ _id: { $in: playerIds } });
       if (playersExist.length !== playerIds.length) {
@@ -412,7 +412,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             m.player2?.player1,
             m.player2?.player2,
             m.result?.winner,
-          ].filter(Boolean));
+          ].filter(Boolean).map(id => id.toString()));
           console.log('Validating group match IDs:', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
@@ -432,7 +432,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             m.player2?.player1,
             m.player2?.player2,
             m.result?.winner,
-          ].filter(Boolean));
+          ].filter(Boolean).map(id => id.toString()));
           console.log('Validating round match IDs:', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
