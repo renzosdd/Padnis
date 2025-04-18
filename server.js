@@ -494,7 +494,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1.player1);
             }
             if (m.player1?.player2) {
-              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : m.player1.player2.toString();  // Corregido a "player2"
+              const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : m.player1.player2.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1.player2);
             }

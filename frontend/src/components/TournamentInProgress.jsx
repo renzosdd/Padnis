@@ -243,7 +243,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const generateKnockoutPhase = async () => {
     if (tournament.type !== 'RoundRobin') return;
     try {
-      // Validate that all groups have completed matches
       const allMatchesCompleted = tournament.groups.every(group =>
         group.matches.every(match => match.result.winner !== null)
       );
@@ -251,29 +250,29 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('Faltan completar algunos partidos en los grupos', 'error');
         return;
       }
-
-      // Get valid participant IDs
-      const validParticipantIds = tournament.participants.map(p => p.player1._id.toString());
+  
+      const validParticipantIds = tournament.participants.map(p => {
+        const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString();
+        return id;
+      });
       const topPlayers = standings.flatMap(group => {
         if (!group.standings || !Array.isArray(group.standings)) {
           console.warn(`El grupo ${group.groupName} no tiene standings. Se omitirá.`);
           return [];
         }
-        // Select top players based on playersPerGroupToAdvance
         return group.standings.slice(0, tournament.playersPerGroupToAdvance || 2).map(s => {
-          // Verify player exists in participants
-          const participant = tournament.participants.find(p =>
-            (p.player1._id ? p.player1._id.toString() : p.player1.toString()) === s.playerId.toString()
-          );
+          const participant = tournament.participants.find(p => {
+            const pId = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString();
+            return pId === s.playerId.toString();
+          });
           if (!participant) {
             console.warn(`No se encontró participante para playerId: ${s.playerId} en grupo ${group.groupName}`);
             return null;
           }
-          if (!validParticipantIds.includes(participant.player1._id.toString())) {
-            console.warn(`ID de jugador inválido en standings: ${participant.player1._id} en grupo ${group.groupName}`);
+          if (!validParticipantIds.includes(participant.player1._id ? participant.player1._id.toString() : participant.player1.toString())) {
+            console.warn(`ID de jugador inválido en standings: ${participant.player1._id || participant.player1} en grupo ${group.groupName}`);
             return null;
           }
-          // Handle populated player objects
           const player1Id = typeof participant.player1 === 'object' && participant.player1._id
             ? participant.player1._id.toString()
             : participant.player1.toString();
@@ -288,15 +287,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           };
         }).filter(p => p !== null);
       });
-
+  
       if (topPlayers.length < 2) {
         addNotification('No hay suficientes clasificados para generar la fase eliminatoria', 'error');
         return;
       }
-
+  
       console.log('Top players for knockout phase:', topPlayers);
-
-      // Shuffle players and create matches
+  
       const shuffled = topPlayers.sort(() => 0.5 - Math.random());
       const matches = [];
       for (let i = 0; i < shuffled.length; i += 2) {
@@ -313,14 +311,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('No se pudieron generar partidos para la fase eliminatoria', 'error');
         return;
       }
-
+  
       console.log('Generated matches:', matches);
-
-      const updatedTournament = {
-        ...tournament,
+  
+      // Send only the rounds update, not the entire tournament
+      const updatePayload = {
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
-      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatedTournament, {
+      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
