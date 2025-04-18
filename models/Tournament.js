@@ -1,76 +1,93 @@
 const mongoose = require('mongoose');
 
-const participantSchema = new mongoose.Schema({
-  player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
-  player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
-  seed: { type: Boolean, default: false },
-});
-
-const setSchema = new mongoose.Schema({
-  player1: { type: Number, required: true },
-  player2: { type: Number, required: true },
-  tiebreak1: { type: Number },
-  tiebreak2: { type: Number },
-});
-
 const matchSchema = new mongoose.Schema({
-  player1: { type: participantSchema, required: true },
-  player2: { type: participantSchema, required: true },
+  player1: {
+    player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    seed: { type: Boolean, default: false },
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+  },
+  player2: {
+    player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    name: { type: String }, // For BYE
+    seed: { type: Boolean, default: false },
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+  },
   result: {
-    sets: [setSchema],
+    sets: [{
+      player1: Number,
+      player2: Number,
+      tiebreak1: Number,
+      tiebreak2: Number,
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+    }],
     winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
   },
-  date: { type: String },
-}, { _id: true });
+  date: { type: Date },
+  _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+});
 
 const groupSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  players: [participantSchema],
+  name: String,
+  players: [{
+    player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    seed: { type: Boolean, default: false },
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+  }],
   matches: [matchSchema],
   standings: [{
-    player: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
-    wins: { type: Number, default: 0 },
-    setsWon: { type: Number, default: 0 },
-    gamesWon: { type: Number, default: 0 },
+    playerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    wins: Number,
+    setsWon: Number,
+    gamesWon: Number,
   }],
-}, { _id: true });
+  _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+});
 
 const roundSchema = new mongoose.Schema({
-  round: { type: Number, required: true },
+  round: Number,
   matches: [matchSchema],
-}, { _id: true });
+  _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+});
 
 const tournamentSchema = new mongoose.Schema({
   name: { type: String, required: true },
   club: { type: mongoose.Schema.Types.ObjectId, ref: 'Club' },
   type: { type: String, enum: ['RoundRobin', 'Eliminatorio'], required: true },
   sport: { type: String, enum: ['Tenis', 'Pádel'], required: true },
-  category: {
-    type: String,
-    required: true,
-    enum: {
-      values: ['A', 'B', 'C', 'D', 'E', 'Séptima', 'Sexta', 'Quinta', 'Cuarta', 'Tercera', 'Segunda', 'Primera'],
-      message: 'Categoría inválida para el deporte seleccionado',
-    },
-  },
+  category: { type: String, required: true },
   format: {
     mode: { type: String, enum: ['Singles', 'Dobles'], required: true },
-    sets: { type: Number, required: true },
-    gamesPerSet: { type: Number, required: true },
-    tiebreakSet: { type: Number, required: true },
-    tiebreakMatch: { type: Number, required: true },
+    sets: Number,
+    gamesPerSet: Number,
+    tiebreakSet: Number,
+    tiebreakMatch: Number,
   },
-  participants: [participantSchema],
+  participants: [{
+    player1: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    player2: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' },
+    seed: { type: Boolean, default: false },
+    _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+  }],
   groups: [groupSchema],
   rounds: [roundSchema],
   schedule: {
-    group: { type: String },
-    matches: [{ matchId: String, date: String }],
+    group: String,
+    matches: [{
+      matchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Match' },
+      date: Date,
+      time: String,
+      court: String,
+    }],
   },
   creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   draft: { type: Boolean, default: true },
   status: { type: String, enum: ['Pendiente', 'En curso', 'Finalizado'], default: 'Pendiente' },
-  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // Campo para almacenar el ganador
-});
+  playersPerGroupToAdvance: Number,
+  winner: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // New field for tournament winner
+  runnerUp: { type: mongoose.Schema.Types.ObjectId, ref: 'Player' }, // New field for tournament runner-up
+}, { timestamps: true });
 
 module.exports = mongoose.model('Tournament', tournamentSchema);
