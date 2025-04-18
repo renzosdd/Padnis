@@ -12,10 +12,13 @@ const TournamentList = () => {
   useEffect(() => {
     const fetchActiveTournaments = async () => {
       try {
-        const response = await axios.get('https://padnis.onrender.com/api/tournaments?status=En%20curso', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        const token = localStorage.getItem('token');
+        const url = 'https://padnis.onrender.com/api/tournaments?status=En%20curso';
+        console.log('Fetching tournaments from:', url, 'with token:', token ? 'present' : 'missing');
+        const response = await axios.get(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        console.log('API response:', response.data); // Debug log
+        console.log('API response (TournamentList.jsx):', response.data);
         if (!Array.isArray(response.data)) {
           throw new Error('Unexpected response format: Data is not an array');
         }
