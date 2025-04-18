@@ -614,7 +614,7 @@ app.get('/api/tournaments/:id', async (req, res) => {
 
 app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, async (req, res) => {
   const { tournamentId, matchId } = req.params;
-  const { sets, winner } = req.body;
+  const { sets, winner, isKnockout } = req.body;
 
   try {
     const tournament = await Tournament.findById(tournamentId);
@@ -624,7 +624,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
 
     let match;
     let matchType = '';
-    if (tournament.type === 'RoundRobin') {
+    if (tournament.type === 'RoundRobin' && !isKnockout) {
       for (const group of tournament.groups) {
         match = group.matches.id(matchId);
         if (match) {
@@ -632,7 +632,8 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
           break;
         }
       }
-    } else {
+    }
+    if (!match) {
       for (const round of tournament.rounds) {
         match = round.matches.id(matchId);
         if (match) {
