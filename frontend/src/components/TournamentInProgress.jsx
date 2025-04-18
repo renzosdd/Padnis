@@ -55,7 +55,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   const updateStandings = (tournamentData) => {
     const newStandings = tournamentData.groups.map(group => {
-      // Initialize standings for each player in the group
       const standings = group.players.map(p => ({
         playerId: p.player1._id ? p.player1._id.toString() : p.player1,
         player2Id: p.player2 ? (p.player2._id ? p.player2._id.toString() : p.player2) : null,
@@ -64,7 +63,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         gamesWon: 0,
       }));
 
-      // Update standings based on match results
       group.matches.forEach(match => {
         if (match.result.winner) {
           const winnerId = match.result.winner.toString();
@@ -275,11 +273,18 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             console.warn(`ID de jugador inválido en standings: ${participant.player1._id} en grupo ${group.groupName}`);
             return null;
           }
+          // Handle populated player objects
+          const player1Id = typeof participant.player1 === 'object' && participant.player1._id
+            ? participant.player1._id.toString()
+            : participant.player1.toString();
+          const player2Id = tournament.format.mode === 'Dobles' && participant.player2
+            ? (typeof participant.player2 === 'object' && participant.player2._id
+                ? participant.player2._id.toString()
+                : participant.player2.toString())
+            : null;
           return {
-            player1: participant.player1._id.toString(),
-            player2: tournament.format.mode === 'Dobles' && participant.player2 
-              ? participant.player2._id.toString()
-              : null,
+            player1: player1Id,
+            player2: player2Id,
           };
         }).filter(p => p !== null);
       });
@@ -347,11 +352,17 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
           }
+          const player1Id = typeof participant.player1 === 'object' && participant.player1._id
+            ? participant.player1._id.toString()
+            : participant.player1.toString();
+          const player2Id = tournament.format.mode === 'Dobles' && participant.player2
+            ? (typeof participant.player2 === 'object' && participant.player2._id
+                ? participant.player2._id.toString()
+                : participant.player2.toString())
+            : null;
           return {
-            player1: participant.player1._id.toString(),
-            player2: tournament.format.mode === 'Dobles' && participant.player2 
-              ? participant.player2._id.toString()
-              : null,
+            player1: player1Id,
+            player2: player2Id,
           };
         })
         .filter(w => w !== null);
@@ -446,12 +457,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       <Box sx={{
         mt: 4,
         display: 'flex',
-        flexDirection: 'column', // Mobile-first: stack rounds vertically
+        flexDirection: 'column',
         gap: 2,
         width: '100%',
-        overflowX: 'hidden', // Prevent lateral scrolling
+        overflowX: 'hidden',
         '@media (min-width: 600px)': {
-          flexDirection: 'row', // Desktop: horizontal layout
+          flexDirection: 'row',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
         },
@@ -466,10 +477,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               bgcolor: '#f5f5f5',
               borderRadius: 2,
               '@media (min-width: 600px)': {
-                width: 'calc(50% - 16px)', // Two columns on desktop
+                width: 'calc(50% - 16px)',
               },
               '@media (min-width: 900px)': {
-                width: 'calc(33.33% - 16px)', // Three columns on larger screens
+                width: 'calc(33.33% - 16px)',
               },
             }}
           >
@@ -559,7 +570,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         bgcolor: '#f0f4f8',
         minHeight: '100vh',
         width: '100%',
-        overflowX: 'hidden', // Ensure no lateral scrolling
+        overflowX: 'hidden',
       }}
     >
       <Box

@@ -302,10 +302,17 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       if (!club) return res.status(400).json({ message: 'Club no encontrado' });
     }
 
-    const playerIds = participants.flatMap(p => [p.player1, p.player2].filter(Boolean));
+    const playerIds = participants.flatMap(p => {
+      const ids = [];
+      if (p.player1) ids.push(typeof p.player1 === 'object' ? p.player1._id?.toString() : p.player1.toString());
+      if (p.player2) ids.push(typeof p.player2 === 'object' ? p.player2._id?.toString() : p.player2.toString());
+      return ids;
+    }).filter(Boolean);
+    console.log('Validating participant IDs:', playerIds);
     const playersExist = await Player.find({ _id: { $in: playerIds } });
     if (playersExist.length !== playerIds.length) {
       const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+      console.error('Invalid participant IDs:', invalidIds);
       return res.status(400).json({ message: `Algunos jugadores no existen: ${invalidIds.join(', ')}` });
     }
 
@@ -394,8 +401,18 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
     if (updates.participants) {
-      const playerIds = updates.participants.flatMap(p => [p.player1, p.player2].filter(Boolean).map(id => id.toString()));
+      const playerIds = updates.participants.flatMap(p => {
+        const ids = [];
+        if (p.player1) ids.push(typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : p.player1.toString());
+        if (p.player2) ids.push(typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : p.player2.toString());
+        return ids;
+      }).filter(Boolean);
       console.log('Validating participant IDs:', playerIds);
+      const invalidIds = playerIds.filter(id => !mongoose.isValidObjectId(id));
+      if (invalidIds.length > 0) {
+        console.error('Invalid ObjectIDs in participants:', invalidIds);
+        return res.status(400).json({ message: `IDs de jugadores no válidos en participantes: ${invalidIds.join(', ')}` });
+      }
       const playersExist = await Player.find({ _id: { $in: playerIds } });
       if (playersExist.length !== playerIds.length) {
         const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
@@ -406,14 +423,21 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (updates.groups) {
       for (const group of updates.groups) {
         if (group.matches) {
-          const matchPlayerIds = group.matches.flatMap(m => [
-            m.player1?.player1,
-            m.player1?.player2,
-            m.player2?.player1,
-            m.player2?.player2,
-            m.result?.winner,
-          ].filter(Boolean).map(id => id.toString()));
+          const matchPlayerIds = group.matches.flatMap(m => {
+            const ids = [];
+            if (m.player1?.player1) ids.push(typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : m.player1.player1.toString());
+            if (m.player1?.player2) ids.push(typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : m.player1.player2.toString());
+            if (m.player2?.player1) ids.push(typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : m.player2.player1.toString());
+            if (m.player2?.player2) ids.push(typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : m.player2.player2.toString());
+            if (m.result?.winner) ids.push(typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : m.result.winner.toString());
+            return ids;
+          }).filter(Boolean);
           console.log('Validating group match IDs:', matchPlayerIds);
+          const invalidIds = matchPlayerIds.filter(id => !mongoose.isValidObjectId(id));
+          if (invalidIds.length > 0) {
+            console.error('Invalid ObjectIDs in group matches:', invalidIds);
+            return res.status(400).json({ message: `IDs de jugadores no válidos en partidos de grupos: ${invalidIds.join(', ')}` });
+          }
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
@@ -426,14 +450,21 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (updates.rounds) {
       for (const round of updates.rounds) {
         if (round.matches) {
-          const matchPlayerIds = round.matches.flatMap(m => [
-            m.player1?.player1,
-            m.player1?.player2,
-            m.player2?.player1,
-            m.player2?.player2,
-            m.result?.winner,
-          ].filter(Boolean).map(id => id.toString()));
+          const matchPlayerIds = round.matches.flatMap(m => {
+            const ids = [];
+            if (m.player1?.player1) ids.push(typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : m.player1.player1.toString());
+            if (m.player1?.player2) ids.push(typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : m.player1.player2.toString());
+            if (m.player2?.player1) ids.push(typeof m.player2.player1 === 'object' && m.player2.player1._id ? m.player2.player1._id.toString() : m.player2.player1.toString());
+            if (m.player2?.player2) ids.push(typeof m.player2.player2 === 'object' && m.player2.player2._id ? m.player2.player2._id.toString() : m.player2.player2.toString());
+            if (m.result?.winner) ids.push(typeof m.result.winner === 'object' && m.result.winner._id ? m.result.winner._id.toString() : m.result.winner.toString());
+            return ids;
+          }).filter(Boolean);
           console.log('Validating round match IDs:', matchPlayerIds);
+          const invalidIds = matchPlayerIds.filter(id => !mongoose.isValidObjectId(id));
+          if (invalidIds.length > 0) {
+            console.error('Invalid ObjectIDs in round matches:', invalidIds);
+            return res.status(400).json({ message: `IDs de jugadores no válidos en partidos de rondas: ${invalidIds.join(', ')}` });
+          }
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
