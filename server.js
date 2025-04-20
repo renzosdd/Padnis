@@ -522,7 +522,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
             console.error('Invalid group match IDs for group', group.name, ':', invalidIds);
-            return res.status(400).json({ message: `Algunos jugadores en los partidos de grupos no existen en el grupo ${group.name}: ${invalidIds.join(', ')}` });
+            return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para el grupo ${group.name}: ${invalidIds.join(', ')}` });
           }
         }
       }
