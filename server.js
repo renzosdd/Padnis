@@ -533,6 +533,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           const matchPlayerIds = [];
           const validationErrors = [];
           round.matches.forEach((m, index) => {
+            console.log(`Validating match ${index} in round ${round.round}:`, JSON.stringify(m, null, 2));
             if (!m.player1 || !m.player2) {
               validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1 o player2`);
               return;
@@ -573,6 +574,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
           }
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
+          console.log('Players found in Player collection for round', round.round, ':', playersExist.map(p => p._id.toString()));
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
             console.error('Invalid round match IDs for round', round.round, ':', invalidIds);
