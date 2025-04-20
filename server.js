@@ -551,7 +551,6 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     }
 
     if (updates.rounds) {
-      console.log('Raw updates.rounds payload:', JSON.stringify(updates.rounds, null, 2));
       for (const round of updates.rounds) {
         if (round.matches) {
           console.log('Processing round matches for round', round.round, ':', JSON.stringify(round.matches, null, 2));
@@ -583,12 +582,12 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result?.winner);
             }
             return ids;
-          }).filter(id => id && typeof id === 'string' && mongoose.isValidObjectId(id));
-          console.log('Match player IDs for round', round.round, ':', matchPlayerIds);
+          }).filter(Boolean);
           if (matchPlayerIds.length === 0 && round.matches.length > 0 && !round.matches.some(m => m.player2?.name === 'BYE')) {
             console.error('No valid IDs found in round matches for round:', round.round, ', matches:', JSON.stringify(round.matches, null, 2));
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
           }
+          console.log('Match player IDs for round', round.round, ':', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
