@@ -356,7 +356,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
 
       const validParticipantIds = tournament.participants.map(p => {
-        const id = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
+        const id = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
         return id;
       });
       const topPlayers = standings.flatMap(group => {
@@ -366,21 +366,25 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
         return group.standings.slice(0, tournament.playersPerGroupToAdvance || 2).map(s => {
           const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
-            return pId === s.playerId.toString();
+            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
+            return pId === s.playerId?.toString();
           });
           if (!participant) {
             console.warn(`No se encontró participante para playerId: ${s.playerId} en grupo ${group.groupName}`);
             return null;
           }
-          if (!validParticipantIds.includes(participant.player1._id ? participant.player1._id.toString() : (participant.player1.$oid ? participant.player1.$oid : participant.player1.toString()))) {
-            console.warn(`ID de jugador inválido en standings: ${participant.player1._id || participant.player1.$oid || participant.player1} en grupo ${group.groupName}`);
+          const player1Id = typeof participant.player1 === 'object' ? participant.player1?._id?.toString() || participant.player1?.$oid : participant.player1?.toString();
+          if (!player1Id || !isValidObjectId(player1Id)) {
+            console.warn(`Invalid player1Id: ${player1Id} en grupo ${group.groupName}`);
             return null;
           }
-          const player1Id = typeof participant.player1 === 'object' ? participant.player1?._id?.toString() || participant.player1?.$oid : participant.player1.toString();
           const player2Id = tournament.format.mode === 'Dobles' && participant.player2
             ? (typeof participant.player2 === 'object' ? participant.player2?._id?.toString() || participant.player2?.$oid : participant.player2.toString())
             : null;
+          if (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id)) {
+            console.warn(`Invalid player2Id: ${player2Id} en grupo ${group.groupName}`);
+            return null;
+          }
           return {
             player1: player1Id,
             player2: player2Id,
@@ -395,7 +399,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('Top players for knockout phase:', topPlayers);
+        console.log('Top players for knockout phase:', JSON.stringify(topPlayers, null, 2));
       }
 
       const shuffled = topPlayers.sort(() => 0.5 - Math.random());
@@ -416,7 +420,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('Generated matches:', matches);
+        console.log('Generated matches:', JSON.stringify(matches, null, 2));
       }
 
       const updatePayload = {
@@ -456,7 +460,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return null;
           }
           const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
+            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
             return pId === winnerId;
           });
           if (!participant) {
@@ -465,18 +469,18 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           }
           const player1Id = typeof participant.player1 === 'object' 
             ? participant.player1?._id?.toString() || participant.player1?.$oid 
-            : participant.player1.toString();
+            : participant.player1?.toString();
           const player2Id = tournament.format.mode === 'Dobles' && participant.player2
             ? (typeof participant.player2 === 'object' 
                 ? participant.player2?._id?.toString() || participant.player2?.$oid 
-                : participant.player2.toString())
+                : participant.player2?.toString())
             : null;
-          if (!player1Id || (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id))) {
-            console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id, winnerId });
+          if (!player1Id || !isValidObjectId(player1Id)) {
+            console.warn(`Invalid player1Id: ${player1Id}`);
             return null;
           }
-          if (!isValidObjectId(player1Id)) {
-            console.warn(`Invalid player1Id: ${player1Id}`);
+          if (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id)) {
+            console.warn(`Invalid player2Id: ${player2Id}`);
             return null;
           }
           return {
@@ -486,7 +490,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         })
         .filter(w => w !== null);
       if (process.env.NODE_ENV === 'development') {
-        console.log('Winners for new round (detailed):', JSON.stringify(winners, null, 2));
+        console.log('Winners for new round:', JSON.stringify(winners, null, 2));
       }
       if (winners.length < 1) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
@@ -660,28 +664,28 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 {round.matches && Array.isArray(round.matches) && round.matches.length > 0 ? (
                   round.matches.map((match, matchIndex) => (
                     <Grid item xs={12} key={matchIndex}>
-                      <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                        <CardContent>
+                      <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', width: '100%' }}>
+                        <CardContent sx={{ p: 1.5 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
+                                <Avatar sx={{ bgcolor: '#01579b', width: 28, height: 28 }}>
                                   {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
                                 </Avatar>
-                                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
                                   {match.player1?.player1 ? getPlayerName(match.player1.player1, match.player1.player2) : 'Jugador no definido'}
                                 </Typography>
                               </Box>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
+                                <Avatar sx={{ bgcolor: '#0288d1', width: 28, height: 28 }}>
                                   {match.player2?.name ? 'BYE' : (match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?')}
                                 </Avatar>
-                                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
                                   {match.player2?.name || (match.player2?.player1 ? getPlayerName(match.player2.player1, match.player2.player2) : 'Jugador no definido')}
                                 </Typography>
                               </Box>
                             </Box>
-                            <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
+                            <Typography sx={{ fontSize: 'clamp(0.875rem, 3.5vw, 1rem)', fontWeight: 'bold', color: '#01579b' }}>
                               {match.result?.sets && match.result.sets.length > 0
                                 ? match.result.sets.map((set, i) => (
                                     <span key={i}>
@@ -895,28 +899,28 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                             {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
                               group.matches.map((match, matchIndex) => (
                                 <Grid item xs={12} key={matchIndex}>
-                                  <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                                    <CardContent>
+                                  <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', width: '100%' }}>
+                                    <CardContent sx={{ p: 1.5 }}>
                                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
+                                            <Avatar sx={{ bgcolor: '#01579b', width: 28, height: 28 }}>
                                               {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
                                             </Avatar>
-                                            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
                                               {match.player1?.player1 ? getPlayerName(match.player1.player1, match.player1.player2) : 'Jugador no definido'}
                                             </Typography>
                                           </Box>
                                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
+                                            <Avatar sx={{ bgcolor: '#0288d1', width: 28, height: 28 }}>
                                               {match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?'}
                                             </Avatar>
-                                            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
                                               {match.player2?.player1 ? getPlayerName(match.player2.player1, match.player2.player2) : 'Jugador no definido'}
                                             </Typography>
                                           </Box>
                                         </Box>
-                                        <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
+                                        <Typography sx={{ fontSize: 'clamp(0.875rem, 3.5vw, 1rem)', fontWeight: 'bold', color: '#01579b' }}>
                                           {match.result?.sets && match.result.sets.length > 0
                                             ? match.result.sets.map((set, idx) => (
                                                 <span key={idx}>
@@ -983,70 +987,75 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     </Typography>
                     {standings && Array.isArray(standings) && standings.length > 0 ? (
                       standings.map((group, groupIndex) => (
-                        <Box key={group.groupName || groupIndex} sx={{ mb: 3 }}>
+                        <Box key={group.groupName || groupIndex} sx={{ mb: 1 }}>
                           <Typography
                             variant="h6"
-                            sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                            sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 1 }}
                           >
                             {group.groupName || `Grupo ${groupIndex + 1}`}
                           </Typography>
-                          <Grid container spacing={2}>
-                            {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
-                              group.standings.map((player, idx) => {
-                                const participant = tournament.participants.find(p =>
-                                  (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === player.playerId?.toString()
-                                );
-                                const player1Name = participant?.player1?.firstName
-                                  ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
-                                  : 'Jugador no encontrado';
-                                const player2Name =
-                                  tournament.format?.mode === 'Dobles' && participant?.player2
-                                    ? `${participant.player2.firstName || ''} ${participant.player2.lastName || ''}`
-                                    : '';
-                                const label =
-                                  tournament.format?.mode === 'Singles'
-                                    ? player1Name
-                                    : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                                return (
-                                  <Grid item xs={12} key={idx}>
-                                    <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                                      <CardContent sx={{ p: 2 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                          <Avatar
-                                            sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}
-                                          >
-                                            {player1Name.charAt(0)}
-                                          </Avatar>
-                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
-                                            {label}
-                                          </Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                                            <strong>Victorias:</strong> {player.wins || 0}
-                                          </Typography>
-                                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                                            <strong>Sets Ganados:</strong> {player.setsWon || 0}
-                                          </Typography>
-                                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
-                                            <strong>Juegos Ganados:</strong> {player.gamesWon || 0}
-                                          </Typography>
-                                        </Box>
-                                      </CardContent>
-                                    </Card>
-                                  </Grid>
-                                );
-                              })
-                            ) : (
-                              <Typography sx={{ textAlign: 'center' }}>
-                                No hay posiciones disponibles para este grupo.
-                              </Typography>
-                            )}
-                          </Grid>
+                          {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
+                            group.standings.map((player, idx) => {
+                              const participant = tournament.participants.find(p =>
+                                (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === player.playerId?.toString()
+                              );
+                              const player1Name = participant?.player1?.firstName
+                                ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
+                                : 'Jugador no encontrado';
+                              const player2Name =
+                                tournament.format?.mode === 'Dobles' && participant?.player2
+                                  ? `${participant.player2.firstName || ''} ${participant.player2.lastName || ''}`
+                                  : '';
+                              const label =
+                                tournament.format?.mode === 'Singles'
+                                  ? player1Name
+                                  : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                              return (
+                                <Card
+                                  key={idx}
+                                  sx={{
+                                    bgcolor: '#ffffff',
+                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                                    width: '100%',
+                                    mb: 1,
+                                    borderRadius: 1,
+                                  }}
+                                >
+                                  <CardContent sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <Avatar
+                                        sx={{ bgcolor: '#01579b', width: 28, height: 28 }}
+                                      >
+                                        {player1Name.charAt(0)}
+                                      </Avatar>
+                                      <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)', fontWeight: 'bold' }}>
+                                        {label}
+                                      </Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                      <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
+                                        <strong>V:</strong> {player.wins || 0}
+                                      </Typography>
+                                      <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
+                                        <strong>S:</strong> {player.setsWon || 0}
+                                      </Typography>
+                                      <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
+                                        <strong>JG:</strong> {player.gamesWon || 0}
+                                      </Typography>
+                                    </Box>
+                                  </CardContent>
+                                </Card>
+                              );
+                            })
+                          ) : (
+                            <Typography sx={{ textAlign: 'center', fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
+                              No hay posiciones disponibles para este grupo.
+                            </Typography>
+                          )}
                         </Box>
                       ))
                     ) : (
-                      <Typography sx={{ textAlign: 'center' }}>
+                      <Typography sx={{ textAlign: 'center', fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
                         No hay posiciones disponibles para mostrar.
                       </Typography>
                     )}

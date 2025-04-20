@@ -512,38 +512,38 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             if (m.player1?.player1) {
               const id = typeof m.player1.player1 === 'object' ? m.player1.player1._id?.toString() || m.player1.player1.$oid : m.player1.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player1.player1 ID in group ${group.name}, match ${index}:`, m.player1.player1);
+              else console.warn(`Invalid group match player1.player1 ID in group ${group.name}, match ${index}:`, m.player1?.player1);
             }
             if (m.player1?.player2 && tournament.format.mode === 'Dobles') {
               const id = typeof m.player1.player2 === 'object' ? m.player1.player2._id?.toString() || m.player1.player2.$oid : m.player1.player2.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player1.player2 ID in group ${group.name}, match ${index}:`, m.player1.player2);
+              else console.warn(`Invalid group match player1.player2 ID in group ${group.name}, match ${index}:`, m.player1?.player2);
             }
             if (m.player2?.player1 && !m.player2.name) {
               const id = typeof m.player2.player1 === 'object' ? m.player2.player1._id?.toString() || m.player2.player1.$oid : m.player2.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player2.player1 ID in group ${group.name}, match ${index}:`, m.player2.player1);
+              else console.warn(`Invalid group match player2.player1 ID in group ${group.name}, match ${index}:`, m.player2?.player1);
             }
             if (m.player2?.player2 && !m.player2.name && tournament.format.mode === 'Dobles') {
               const id = typeof m.player2.player2 === 'object' ? m.player2.player2._id?.toString() || m.player2.player2.$oid : m.player2.player2.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2.player2);
+              else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2?.player2);
             }
             if (m.result?.winner) {
               const id = typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match winner ID in group ${group.name}, match ${index}:`, m.result.winner);
+              else console.warn(`Invalid group match winner ID in group ${group.name}, match ${index}:`, m.result?.winner);
             }
             return ids;
           }).filter(Boolean);
           if (matchPlayerIds.length === 0 && group.matches.length > 0) {
-            console.error('No valid IDs found in group matches for group:', group.name);
+            console.error('No valid IDs found in group matches for group:', group.name, ', matches:', JSON.stringify(group.matches, null, 2));
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de grupos para el grupo ${group.name}` });
           }
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid group match IDs for group', group.name, ':', invalidIds);
+            console.error('Invalid group match IDs for group', group.name, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds);
             return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para el grupo ${group.name}: ${invalidIds.join(', ')}` });
           }
         }
@@ -558,38 +558,38 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             if (m.player1?.player1) {
               const id = typeof m.player1.player1 === 'object' ? m.player1.player1._id?.toString() || m.player1.player1.$oid : m.player1.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1.player1);
+              else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1?.player1);
             }
             if (m.player1?.player2 && tournament.format.mode === 'Dobles') {
               const id = typeof m.player1.player2 === 'object' ? m.player1.player2._id?.toString() || m.player1.player2.$oid : m.player1.player2.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1.player2);
+              else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1?.player2);
             }
             if (m.player2?.player1 && !m.player2.name) {
               const id = typeof m.player2.player1 === 'object' ? m.player2.player1._id?.toString() || m.player2.player1.$oid : m.player2.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player1 ID in round ${round.round}, match ${index}:`, m.player2.player1);
+              else console.warn(`Invalid round match player2.player1 ID in round ${round.round}, match ${index}:`, m.player2?.player1);
             }
             if (m.player2?.player2 && !m.player2.name && tournament.format.mode === 'Dobles') {
               const id = typeof m.player2.player2 === 'object' ? m.player2.player2._id?.toString() || m.player2.player2.$oid : m.player2.player2.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2.player2);
+              else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2?.player2);
             }
             if (m.result?.winner) {
               const id = typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result.winner);
+              else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result?.winner);
             }
             return ids;
           }).filter(Boolean);
           if (matchPlayerIds.length === 0 && round.matches.length > 0 && !round.matches.some(m => m.player2?.name === 'BYE')) {
-            console.error('No valid IDs found in round matches for round:', round.round);
+            console.error('No valid IDs found in round matches for round:', round.round, ', matches:', JSON.stringify(round.matches, null, 2));
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
           }
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid round match IDs for round', round.round, ':', invalidIds);
+            console.error('Invalid round match IDs for round', round.round, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds);
             return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para la ronda ${round.round}: ${invalidIds.join(', ')}` });
           }
         }
