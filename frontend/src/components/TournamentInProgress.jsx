@@ -48,6 +48,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
+      console.log('Tournament data:', response.data); // Depuración
       setTournament(response.data);
       if (response.data.type === 'RoundRobin') {
         updateStandings(response.data);
@@ -59,56 +60,72 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const updateStandings = (tournamentData) => {
-    const newStandings = tournamentData.groups.map(group => {
-      const standings = group.players.map(p => ({
-        playerId: typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString()),
-        player2Id: p.player2 ? (typeof p.player2 === 'object' && p.player2._id ? p.player2._id.toString() : (typeof p.player2 === 'object' && p.player2.$oid ? p.player2.$oid : p.player2.toString())) : null,
-        wins: 0,
-        setsWon: 0,
-        gamesWon: 0,
-      }));
+    if (!tournamentData.groups || !Array.isArray(tournamentData.groups)) {
+      console.warn('No groups found in tournament data');
+      setStandings([]);
+      return;
+    }
 
-      group.matches.forEach(match => {
-        if (match.result.winner) {
-          const winnerId = match.result.winner.toString();
-          const winner = standings.find(s => s.playerId === winnerId);
-          if (winner) {
-            winner.wins += 1;
-          } else {
-            console.warn(`Winner ID ${winnerId} not found in standings for group ${group.name}`);
-          }
-          match.result.sets.forEach(set => {
-            const p1Id = typeof match.player1.player1 === 'object' && match.player1.player1._id
-              ? match.player1.player1._id.toString()
-              : (typeof match.player1.player1 === 'object' && match.player1.player1.$oid ? match.player1.player1.$oid : match.player1.player1.toString());
-            const p2Id = typeof match.player2.player1 === 'object' && match.player2.player1._id
-              ? match.player2.player1._id.toString()
-              : (typeof match.player2.player1 === 'object' && match.player2.player1.$oid ? match.player2.player1.$oid : match.player2.player1.toString());
-            const p1 = standings.find(s => s.playerId === p1Id);
-            const p2 = standings.find(s => s.playerId === p2Id);
-            if (p1 && p2) {
-              p1.gamesWon += set.player1;
-              p2.gamesWon += set.player2;
-              if (set.player1 > set.player2) {
-                p1.setsWon += 1;
-              } else if (set.player2 > set.player1) {
-                p2.setsWon += 1;
-              } else if (set.player1 === set.player2 && set.tiebreak1 !== undefined && set.tiebreak2 !== undefined) {
-                if (set.tiebreak1 > set.tiebreak2) {
-                  p1.setsWon += 1;
-                } else if (set.tiebreak2 > set.tiebreak1) {
-                  p2.setsWon += 1;
-                }
-              }
+    const newStandings = tournamentData.groups.map(group => {
+      const standings = group.players && Array.isArray(group.players)
+        ? group.players.map(p => ({
+            playerId: typeof p.player1 === 'object' && p.player1._id
+              ? p.player1._id.toString()
+              : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString()),
+            player2Id: p.player2
+              ? (typeof p.player2 === 'object' && p.player2._id
+                  ? p.player2._id.toString()
+                  : (typeof p.player2 === 'object' && p.player2.$oid ? p.player2.$oid : p.player2.toString()))
+              : null,
+            wins: 0,
+            setsWon: 0,
+            gamesWon: 0,
+          }))
+        : [];
+
+      if (group.matches && Array.isArray(group.matches)) {
+        group.matches.forEach(match => {
+          if (match.result.winner) {
+            const winnerId = match.result.winner.toString();
+            const winner = standings.find(s => s.playerId === winnerId);
+            if (winner) {
+              winner.wins += 1;
             } else {
-              console.warn(`Player IDs ${p1Id} or ${p2Id} not found in standings for group ${group.name}`);
+              console.warn(`Winner ID ${winnerId} not found in standings for group ${group.name}`);
             }
-          });
-        }
-      });
+            match.result.sets.forEach(set => {
+              const p1Id = typeof match.player1.player1 === 'object' && match.player1.player1._id
+                ? match.player1.player1._id.toString()
+                : (typeof match.player1.player1 === 'object' && match.player1.player1.$oid ? match.player1.player1.$oid : match.player1.player1.toString());
+              const p2Id = typeof match.player2.player1 === 'object' && match.player2.player1._id
+                ? match.player2.player1._id.toString()
+                : (typeof match.player2.player1 === 'object' && match.player2.player1.$oid ? match.player2.player1.$oid : match.player2.player1.toString());
+              const p1 = standings.find(s => s.playerId === p1Id);
+              const p2 = standings.find(s => s.playerId === p2Id);
+              if (p1 && p2) {
+                p1.gamesWon += set.player1;
+                p2.gamesWon += set.player2;
+                if (set.player1 > set.player2) {
+                  p1.setsWon += 1;
+                } else if (set.player2 > set.player1) {
+                  p2.setsWon += 1;
+                } else if (set.player1 === set.player2 && set.tiebreak1 !== undefined && set.tiebreak2 !== undefined) {
+                  if (set.tiebreak1 > set.tiebreak2) {
+                    p1.setsWon += 1;
+                  } else if (set.tiebreak2 > set.tiebreak1) {
+                    p2.setsWon += 1;
+                  }
+                }
+              } else {
+                console.warn(`Player IDs ${p1Id} or ${p2Id} not found in standings for group ${group.name}`);
+              }
+            });
+          }
+        });
+      }
 
       return {
-        groupName: group.name,
+        groupName: group.name || `Grupo ${groupIndex + 1}`,
         standings: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
       };
     });
@@ -117,6 +134,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const handleTabChange = (event, newValue) => {
+    console.log('Tab changed to:', newValue); // Depuración
     setTabValue(newValue);
   };
 
@@ -545,7 +563,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const renderBracket = () => {
-    if (!tournament.rounds || tournament.rounds.length === 0) {
+    if (!tournament.rounds || !Array.isArray(tournament.rounds) || tournament.rounds.length === 0) {
       return <Typography>No hay rondas disponibles para mostrar.</Typography>;
     }
     return (
@@ -671,7 +689,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           <Tab label="Detalles" />
           <Tab label="Grupos" />
           <Tab label="Posiciones" />
-          {tournament.rounds.length > 0 && <Tab label="Llave" />}
+          {tournament.rounds && tournament.rounds.length > 0 && <Tab label="Llave" />}
         </Tabs>
 
         <Swiper
@@ -713,27 +731,31 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     <strong>Participantes:</strong>
                   </Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 1 }}>
-                    {tournament.participants.map(part => {
-                      const player1Name = part.player1?.firstName
-                        ? `${part.player1.firstName} ${part.player1.lastName}`
-                        : 'Jugador no encontrado';
-                      const player2Name =
-                        tournament.format.mode === 'Dobles' && part.player2
-                          ? `${part.player2.firstName} ${part.player2.lastName || ''}`
-                          : '';
-                      const label =
-                        tournament.format.mode === 'Singles'
-                          ? player1Name
-                          : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                      return (
-                        <Chip
-                          key={part.player1?._id || part.player1.$oid || part.player1}
-                          avatar={<Avatar>{player1Name.charAt(0)}</Avatar>}
-                          label={label}
-                          sx={{ m: 0.5, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                        />
-                      );
-                    })}
+                    {tournament.participants && tournament.participants.length > 0 ? (
+                      tournament.participants.map(part => {
+                        const player1Name = part.player1?.firstName
+                          ? `${part.player1.firstName} ${part.player1.lastName}`
+                          : 'Jugador no encontrado';
+                        const player2Name =
+                          tournament.format.mode === 'Dobles' && part.player2
+                            ? `${part.player2.firstName} ${part.player2.lastName || ''}`
+                            : '';
+                        const label =
+                          tournament.format.mode === 'Singles'
+                            ? player1Name
+                            : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                        return (
+                          <Chip
+                            key={part.player1?._id || part.player1.$oid || part.player1}
+                            avatar={<Avatar>{player1Name.charAt(0)}</Avatar>}
+                            label={label}
+                            sx={{ m: 0.5, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                          />
+                        );
+                      })
+                    ) : (
+                      <Typography>No hay participantes disponibles.</Typography>
+                    )}
                   </Box>
                 </Box>
               )}
@@ -743,71 +765,79 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             <Box sx={{ p: 2 }}>
               {tabValue === 1 && (
                 <Box sx={{ width: '100%', overflowX: 'hidden' }}>
-                  {tournament.groups.map((group, groupIndex) => (
-                    <Box key={group.name} sx={{ mb: 3 }}>
-                      <Typography
-                        variant="h6"
-                        sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                      >
-                        {group.name}
-                      </Typography>
-                      <Grid container spacing={2}>
-                        {group.matches.map((match, matchIndex) => (
-                          <Grid item xs={12} key={matchIndex}>
-                            <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                              <CardContent>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
-                                        {getPlayerName(match.player1.player1).charAt(0)}
-                                      </Avatar>
-                                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
-                                        {getPlayerName(match.player1.player1, match.player1.player2)}
+                  {tournament.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0 ? (
+                    tournament.groups.map((group, groupIndex) => (
+                      <Box key={group.name || groupIndex} sx={{ mb: 3 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                        >
+                          {group.name || `Grupo ${groupIndex + 1}`}
+                        </Typography>
+                        <Grid container spacing={2}>
+                          {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
+                            group.matches.map((match, matchIndex) => (
+                              <Grid item xs={12} key={matchIndex}>
+                                <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+                                  <CardContent>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
+                                            {getPlayerName(match.player1.player1).charAt(0)}
+                                          </Avatar>
+                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                            {getPlayerName(match.player1.player1, match.player1.player2)}
+                                          </Typography>
+                                        </Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
+                                            {getPlayerName(match.player2.player1).charAt(0)}
+                                          </Avatar>
+                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                            {getPlayerName(match.player2.player1, match.player2.player2)}
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+                                      <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
+                                        {match.result.sets.length > 0
+                                          ? match.result.sets.map((set, idx) => (
+                                              <span key={idx}>
+                                                {set.player1} - {set.player2}{' '}
+                                                {set.tiebreak1 && set.tiebreak2
+                                                  ? `(${set.tiebreak1}-${set.tiebreak2})`
+                                                  : ''}
+                                              </span>
+                                            ))
+                                          : 'Pendiente'}
                                       </Typography>
                                     </Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
-                                        {getPlayerName(match.player2.player1).charAt(0)}
-                                      </Avatar>
-                                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
-                                        {getPlayerName(match.player2.player1, match.player2.player2)}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                  <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
-                                    {match.result.sets.length > 0
-                                      ? match.result.sets.map((set, idx) => (
-                                          <span key={idx}>
-                                            {set.player1} - {set.player2}{' '}
-                                            {set.tiebreak1 && set.tiebreak2
-                                              ? `(${set.tiebreak1}-${set.tiebreak2})`
-                                              : ''}
-                                          </span>
-                                        ))
-                                      : 'Pendiente'}
-                                  </Typography>
-                                </Box>
-                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
-                                  Fecha: {match.date || 'No definida'}
-                                </Typography>
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
-                                  disabled={match.result.winner !== null}
-                                  sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                                >
-                                  Actualizar Resultado
-                                </Button>
-                              </CardContent>
-                            </Card>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    </Box>
-                  ))}
-                  {(role === 'admin' || role === 'coach') && !tournament.rounds.length && (
+                                    <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
+                                      Fecha: {match.date || 'No definida'}
+                                    </Typography>
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
+                                      disabled={match.result.winner !== null}
+                                      sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                                    >
+                                      Actualizar Resultado
+                                    </Button>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            ))
+                          ) : (
+                            <Typography>No hay partidos disponibles para este grupo.</Typography>
+                          )}
+                        </Grid>
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography>No hay grupos disponibles para mostrar.</Typography>
+                  )}
+                  {(role === 'admin' || role === 'coach') && (!tournament.rounds || tournament.rounds.length === 0) && (
                     <Button
                       variant="contained"
                       onClick={generateKnockoutPhase}
@@ -836,14 +866,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   >
                     Posiciones
                   </Typography>
-                  {standings && Array.isArray(standings) ? (
-                    standings.map(group => (
-                      <Box key={group.groupName} sx={{ mb: 3 }}>
+                  {standings && Array.isArray(standings) && standings.length > 0 ? (
+                    standings.map((group, groupIndex) => (
+                      <Box key={group.groupName || groupIndex} sx={{ mb: 3 }}>
                         <Typography
                           variant="h6"
                           sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
                         >
-                          {group.groupName}
+                          {group.groupName || `Grupo ${groupIndex + 1}`}
                         </Typography>
                         <Box sx={{ overflowX: 'auto' }}>
                           <Table sx={{ minWidth: '600px' }}>
@@ -858,41 +888,49 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {group.standings.map((player, idx) => {
-                                const participant = tournament.participants.find(p =>
-                                  (typeof p.player1 === 'object' && p.player1._id
-                                    ? p.player1._id.toString()
-                                    : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString())) === player.playerId.toString()
-                                );
-                                const player1Name = participant?.player1?.firstName
-                                  ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
-                                  : 'Jugador no encontrado';
-                                const player2Name =
-                                  tournament.format.mode === 'Dobles' && participant?.player2
-                                    ? `${participant.player2.firstName} ${participant.player2.lastName || ''}`
-                                    : '';
-                                const label =
-                                  tournament.format.mode === 'Singles'
-                                    ? player1Name
-                                    : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                                return (
-                                  <TableRow key={idx}>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Avatar
-                                          sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}
-                                        >
-                                          {player1Name.charAt(0)}
-                                        </Avatar>
-                                        {label}
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.wins}</TableCell>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.setsWon}</TableCell>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.gamesWon}</TableCell>
-                                  </TableRow>
-                                );
-                              })}
+                              {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
+                                group.standings.map((player, idx) => {
+                                  const participant = tournament.participants.find(p =>
+                                    (typeof p.player1 === 'object' && p.player1._id
+                                      ? p.player1._id.toString()
+                                      : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString())) === player.playerId.toString()
+                                  );
+                                  const player1Name = participant?.player1?.firstName
+                                    ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
+                                    : 'Jugador no encontrado';
+                                  const player2Name =
+                                    tournament.format.mode === 'Dobles' && participant?.player2
+                                      ? `${participant.player2.firstName} ${participant.player2.lastName || ''}`
+                                      : '';
+                                  const label =
+                                    tournament.format.mode === 'Singles'
+                                      ? player1Name
+                                      : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                                  return (
+                                    <TableRow key={idx}>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                          <Avatar
+                                            sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}
+                                          >
+                                            {player1Name.charAt(0)}
+                                          </Avatar>
+                                          {label}
+                                        </Box>
+                                      </TableCell>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.wins}</TableCell>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.setsWon}</TableCell>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.gamesWon}</TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              ) : (
+                                <TableRow>
+                                  <TableCell colSpan={4} sx={{ textAlign: 'center' }}>
+                                    No hay posiciones disponibles para este grupo.
+                                  </TableCell>
+                                </TableRow>
+                              )}
                             </TableBody>
                           </Table>
                         </Box>
@@ -907,7 +945,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               )}
             </Box>
           </SwiperSlide>
-          {tournament.rounds.length > 0 && (
+          {(tournament.rounds && tournament.rounds.length > 0) && (
             <SwiperSlide>
               <Box sx={{ p: 2 }}>
                 {tabValue === 3 && renderBracket()}
