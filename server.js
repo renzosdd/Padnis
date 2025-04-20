@@ -541,8 +541,6 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               const id = typeof m.player1.player1 === 'object' && m.player1.player1._id ? m.player1.player1._id.toString() : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : (typeof m.player1.player1 === 'string' ? m.player1.player1 : null));
               if (id && mongoose.isValidObjectId(id)) matchPlayerIds.push(id);
               else validationErrors.push(`Partido ${index} en la ronda ${round.round}: ID inválido para player1.player1: ${JSON.stringify(m.player1.player1)}`);
-            } else {
-              validationErrors.push(`Partido ${index} en la ronda ${round.round}: Falta player1.player1`);
             }
             if (tournament.format.mode === 'Dobles' && m.player1.player2) {
               const id = typeof m.player1.player2 === 'object' && m.player1.player2._id ? m.player1.player2._id.toString() : (typeof m.player1.player2 === 'object' && m.player1.player2.$oid ? m.player1.player2.$oid : (typeof m.player1.player2 === 'string' ? m.player1.player2 : null));
