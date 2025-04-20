@@ -347,7 +347,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
       type,
       sport,
       category,
-      format ilość
+      format,
       participants,
       groups: type === 'RoundRobin' && groups ? groups : [],
       rounds: type === 'Eliminatorio' && rounds ? rounds : [],
