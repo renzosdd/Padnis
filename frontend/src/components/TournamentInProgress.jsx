@@ -225,7 +225,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const determineWinner = useCallback((sets, player1Id, player2Id) => {
     let setsWonByPlayer1 = 0;
     let setsWonByPlayer2 = 0;
-    sets.forEach(set => {
+    sets.forEach((set, index) => {
       if (set.player1 > set.player2) {
         setsWonByPlayer1 += 1;
       } else if (set.player2 > set.player1) {
@@ -238,13 +238,28 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
       }
     });
+    // For two-set matches, check if the final set has a valid tiebreak
+    if (tournament?.format?.sets === 2 && sets.length === 2) {
+      const finalSet = sets[1];
+      if (finalSet.player1 === 6 && finalSet.player2 === 6 && finalSet.tiebreak1 !== undefined && finalSet.tiebreak2 !== undefined) {
+        if (finalSet.tiebreak1 > finalSet.tiebreak2) {
+          return player1Id;
+        } else if (finalSet.tiebreak2 > finalSet.tiebreak1) {
+          return player2Id;
+        }
+      }
+      // If sets are tied (1-1), no winner unless tiebreak decides
+      if (setsWonByPlayer1 === setsWonByPlayer2) {
+        return null;
+      }
+    }
     if (setsWonByPlayer1 > setsWonByPlayer2) {
       return player1Id;
     } else if (setsWonByPlayer2 > setsWonByPlayer1) {
       return player2Id;
     }
     return null;
-  }, []);
+  }, [tournament?.format?.sets]);
 
   const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 
@@ -431,21 +446,37 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
-          const winnerId = m.result.winner || (typeof m.player1.player1 === 'object' ? m.player1.player1?._id?.toString() || m.player1.player1?.$oid : m.player1.player1.toString());
+          const winnerId = m.result.winner || (
+            typeof m.player1.player1 === 'object' 
+              ? m.player1.player1?._id?.toString() || m.player1.player1?.$oid 
+              : m.player1.player1?.toString()
+          );
+          if (!winnerId || !isValidObjectId(winnerId)) {
+            console.warn(`Invalid winnerId: ${winnerId}`);
+            return null;
+          }
           const participant = tournament.participants.find(p => {
             const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
-            return pId === winnerId.toString();
+            return pId === winnerId;
           });
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
           }
-          const player1Id = typeof participant.player1 === 'object' ? participant.player1?._id?.toString() || participant.player1?.$oid : participant.player1.toString();
+          const player1Id = typeof participant.player1 === 'object' 
+            ? participant.player1?._id?.toString() || participant.player1?.$oid 
+            : participant.player1.toString();
           const player2Id = tournament.format.mode === 'Dobles' && participant.player2
-            ? (typeof participant.player2 === 'object' ? participant.player2?._id?.toString() || participant.player2?.$oid : participant.player2.toString())
+            ? (typeof participant.player2 === 'object' 
+                ? participant.player2?._id?.toString() || participant.player2?.$oid 
+                : participant.player2.toString())
             : null;
-          if (!player1Id || (tournament.format.mode === 'Dobles' && !player2Id)) {
+          if (!player1Id || (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id))) {
             console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id, winnerId });
+            return null;
+          }
+          if (!isValidObjectId(player1Id)) {
+            console.warn(`Invalid player1Id: ${player1Id}`);
             return null;
           }
           return {
@@ -535,6 +566,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         winner,
         runnerUp
       };
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Finalizing tournament payload:', JSON.stringify(updatePayload, null, 2));
+      }
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -735,7 +769,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           width: '100%',
           display: 'flex',
           flexDirection: 'column',
-          minHeight: '100vh',
+          height: 'auto',
         }}
       >
         <Box
@@ -782,7 +816,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               slidesPerView={1}
               onSlideChange={handleSlideChange}
               initialSlide={tabValue}
-              style={{ width: '100%', flex: 1 }}
+              style={{ width: '100%', height: 'auto' }}
               ref={swiperRef}
             >
               <SwiperSlide>
@@ -1030,7 +1064,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           </Box>
 
           {(role === 'admin' || role === 'coach') && (
-            <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Box sx={{ mt: 1, textAlign: 'center' }}>
               <Button
                 variant="contained"
                 color="success"
@@ -1132,63 +1166,62 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                             <Add />
                           </IconButton>
                         </Box>
-                        {set.player1 >= tournament?.format?.tiebreakSet &&
-                          set.player2 >= tournament?.format?.tiebreakSet && (
-                            <>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                                  Tiebreak Equipo 1
-                                </Typography>
-                                <IconButton
-                                  onClick={() => decrementScore(index, 'tiebreak1')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Remove />
-                                </IconButton>
-                                <TextField
-                                  type="number"
-                                  value={set.tiebreak1}
-                                  onChange={e => handleScoreChange(index, 'tiebreak1', e.target.value)}
-                                  inputProps={{ min: 0 }}
-                                  sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                                />
-                                <IconButton
-                                  onClick={() => incrementScore(index, 'tiebreak1')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Add />
-                                </IconButton>
-                              </Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                                  Tiebreak Equipo 2
-                                </Typography>
-                                <IconButton
-                                  onClick={() => decrementScore(index, 'tiebreak2')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Remove />
-                                </IconButton>
-                                <TextField
-                                  type="number"
-                                  value={set.tiebreak2}
-                                  onChange={e => handleScoreChange(index, 'tiebreak2', e.target.value)}
-                                  inputProps={{ min: 0 }}
-                                  sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                                />
-                                <IconButton
-                                  onClick={() => incrementScore(index, 'tiebreak2')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Add />
-                                </IconButton>
-                              </Box>
-                            </>
-                          )}
+                        {set.player1 === 6 && set.player2 === 6 && (
+                          <>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                              <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                                Tiebreak Equipo 1
+                              </Typography>
+                              <IconButton
+                                onClick={() => decrementScore(index, 'tiebreak1')}
+                                size="small"
+                                sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                              >
+                                <Remove />
+                              </IconButton>
+                              <TextField
+                                type="number"
+                                value={set.tiebreak1}
+                                onChange={e => handleScoreChange(index, 'tiebreak1', e.target.value)}
+                                inputProps={{ min: 0 }}
+                                sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                              />
+                              <IconButton
+                                onClick={() => incrementScore(index, 'tiebreak1')}
+                                size="small"
+                                sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                              >
+                                <Add />
+                              </IconButton>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                              <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                                Tiebreak Equipo 2
+                              </Typography>
+                              <IconButton
+                                onClick={() => decrementScore(index, 'tiebreak2')}
+                                size="small"
+                                sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                              >
+                                <Remove />
+                              </IconButton>
+                              <TextField
+                                type="number"
+                                value={set.tiebreak2}
+                                onChange={e => handleScoreChange(index, 'tiebreak2', e.target.value)}
+                                inputProps={{ min: 0 }}
+                                sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                              />
+                              <IconButton
+                                onClick={() => incrementScore(index, 'tiebreak2')}
+                                size="small"
+                                sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                              >
+                                <Add />
+                              </IconButton>
+                            </Box>
+                          </>
+                        )}
                       </Box>
                     </Card>
                   ) : null
