@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -28,6 +28,7 @@ import {
 import { Add, Remove } from '@mui/icons-material';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
+import { ErrorBoundary } from 'react-error-boundary';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
@@ -38,6 +39,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [standings, setStandings] = useState([]);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
+  const swiperRef = useRef(null);
 
   useEffect(() => {
     fetchTournament();
@@ -48,7 +50,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      console.log('Tournament data:', JSON.stringify(response.data, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Tournament data:', JSON.stringify(response.data, null, 2));
+      }
       setTournament(response.data);
       if (response.data.type === 'RoundRobin') {
         updateStandings(response.data);
@@ -67,12 +71,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
 
     const newStandings = tournamentData.groups.map((group, groupIndex) => {
-      console.log(`Processing group ${group.name || groupIndex}:`, JSON.stringify(group, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Processing group ${group.name || groupIndex}:`, JSON.stringify(group, null, 2));
+      }
       const standings = group.players && Array.isArray(group.players)
         ? group.players.map(p => {
-            const player1Id = typeof p.player1 === 'object' && p.player1?._id
-              ? p.player1._id.toString()
-              : (typeof p.player1 === 'object' && p.player1?.$oid ? p.player1.$oid : (typeof p.player1 === 'string' ? p.player1.toString() : null));
+            const player1Id = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
             if (!player1Id) {
               console.warn(`Invalid player1 ID in group ${group.name || groupIndex}:`, p.player1);
               return null;
@@ -80,9 +84,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return {
               playerId: player1Id,
               player2Id: p.player2
-                ? (typeof p.player2 === 'object' && p.player2._id
-                    ? p.player2._id.toString()
-                    : (typeof p.player2 === 'object' && p.player2.$oid ? p.player2.$oid : p.player2.toString()))
+                ? (typeof p.player2 === 'object' ? p.player2?._id?.toString() || p.player2?.$oid : p.player2.toString())
                 : null,
               wins: 0,
               setsWon: 0,
@@ -98,9 +100,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       if (group.matches && Array.isArray(group.matches)) {
         group.matches.forEach(match => {
           if (match.result?.winner) {
-            const winnerId = typeof match.result.winner === 'object' && match.result.winner._id
-              ? match.result.winner._id.toString()
-              : (typeof match.result.winner === 'string' ? match.result.winner.toString() : null);
+            const winnerId = typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner.toString();
             if (!winnerId) {
               console.warn(`Invalid winner ID in match for group ${group.name || groupIndex}:`, match.result.winner);
               return;
@@ -113,12 +113,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             }
             if (match.result.sets && Array.isArray(match.result.sets)) {
               match.result.sets.forEach(set => {
-                const p1Id = typeof match.player1?.player1 === 'object' && match.player1.player1?._id
-                  ? match.player1.player1._id.toString()
-                  : (typeof match.player1?.player1 === 'string' ? match.player1.player1.toString() : null);
-                const p2Id = typeof match.player2?.player1 === 'object' && match.player2.player1?._id
-                  ? match.player2.player1._id.toString()
-                  : (typeof match.player2?.player1 === 'string' ? match.player2.player1.toString() : null);
+                const p1Id = typeof match.player1?.player1 === 'object' ? match.player1.player1?._id?.toString() || match.player1.player1?.$oid : match.player1?.player1?.toString();
+                const p2Id = typeof match.player2?.player1 === 'object' ? match.player2.player1?._id?.toString() || match.player2.player1?.$oid : match.player2?.player1?.toString();
                 if (!p1Id || !p2Id) {
                   console.warn(`Invalid player IDs in match for group ${group.name || groupIndex}:`, { p1Id, p2Id });
                   return;
@@ -155,16 +151,30 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         standings: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
       };
     });
-    console.log('Updated standings:', JSON.stringify(newStandings, null, 2));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Updated standings:', JSON.stringify(newStandings, null, 2));
+    }
     setStandings(newStandings);
   };
 
-  const handleTabChange = (event, newValue) => {
-    console.log('Tab changed to:', newValue);
+  const handleTabChange = useCallback((event, newValue) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Tab changed to:', newValue);
+    }
     setTabValue(newValue);
-  };
+    if (swiperRef.current && swiperRef.current.swiper) {
+      swiperRef.current.swiper.slideTo(newValue);
+    }
+  }, []);
 
-  const openMatchDialog = (match, groupIndex, matchIndex, roundIndex = null) => {
+  const handleSlideChange = useCallback((swiper) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Slide changed to:', swiper.activeIndex);
+    }
+    setTabValue(swiper.activeIndex);
+  }, []);
+
+  const openMatchDialog = useCallback((match, groupIndex, matchIndex, roundIndex = null) => {
     if (role !== 'admin' && role !== 'coach') {
       addNotification('Solo admin o coach pueden actualizar partidos', 'error');
       return;
@@ -180,7 +190,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       : Array(tournament?.format?.sets || 1).fill({ player1: 0, player2: 0, tiebreak1: 0, tiebreak2: 0 });
     setMatchScores(initialSets);
     setMatchDialogOpen(true);
-  };
+  }, [role, tournament?.format?.sets, addNotification]);
 
   const handleScoreChange = useCallback((index, field, value) => {
     const parsedValue = parseInt(value);
@@ -208,7 +218,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     });
   }, []);
 
-  const determineWinner = (sets, player1Id, player2Id) => {
+  const determineWinner = useCallback((sets, player1Id, player2Id) => {
     let setsWonByPlayer1 = 0;
     let setsWonByPlayer2 = 0;
     sets.forEach(set => {
@@ -230,7 +240,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       return player2Id;
     }
     return null;
-  };
+  }, []);
 
   const submitMatchResult = async (retries = 2) => {
     const validSets = matchScores.filter(set => set.player1 > 0 || set.player2 > 0);
@@ -260,8 +270,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
     try {
       const { matchId, roundIndex } = selectedMatch;
-      if (!matchId) {
-        addNotification('No se pudo identificar el partido', 'error');
+      if (!matchId || !mongoose.isValidObjectId(matchId)) {
+        addNotification('ID de partido inválido', 'error');
+        console.error('Invalid matchId:', matchId);
         return;
       }
       const sets = validSets.map(set => ({
@@ -270,28 +281,32 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         tiebreak1: set.tiebreak1 > 0 ? set.tiebreak1 : undefined,
         tiebreak2: set.tiebreak2 > 0 ? set.tiebreak2 : undefined,
       }));
-      const player1Id = typeof selectedMatch.match.player1?.player1 === 'object' && selectedMatch.match.player1.player1?._id
-        ? selectedMatch.match.player1.player1._id.toString()
-        : (typeof selectedMatch.match.player1?.player1 === 'string' ? selectedMatch.match.player1.player1.toString() : null);
-      const player2Id = typeof selectedMatch.match.player2?.player1 === 'object' && selectedMatch.match.player2.player1?._id
-        ? selectedMatch.match.player2.player1._id.toString()
-        : (typeof selectedMatch.match.player2?.player1 === 'string' ? selectedMatch.match.player2.player1.toString() : null);
-      if (!player1Id || !player2Id) {
+      const player1Id = typeof selectedMatch.match.player1?.player1 === 'object' ? selectedMatch.match.player1.player1?._id?.toString() || selectedMatch.match.player1.player1?.$oid : selectedMatch.match.player1?.player1?.toString();
+      const player2Id = typeof selectedMatch.match.player2?.player1 === 'object' ? selectedMatch.match.player2.player1?._id?.toString() || selectedMatch.match.player2.player1?.$oid : selectedMatch.match.player2?.player1?.toString();
+      if (!player1Id || !player2Id || !mongoose.isValidObjectId(player1Id) || !mongoose.isValidObjectId(player2Id)) {
         addNotification('IDs de jugadores inválidos', 'error');
         console.error('Invalid player IDs:', { player1Id, player2Id });
         return;
       }
       const winnerId = determineWinner(sets, player1Id, player2Id);
+      if (!winnerId) {
+        addNotification('No se pudo determinar un ganador', 'error');
+        return;
+      }
       let runnerUpId = null;
       if (roundIndex !== null && tournament.rounds.length === roundIndex + 1 && tournament.rounds[roundIndex].matches.length === 1) {
         runnerUpId = winnerId === player1Id ? player2Id : player1Id;
       }
-      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, {
+      const payload = {
         sets,
         winner: winnerId,
         runnerUp: runnerUpId,
         isKnockout: roundIndex !== null,
-      }, {
+      };
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Submitting match result payload:', JSON.stringify(payload, null, 2));
+      }
+      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       setMatchDialogOpen(false);
@@ -320,7 +335,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
 
       const validParticipantIds = tournament.participants.map(p => {
-        const id = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
+        const id = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
         return id;
       });
       const topPlayers = standings.flatMap(group => {
@@ -330,7 +345,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
         return group.standings.slice(0, tournament.playersPerGroupToAdvance || 2).map(s => {
           const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
+            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
             return pId === s.playerId.toString();
           });
           if (!participant) {
@@ -341,13 +356,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             console.warn(`ID de jugador inválido en standings: ${participant.player1._id || participant.player1.$oid || participant.player1} en grupo ${group.groupName}`);
             return null;
           }
-          const player1Id = typeof participant.player1 === 'object' && participant.player1._id
-            ? participant.player1._id.toString()
-            : (typeof participant.player1 === 'object' && participant.player1.$oid ? participant.player1.$oid : participant.player1.toString());
+          const player1Id = typeof participant.player1 === 'object' ? participant.player1?._id?.toString() || participant.player1?.$oid : participant.player1.toString();
           const player2Id = tournament.format.mode === 'Dobles' && participant.player2
-            ? (typeof participant.player2 === 'object' && participant.player2._id
-                ? participant.player2._id.toString()
-                : (typeof participant.player2 === 'object' && participant.player2.$oid ? participant.player2.$oid : participant.player2.toString()))
+            ? (typeof participant.player2 === 'object' ? participant.player2?._id?.toString() || participant.player2?.$oid : participant.player2.toString())
             : null;
           return {
             player1: player1Id,
@@ -362,7 +373,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
 
-      console.log('Top players for knockout phase:', topPlayers);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Top players for knockout phase:', topPlayers);
+      }
 
       const shuffled = topPlayers.sort(() => 0.5 - Math.random());
       const matches = [];
@@ -381,7 +394,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
 
-      console.log('Generated matches:', matches);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Generated matches:', matches);
+      }
 
       const updatePayload = {
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
@@ -410,26 +425,18 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
-          const winnerId = m.result.winner || (typeof m.player1.player1 === 'object' && m.player1.player1._id
-            ? m.player1.player1._id.toString()
-            : (typeof m.player1.player1 === 'object' && m.player1.player1.$oid ? m.player1.player1.$oid : m.player1.player1.toString()));
+          const winnerId = m.result.winner || (typeof m.player1.player1 === 'object' ? m.player1.player1?._id?.toString() || m.player1.player1?.$oid : m.player1.player1.toString());
           const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' && p.player1._id
-              ? p.player1._id.toString()
-              : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString());
+            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString();
             return pId === winnerId.toString();
           });
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}`);
             return null;
           }
-          const player1Id = typeof participant.player1 === 'object' && participant.player1._id
-            ? participant.player1._id.toString()
-            : (typeof participant.player1 === 'object' && participant.player1.$oid ? participant.player1.$oid : participant.player1.toString());
+          const player1Id = typeof participant.player1 === 'object' ? participant.player1?._id?.toString() || participant.player1?.$oid : participant.player1.toString();
           const player2Id = tournament.format.mode === 'Dobles' && participant.player2
-            ? (typeof participant.player2 === 'object' && participant.player2._id
-                ? participant.player2._id.toString()
-                : (typeof participant.player2 === 'object' && participant.player2.$oid ? participant.player2.$oid : participant.player2.toString()))
+            ? (typeof participant.player2 === 'object' ? participant.player2?._id?.toString() || participant.player2?.$oid : participant.player2.toString())
             : null;
           if (!player1Id || (tournament.format.mode === 'Dobles' && !player2Id)) {
             console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id, winnerId });
@@ -441,7 +448,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           };
         })
         .filter(w => w !== null);
-      console.log('Winners for new round (detailed):', JSON.stringify(winners, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Winners for new round (detailed):', JSON.stringify(winners, null, 2));
+      }
       if (winners.length < 1) {
         addNotification('No hay suficientes ganadores para avanzar', 'error');
         return;
@@ -467,7 +476,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const updatePayload = {
         rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
       };
-      console.log('Advancing round payload:', JSON.stringify(updatePayload, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Advancing round payload:', JSON.stringify(updatePayload, null, 2));
+      }
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -499,12 +510,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
         winner = finalRound.matches[0].result.winner;
         const finalMatch = finalRound.matches[0];
-        const player1Id = typeof finalMatch.player1.player1 === 'object' && finalMatch.player1.player1._id
-          ? finalMatch.player1.player1._id.toString()
-          : (typeof finalMatch.player1.player1 === 'object' && finalMatch.player1.player1.$oid ? finalMatch.player1.player1.$oid : finalMatch.player1.player1.toString());
-        const player2Id = typeof finalMatch.player2.player1 === 'object' && finalMatch.player2.player1._id
-          ? finalMatch.player2.player1._id.toString()
-          : (typeof finalMatch.player2.player1 === 'object' && finalMatch.player2.player1.$oid ? finalMatch.player2.player1.$oid : finalMatch.player2.player1.toString());
+        const player1Id = typeof finalMatch.player1.player1 === 'object' ? finalMatch.player1.player1?._id?.toString() || finalMatch.player1.player1?.$oid : finalMatch.player1.player1.toString();
+        const player2Id = typeof finalMatch.player2.player1 === 'object' ? finalMatch.player2.player1?._id?.toString() || finalMatch.player2.player1?.$oid : finalMatch.player2.player1.toString();
         runnerUp = winner === player1Id ? player2Id : player1Id;
       } else if (tournament.type === 'RoundRobin') {
         const allStandings = standings.flatMap(group => group.standings);
@@ -527,10 +534,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       });
       await fetchTournament();
       const winnerPlayer = tournament.participants.find(p => 
-        (typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString())) === winner.toString()
+        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === winner.toString()
       );
       const runnerUpPlayer = runnerUp ? tournament.participants.find(p => 
-        (typeof p.player1 === 'object' && p.player1._id ? p.player1._id.toString() : (typeof p.player1 === 'object' && p.player1.$oid ? p.player1.$oid : p.player1.toString())) === runnerUp.toString()
+        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === runnerUp.toString()
       ) : null;
       addNotification(
         `Torneo finalizado con éxito. Ganador: ${winnerPlayer.player1.firstName} ${winnerPlayer.player1.lastName}` +
@@ -546,16 +553,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
   };
 
-  const getPlayerName = (playerId, player2Id = null) => {
+  const getPlayerName = useCallback((playerId, player2Id = null) => {
     const normalizeId = (id) => {
       if (typeof id === 'object' && id?.$oid) return id.$oid;
       if (typeof id === 'object' && id?._id) return id._id.toString();
       return id?.toString() || '';
     };
     const participant = tournament.participants.find(p => {
-      const pId = typeof p.player1 === 'object' && p.player1?._id
-        ? p.player1._id.toString()
-        : (typeof p.player1 === 'object' && p.player1?.$oid ? p.player1.$oid : p.player1?.toString());
+      const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
       return pId === normalizeId(playerId);
     });
     if (!participant) {
@@ -572,9 +577,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       ? `${participant.player2.firstName} ${participant.player2.lastName || ''}`
       : 'Jugador no encontrado';
     return `${player1Name} / ${player2Name}`;
-  };
+  }, [tournament.participants, tournament.format.mode]);
 
-  const getRoundName = (numTeams) => {
+  const getRoundName = useCallback((numTeams) => {
     switch (numTeams) {
       case 16:
         return 'Octavos de Final';
@@ -587,11 +592,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       default:
         return `Ronda ${tournament.rounds?.length + 1 || 1}`;
     }
-  };
+  }, [tournament.rounds]);
 
-  const renderBracket = () => {
-    console.log('Rendering bracket with rounds:', JSON.stringify(tournament.rounds, null, 2));
-    if (!tournament.rounds || !Array.isArray(tournament.rounds) || tournament.rounds.length === 0) {
+  const renderBracket = useMemo(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Rendering bracket with rounds:', JSON.stringify(tournament?.rounds, null, 2));
+    }
+    if (!tournament?.rounds || !Array.isArray(tournament.rounds) || tournament.rounds.length === 0) {
       return <Typography>No hay rondas disponibles para mostrar.</Typography>;
     }
     return (
@@ -675,495 +682,508 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         )}
       </Box>
     );
-  };
+  }, [tournament?.rounds, role, getPlayerName, getRoundName, openMatchDialog, advanceEliminationRound]);
+
+  const ErrorFallback = ({ error }) => (
+    <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2 }}>
+      <Typography color="error">Error: {error.message}</Typography>
+      <Button onClick={fetchTournament} variant="contained" sx={{ mt: 2 }}>
+        Reintentar
+      </Button>
+    </Box>
+  );
 
   if (!tournament) return <Typography>Cargando torneo...</Typography>;
 
   return (
-    <Box
-      sx={{
-        p: { xs: 2, sm: 3 },
-        bgcolor: '#f0f4f8',
-        minHeight: '100vh',
-        width: '100%',
-        overflowX: 'hidden',
-      }}
-    >
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
       <Box
         sx={{
-          bgcolor: '#ffffff',
           p: { xs: 2, sm: 3 },
-          borderRadius: 2,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          maxWidth: '100%',
-          mx: 'auto',
+          bgcolor: '#f0f4f8',
+          minHeight: '100vh',
+          width: '100%',
+          overflowX: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <Typography
-          variant="h5"
-          gutterBottom
+        <Box
           sx={{
-            fontSize: 'clamp(1.5rem, 6vw, 2rem)',
-            color: '#01579b',
-            fontWeight: 700,
-            textAlign: 'center',
+            bgcolor: '#ffffff',
+            p: { xs: 2, sm: 3 },
+            borderRadius: 2,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+            maxWidth: '100%',
+            mx: 'auto',
+            flex: 1,
           }}
         >
-          {tournament.name} - {tournament.sport} ({tournament.format?.mode || 'No definido'}) en {tournament.club?.name || 'No definido'}
-        </Typography>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          sx={{ mb: 2 }}
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Detalles" />
-          <Tab label="Grupos" />
-          <Tab label="Posiciones" />
-          {tournament.rounds && tournament.rounds.length > 0 && <Tab label="Llave" />}
-        </Tabs>
+          <Typography
+            variant="h5"
+            gutterBottom
+            sx={{
+              fontSize: 'clamp(1.5rem, 6vw, 2rem)',
+              color: '#01579b',
+              fontWeight: 700,
+              textAlign: 'center',
+            }}
+          >
+            {tournament.name} - {tournament.sport} ({tournament.format?.mode || 'No definido'}) en {tournament.club?.name || 'No definido'}
+          </Typography>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            sx={{ mb: 2 }}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            <Tab label="Detalles" />
+            <Tab label="Grupos" />
+            <Tab label="Posiciones" />
+            {tournament.rounds && tournament.rounds.length > 0 && <Tab label="Llave" />}
+          </Tabs>
 
-        <Swiper
-          spaceBetween={10}
-          slidesPerView={1}
-          onSlideChange={(swiper) => setTabValue(swiper.activeIndex)}
-          initialSlide={tabValue}
-          style={{ width: '100%' }}
-        >
-          <SwiperSlide>
-            <Box sx={{ p: 2 }}>
-              <Box>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Nombre:</strong> {tournament.name}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Club:</strong> {tournament.club?.name || 'No definido'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Categoría:</strong> {tournament.category || 'No definida'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Tipo:</strong> {tournament.type || 'No definido'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Deporte:</strong> {tournament.sport || 'No definido'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Modalidad:</strong> {tournament.format?.mode || 'No definido'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Sets por partido:</strong> {tournament.format?.sets || 'No definido'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Juegos por set:</strong> {tournament.format?.gamesPerSet || 'No definido'}
-                </Typography>
-                <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                  <strong>Participantes:</strong>
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 1 }}>
-                  {tournament.participants && tournament.participants.length > 0 ? (
-                    tournament.participants.map(part => {
-                      const player1Name = part.player1?.firstName
-                        ? `${part.player1.firstName} ${part.player1.lastName || ''}`
-                        : 'Jugador no encontrado';
-                      const player2Name =
-                        tournament.format?.mode === 'Dobles' && part.player2
-                          ? `${part.player2.firstName || ''} ${part.player2.lastName || ''}`
-                          : '';
-                      const label =
-                        tournament.format?.mode === 'Singles'
-                          ? player1Name
-                          : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                      return (
-                        <Chip
-                          key={part.player1?._id || part.player1?.$oid || part.player1}
-                          avatar={<Avatar>{player1Name.charAt(0)}</Avatar>}
-                          label={label}
-                          sx={{ m: 0.5, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                        />
-                      );
-                    })
+          <Swiper
+            spaceBetween={10}
+            slidesPerView={1}
+            onSlideChange={handleSlideChange}
+            initialSlide={tabValue}
+            style={{ width: '100%', height: 'auto' }}
+            ref={swiperRef}
+          >
+            <SwiperSlide>
+              <Box sx={{ p: 2, height: 'auto' }}>
+                <Box>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Nombre:</strong> {tournament.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Club:</strong> {tournament.club?.name || 'No definido'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Categoría:</strong> {tournament.category || 'No definida'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Tipo:</strong> {tournament.type || 'No definido'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Deporte:</strong> {tournament.sport || 'No definido'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Modalidad:</strong> {tournament.format?.mode || 'No definido'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Sets por partido:</strong> {tournament.format?.sets || 'No definido'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Juegos por set:</strong> {tournament.format?.gamesPerSet || 'No definido'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                    <strong>Participantes:</strong>
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 1 }}>
+                    {tournament.participants && tournament.participants.length > 0 ? (
+                      tournament.participants.map(part => {
+                        const player1Name = part.player1?.firstName
+                          ? `${part.player1.firstName} ${part.player1.lastName || ''}`
+                          : 'Jugador no encontrado';
+                        const player2Name =
+                          tournament.format?.mode === 'Dobles' && part.player2
+                            ? `${part.player2.firstName || ''} ${part.player2.lastName || ''}`
+                            : '';
+                        const label =
+                          tournament.format?.mode === 'Singles'
+                            ? player1Name
+                            : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                        return (
+                          <Chip
+                            key={part.player1?._id || part.player1?.$oid || part.player1}
+                            avatar={<Avatar>{player1Name.charAt(0)}</Avatar>}
+                            label={label}
+                            sx={{ m: 0.5, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                          />
+                        );
+                      })
+                    ) : (
+                      <Typography>No hay participantes disponibles.</Typography>
+                    )}
+                  </Box>
+                </Box>
+              </Box>
+            </SwiperSlide>
+            <SwiperSlide>
+              <Box sx={{ p: 2, height: 'auto' }}>
+                <Box sx={{ width: '100%', overflowX: 'hidden' }}>
+                  {tournament.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0 ? (
+                    tournament.groups.map((group, groupIndex) => (
+                      <Box key={group.name || groupIndex} sx={{ mb: 3 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                        >
+                          {group.name || `Grupo ${groupIndex + 1}`}
+                        </Typography>
+                        <Grid container spacing={2}>
+                          {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
+                            group.matches.map((match, matchIndex) => (
+                              <Grid item xs={12} key={matchIndex}>
+                                <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+                                  <CardContent>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
+                                            {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
+                                          </Avatar>
+                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                            {match.player1?.player1 ? getPlayerName(match.player1.player1, match.player1.player2) : 'Jugador no definido'}
+                                          </Typography>
+                                        </Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
+                                            {match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?'}
+                                          </Avatar>
+                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                            {match.player2?.player1 ? getPlayerName(match.player2.player1, match.player2.player2) : 'Jugador no definido'}
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+                                      <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
+                                        {match.result?.sets && match.result.sets.length > 0
+                                          ? match.result.sets.map((set, idx) => (
+                                              <span key={idx}>
+                                                {set.player1 || 0} - {set.player2 || 0}{' '}
+                                                {set.tiebreak1 && set.tiebreak2
+                                                  ? `(${set.tiebreak1}-${set.tiebreak2})`
+                                                  : ''}
+                                              </span>
+                                            ))
+                                          : 'Pendiente'}
+                                      </Typography>
+                                    </Box>
+                                    <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
+                                      Fecha: {match.date || 'No definida'}
+                                    </Typography>
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
+                                      disabled={match.result?.winner !== null}
+                                      sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                                    >
+                                      Actualizar Resultado
+                                    </Button>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            ))
+                          ) : (
+                            <Typography>No hay partidos disponibles para este grupo.</Typography>
+                          )}
+                        </Grid>
+                      </Box>
+                    ))
                   ) : (
-                    <Typography>No hay participantes disponibles.</Typography>
+                    <Typography>No hay grupos disponibles para mostrar.</Typography>
+                  )}
+                  {(role === 'admin' || role === 'coach') && (!tournament.rounds || tournament.rounds.length === 0) && (
+                    <Button
+                      variant="contained"
+                      onClick={generateKnockoutPhase}
+                      sx={{
+                        mt: 2,
+                        bgcolor: '#0288d1',
+                        '&:hover': { bgcolor: '#0277bd' },
+                        fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+                      }}
+                    >
+                      Generar Fase Eliminatoria
+                    </Button>
                   )}
                 </Box>
               </Box>
-            </Box>
-          </SwiperSlide>
-          <SwiperSlide>
-            <Box sx={{ p: 2 }}>
-              <Box sx={{ width: '100%', overflowX: 'hidden' }}>
-                {tournament.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0 ? (
-                  tournament.groups.map((group, groupIndex) => (
-                    <Box key={group.name || groupIndex} sx={{ mb: 3 }}>
-                      <Typography
-                        variant="h6"
-                        sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                      >
-                        {group.name || `Grupo ${groupIndex + 1}`}
-                      </Typography>
-                      <Grid container spacing={2}>
-                        {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
-                          group.matches.map((match, matchIndex) => (
-                            <Grid item xs={12} key={matchIndex}>
-                              <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                                <CardContent>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
-                                          {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
-                                        </Avatar>
-                                        <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
-                                          {match.player1?.player1 ? getPlayerName(match.player1.player1, match.player1.player2) : 'Jugador no definido'}
-                                        </Typography>
-                                      </Box>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
-                                          {match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?'}
-                                        </Avatar>
-                                        <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
-                                          {match.player2?.player1 ? getPlayerName(match.player2.player1, match.player2.player2) : 'Jugador no definido'}
-                                        </Typography>
-                                      </Box>
-                                    </Box>
-                                    <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
-                                      {match.result?.sets && match.result.sets.length > 0
-                                        ? match.result.sets.map((set, idx) => (
-                                            <span key={idx}>
-                                              {set.player1 || 0} - {set.player2 || 0}{' '}
-                                              {set.tiebreak1 && set.tiebreak2
-                                                ? `(${set.tiebreak1}-${set.tiebreak2})`
-                                                : ''}
-                                            </span>
-                                          ))
-                                        : 'Pendiente'}
-                                    </Typography>
-                                  </Box>
-                                  <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
-                                    Fecha: {match.date || 'No definida'}
-                                  </Typography>
-                                  <Button
-                                    variant="outlined"
-                                    size="small"
-                                    onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
-                                    disabled={match.result?.winner !== null}
-                                    sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                                  >
-                                    Actualizar Resultado
-                                  </Button>
-                                </CardContent>
-                              </Card>
-                            </Grid>
-                          ))
-                        ) : (
-                          <Typography>No hay partidos disponibles para este grupo.</Typography>
-                        )}
-                      </Grid>
-                    </Box>
-                  ))
-                ) : (
-                  <Typography>No hay grupos disponibles para mostrar.</Typography>
-                )}
-                {(role === 'admin' || role === 'coach') && (!tournament.rounds || tournament.rounds.length === 0) && (
-                  <Button
-                    variant="contained"
-                    onClick={generateKnockoutPhase}
-                    sx={{
-                      mt: 2,
-                      bgcolor: '#0288d1',
-                      '&:hover': { bgcolor: '#0277bd' },
-                      fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-                    }}
-                  >
-                    Generar Fase Eliminatoria
-                  </Button>
-                )}
-              </Box>
-            </Box>
-          </SwiperSlide>
-          <SwiperSlide>
-            <Box sx={{ p: 2 }}>
-              <Box sx={{ width: '100%' }}>
-                <Typography
-                  variant="h5"
-                  gutterBottom
-                  sx={{ fontSize: 'clamp(1.25rem, 6vw, 1.5rem)' }}
-                >
-                  Posiciones
-                </Typography>
-                {standings && Array.isArray(standings) && standings.length > 0 ? (
-                  standings.map((group, groupIndex) => (
-                    <Box key={group.groupName || groupIndex} sx={{ mb: 3 }}>
-                      <Typography
-                        variant="h6"
-                        sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                      >
-                        {group.groupName || `Grupo ${groupIndex + 1}`}
-                      </Typography>
-                      <Box sx={{ overflowX: 'auto' }}>
-                        <Table sx={{ minWidth: '600px' }}>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
-                                {tournament.format?.mode === 'Singles' ? 'Jugador' : 'Equipo'}
-                              </TableCell>
-                              <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>V</TableCell>
-                              <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>Sets</TableCell>
-                              <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>JG</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
-                              group.standings.map((player, idx) => {
-                                const participant = tournament.participants.find(p =>
-                                  (typeof p.player1 === 'object' && p.player1?._id
-                                    ? p.player1._id.toString()
-                                    : (typeof p.player1 === 'object' && p.player1?.$oid ? p.player1.$oid : p.player1?.toString())) === player.playerId?.toString()
-                                );
-                                const player1Name = participant?.player1?.firstName
-                                  ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
-                                  : 'Jugador no encontrado';
-                                const player2Name =
-                                  tournament.format?.mode === 'Dobles' && participant?.player2
-                                    ? `${participant.player2.firstName || ''} ${participant.player2.lastName || ''}`
-                                    : '';
-                                const label =
-                                  tournament.format?.mode === 'Singles'
-                                    ? player1Name
-                                    : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                                return (
-                                  <TableRow key={idx}>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <Avatar
-                                          sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}
-                                        >
-                                          {player1Name.charAt(0)}
-                                        </Avatar>
-                                        {label}
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.wins || 0}</TableCell>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.setsWon || 0}</TableCell>
-                                    <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.gamesWon || 0}</TableCell>
-                                  </TableRow>
-                                );
-                              })
-                            ) : (
-                              <TableRow>
-                                <TableCell colSpan={4} sx={{ textAlign: 'center' }}>
-                                  No hay posiciones disponibles para este grupo.
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-                      </Box>
-                    </Box>
-                  ))
-                ) : (
-                  <Typography sx={{ textAlign: 'center' }}>
-                    No hay posiciones disponibles para mostrar.
-                  </Typography>
-                )}
-              </Box>
-            </Box>
-          </SwiperSlide>
-          {tournament.rounds && tournament.rounds.length > 0 && (
+            </SwiperSlide>
             <SwiperSlide>
-              <Box sx={{ p: 2 }}>
-                {renderBracket()}
+              <Box sx={{ p: 2, height: 'auto' }}>
+                <Box sx={{ width: '100%' }}>
+                  <Typography
+                    variant="h5"
+                    gutterBottom
+                    sx={{ fontSize: 'clamp(1.25rem, 6vw, 1.5rem)' }}
+                  >
+                    Posiciones
+                  </Typography>
+                  {standings && Array.isArray(standings) && standings.length > 0 ? (
+                    standings.map((group, groupIndex) => (
+                      <Box key={group.groupName || groupIndex} sx={{ mb: 3 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                        >
+                          {group.groupName || `Grupo ${groupIndex + 1}`}
+                        </Typography>
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <Table sx={{ minWidth: '600px' }}>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
+                                  {tournament.format?.mode === 'Singles' ? 'Jugador' : 'Equipo'}
+                                </TableCell>
+                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>V</TableCell>
+                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>Sets</TableCell>
+                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>JG</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
+                                group.standings.map((player, idx) => {
+                                  const participant = tournament.participants.find(p =>
+                                    (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === player.playerId?.toString()
+                                  );
+                                  const player1Name = participant?.player1?.firstName
+                                    ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
+                                    : 'Jugador no encontrado';
+                                  const player2Name =
+                                    tournament.format?.mode === 'Dobles' && participant?.player2
+                                      ? `${participant.player2.firstName || ''} ${participant.player2.lastName || ''}`
+                                      : '';
+                                  const label =
+                                    tournament.format?.mode === 'Singles'
+                                      ? player1Name
+                                      : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                                  return (
+                                    <TableRow key={idx}>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                          <Avatar
+                                            sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}
+                                          >
+                                            {player1Name.charAt(0)}
+                                          </Avatar>
+                                          {label}
+                                        </Box>
+                                      </TableCell>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.wins || 0}</TableCell>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.setsWon || 0}</TableCell>
+                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.gamesWon || 0}</TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              ) : (
+                                <TableRow>
+                                  <TableCell colSpan={4} sx={{ textAlign: 'center' }}>
+                                    No hay posiciones disponibles para este grupo.
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </Box>
+                      </Box>
+                    ))
+                  ) : (
+                    <Typography sx={{ textAlign: 'center' }}>
+                      No hay posiciones disponibles para mostrar.
+                    </Typography>
+                  )}
+                </Box>
               </Box>
             </SwiperSlide>
-          )}
-        </Swiper>
-
-        {(role === 'admin' || role === 'coach') && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleFinishTournament}
-            sx={{
-              mt: 2,
-              bgcolor: '#388e3c',
-              '&:hover': { bgcolor: '#2e7d32' },
-              fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-            }}
-          >
-            Finalizar Torneo
-          </Button>
-        )}
-
-        <Dialog open={matchDialogOpen} onClose={() => setMatchDialogOpen(false)} fullWidth maxWidth="sm">
-          <DialogTitle sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', bgcolor: '#01579b', color: '#ffffff', p: 2 }}>
-            Actualizar Resultado del Partido
-          </DialogTitle>
-          <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
-            {selectedMatch && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Avatar sx={{ bgcolor: '#01579b', width: 40, height: 40 }}>
-                      {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1).charAt(0) : '?'}
-                    </Avatar>
-                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
-                      {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
-                    </Typography>
-                  </Box>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>vs</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
-                      {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
-                    </Typography>
-                    <Avatar sx={{ bgcolor: '#0288d1', width: 40, height: 40 }}>
-                      {selectedMatch.match.player2?.name ? 'BYE' : (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1).charAt(0) : '?')}
-                    </Avatar>
-                  </Box>
+            {tournament.rounds && tournament.rounds.length > 0 && (
+              <SwiperSlide>
+                <Box sx={{ p: 2, height: 'auto' }}>
+                  {renderBracket}
                 </Box>
-                {matchScores.map((set, index) =>
-                  index < tournament.format?.sets ? (
-                    <Card key={index} sx={{ bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
-                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'medium', mb: 2 }}>
-                        Set {index + 1}
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                            {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
-                          </Typography>
-                          <IconButton
-                            onClick={() => decrementScore(index, 'player1')}
-                            size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                          >
-                            <Remove />
-                          </IconButton>
-                          <TextField
-                            type="number"
-                            value={set.player1}
-                            onChange={e => handleScoreChange(index, 'player1', e.target.value)}
-                            inputProps={{ min: 0 }}
-                            sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                          />
-                          <IconButton
-                            onClick={() => incrementScore(index, 'player1')}
-                            size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                          >
-                            <Add />
-                          </IconButton>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                            {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
-                          </Typography>
-                          <IconButton
-                            onClick={() => decrementScore(index, 'player2')}
-                            size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                          >
-                            <Remove />
-                          </IconButton>
-                          <TextField
-                            type="number"
-                            value={set.player2}
-                            onChange={e => handleScoreChange(index, 'player2', e.target.value)}
-                            inputProps={{ min: 0 }}
-                            sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                          />
-                          <IconButton
-                            onClick={() => incrementScore(index, 'player2')}
-                            size="small"
-                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                          >
-                            <Add />
-                          </IconButton>
-                        </Box>
-                        {set.player1 >= tournament.format?.tiebreakSet &&
-                          set.player2 >= tournament.format?.tiebreakSet && (
-                            <>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                                  Tiebreak Equipo 1
-                                </Typography>
-                                <IconButton
-                                  onClick={() => decrementScore(index, 'tiebreak1')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Remove />
-                                </IconButton>
-                                <TextField
-                                  type="number"
-                                  value={set.tiebreak1}
-                                  onChange={e => handleScoreChange(index, 'tiebreak1', e.target.value)}
-                                  inputProps={{ min: 0 }}
-                                  sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                                />
-                                <IconButton
-                                  onClick={() => incrementScore(index, 'tiebreak1')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Add />
-                                </IconButton>
-                              </Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                                  Tiebreak Equipo 2
-                                </Typography>
-                                <IconButton
-                                  onClick={() => decrementScore(index, 'tiebreak2')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Remove />
-                                </IconButton>
-                                <TextField
-                                  type="number"
-                                  value={set.tiebreak2}
-                                  onChange={e => handleScoreChange(index, 'tiebreak2', e.target.value)}
-                                  inputProps={{ min: 0 }}
-                                  sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                                />
-                                <IconButton
-                                  onClick={() => incrementScore(index, 'tiebreak2')}
-                                  size="small"
-                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                >
-                                  <Add />
-                                </IconButton>
-                              </Box>
-                            </>
-                          )}
-                      </Box>
-                    </Card>
-                  ) : null
-                )}
-              </Box>
+              </SwiperSlide>
             )}
-          </DialogContent>
-          <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+          </Swiper>
+
+          {(role === 'admin' || role === 'coach') && (
             <Button
-              onClick={() => setMatchDialogOpen(false)}
-              sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={submitMatchResult}
-              color="primary"
               variant="contained"
-              sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+              color="success"
+              onClick={handleFinishTournament}
+              sx={{
+                mt: 2,
+                bgcolor: '#388e3c',
+                '&:hover': { bgcolor: '#2e7d32' },
+                fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+              }}
             >
-              Guardar
+              Finalizar Torneo
             </Button>
-          </DialogActions>
-        </Dialog>
+          )}
+
+          <Dialog open={matchDialogOpen} onClose={() => setMatchDialogOpen(false)} fullWidth maxWidth="sm">
+            <DialogTitle sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', bgcolor: '#01579b', color: '#ffffff', p: 2 }}>
+              Actualizar Resultado del Partido
+            </DialogTitle>
+            <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
+              {selectedMatch && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Avatar sx={{ bgcolor: '#01579b', width: 40, height: 40 }}>
+                        {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1).charAt(0) : '?'}
+                      </Avatar>
+                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
+                        {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>vs</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
+                        {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
+                      </Typography>
+                      <Avatar sx={{ bgcolor: '#0288d1', width: 40, height: 40 }}>
+                        {selectedMatch.match.player2?.name ? 'BYE' : (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1).charAt(0) : '?')}
+                      </Avatar>
+                    </Box>
+                  </Box>
+                  {matchScores.map((set, index) =>
+                    index < tournament.format?.sets ? (
+                      <Card key={index} sx={{ bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
+                        <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'medium', mb: 2 }}>
+                          Set {index + 1}
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                              {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
+                            </Typography>
+                            <IconButton
+                              onClick={() => decrementScore(index, 'player1')}
+                              size="small"
+                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            >
+                              <Remove />
+                            </IconButton>
+                            <TextField
+                              type="number"
+                              value={set.player1}
+                              onChange={e => handleScoreChange(index, 'player1', e.target.value)}
+                              inputProps={{ min: 0 }}
+                              sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                            />
+                            <IconButton
+                              onClick={() => incrementScore(index, 'player1')}
+                              size="small"
+                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            >
+                              <Add />
+                            </IconButton>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                              {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
+                            </Typography>
+                            <IconButton
+                              onClick={() => decrementScore(index, 'player2')}
+                              size="small"
+                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            >
+                              <Remove />
+                            </IconButton>
+                            <TextField
+                              type="number"
+                              value={set.player2}
+                              onChange={e => handleScoreChange(index, 'player2', e.target.value)}
+                              inputProps={{ min: 0 }}
+                              sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                            />
+                            <IconButton
+                              onClick={() => incrementScore(index, 'player2')}
+                              size="small"
+                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            >
+                              <Add />
+                            </IconButton>
+                          </Box>
+                          {set.player1 >= tournament.format?.tiebreakSet &&
+                            set.player2 >= tournament.format?.tiebreakSet && (
+                              <>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                  <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                                    Tiebreak Equipo 1
+                                  </Typography>
+                                  <IconButton
+                                    onClick={() => decrementScore(index, 'tiebreak1')}
+                                    size="small"
+                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                  >
+                                    <Remove />
+                                  </IconButton>
+                                  <TextField
+                                    type="number"
+                                    value={set.tiebreak1}
+                                    onChange={e => handleScoreChange(index, 'tiebreak1', e.target.value)}
+                                    inputProps={{ min: 0 }}
+                                    sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                                  />
+                                  <IconButton
+                                    onClick={() => incrementScore(index, 'tiebreak1')}
+                                    size="small"
+                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                  >
+                                    <Add />
+                                  </IconButton>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                  <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                                    Tiebreak Equipo 2
+                                  </Typography>
+                                  <IconButton
+                                    onClick={() => decrementScore(index, 'tiebreak2')}
+                                    size="small"
+                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                  >
+                                    <Remove />
+                                  </IconButton>
+                                  <TextField
+                                    type="number"
+                                    value={set.tiebreak2}
+                                    onChange={e => handleScoreChange(index, 'tiebreak2', e.target.value)}
+                                    inputProps={{ min: 0 }}
+                                    sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                                  />
+                                  <IconButton
+                                    onClick={() => incrementScore(index, 'tiebreak2')}
+                                    size="small"
+                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                  >
+                                    <Add />
+                                  </IconButton>
+                                </Box>
+                              </>
+                            )}
+                        </Box>
+                      </Card>
+                    ) : null
+                  )}
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+              <Button
+                onClick={() => setMatchDialogOpen(false)}
+                sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={submitMatchResult}
+                color="primary"
+                variant="contained"
+                sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+              >
+                Guardar
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
       </Box>
-    </Box>
+    </ErrorBoundary>
   );
 };
 
