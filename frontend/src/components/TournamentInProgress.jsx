@@ -24,6 +24,7 @@ import {
   Card,
   CardContent,
   Grid,
+  CircularProgress,
 } from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -37,6 +38,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [matchScores, setMatchScores] = useState([]);
   const [standings, setStandings] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
   const swiperRef = useRef(null);
@@ -46,6 +49,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   }, [tournamentId]);
 
   const fetchTournament = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -58,8 +63,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         updateStandings(response.data);
       }
     } catch (error) {
-      addNotification(`Error al cargar el torneo: ${error.response?.data?.message || error.message}`, 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      setError(errorMessage);
+      addNotification(`Error al cargar el torneo: ${errorMessage}`, 'error');
       console.error('Error al cargar torneo:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -244,8 +253,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   const submitMatchResult = async (retries = 2) => {
     const validSets = matchScores.filter(set => set.player1 > 0 || set.player2 > 0);
-    if (validSets.length !== tournament.format.sets) {
-      addNotification(`Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos`, 'error');
+    if (validSets.length !== tournament?.format.sets) {
+      addNotification(`Ingresa exactamente ${tournament?.format.sets} set${tournament?.format.sets > 1 ? 's' : ''} válidos`, 'error');
       return;
     }
     for (const set of validSets) {
@@ -294,7 +303,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
       let runnerUpId = null;
-      if (roundIndex !== null && tournament.rounds.length === roundIndex + 1 && tournament.rounds[roundIndex].matches.length === 1) {
+      if (roundIndex !== null && tournament?.rounds.length === roundIndex + 1 && tournament?.rounds[roundIndex].matches.length === 1) {
         runnerUpId = winnerId === player1Id ? player2Id : player1Id;
       }
       const payload = {
@@ -324,7 +333,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const generateKnockoutPhase = async () => {
-    if (tournament.type !== 'RoundRobin') return;
+    if (tournament?.type !== 'RoundRobin') return;
     try {
       const allMatchesCompleted = tournament.groups.every(group =>
         group.matches.every(match => match.result.winner !== null)
@@ -415,7 +424,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const advanceEliminationRound = async () => {
-    if (!tournament.rounds.length) return;
+    if (!tournament?.rounds.length) return;
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
       if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
@@ -530,7 +539,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         runnerUp
       };
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: ` W
+          Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
       const winnerPlayer = tournament.participants.find(p => 
@@ -540,7 +550,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === runnerUp.toString()
       ) : null;
       addNotification(
-        `Torneo finalizado con éxito. Ganador: ${winnerPlayer.player1.firstName} ${winnerPlayer.player1.lastName}` +
+        `Torneo finalizado con éxito. Ganador: ${winnerPlayer?.player1.firstName} ${winnerPlayer?.player1.lastName}` +
         (runnerUpPlayer ? `, Segundo puesto: ${runnerUpPlayer.player1.firstName} ${runnerUpPlayer.player1.lastName}` : ''),
         'success'
       );
@@ -554,6 +564,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const getPlayerName = useCallback((playerId, player2Id = null) => {
+    if (!tournament || !tournament.participants) {
+      return 'Cargando...';
+    }
     const normalizeId = (id) => {
       if (typeof id === 'object' && id?.$oid) return id.$oid;
       if (typeof id === 'object' && id?._id) return id._id.toString();
@@ -577,7 +590,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       ? `${participant.player2.firstName} ${participant.player2.lastName || ''}`
       : 'Jugador no encontrado';
     return `${player1Name} / ${player2Name}`;
-  }, [tournament.participants, tournament.format.mode]);
+  }, [tournament]);
 
   const getRoundName = useCallback((numTeams) => {
     switch (numTeams) {
@@ -590,15 +603,18 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       case 2:
         return 'Final';
       default:
-        return `Ronda ${tournament.rounds?.length + 1 || 1}`;
+        return `Ronda ${tournament?.rounds?.length + 1 || 1}`;
     }
-  }, [tournament.rounds]);
+  }, [tournament?.rounds]);
 
   const renderBracket = useMemo(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Rendering bracket with rounds:', JSON.stringify(tournament?.rounds, null, 2));
+    if (!tournament) {
+      return <Typography>Cargando...</Typography>;
     }
-    if (!tournament?.rounds || !Array.isArray(tournament.rounds) || tournament.rounds.length === 0) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Rendering bracket with rounds:', JSON.stringify(tournament.rounds, null, 2));
+    }
+    if (!tournament.rounds || !Array.isArray(tournament.rounds) || tournament.rounds.length === 0) {
       return <Typography>No hay rondas disponibles para mostrar.</Typography>;
     }
     return (
@@ -682,21 +698,40 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         )}
       </Box>
     );
-  }, [tournament?.rounds, role, getPlayerName, getRoundName, openMatchDialog, advanceEliminationRound]);
+  }, [tournament, role, getPlayerName, getRoundName, openMatchDialog, advanceEliminationRound]);
 
-  const ErrorFallback = ({ error }) => (
-    <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2 }}>
-      <Typography color="error">Error: {error.message}</Typography>
-      <Button onClick={fetchTournament} variant="contained" sx={{ mt: 2 }}>
+  const ErrorFallback = ({ error, resetErrorBoundary }) => (
+    <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
+      <Typography color="error" variant="h6">Error al cargar el torneo</Typography>
+      <Typography color="error">{error.message}</Typography>
+      <Button onClick={resetErrorBoundary} variant="contained" sx={{ mt: 2, bgcolor: '#0288d1' }}>
         Reintentar
       </Button>
     </Box>
   );
 
-  if (!tournament) return <Typography>Cargando torneo...</Typography>;
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !tournament) {
+    return (
+      <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
+        <Typography color="error" variant="h6">Error al cargar el torneo</Typography>
+        <Typography color="error">{error || 'No se pudo cargar el torneo'}</Typography>
+        <Button onClick={fetchTournament} variant="contained" sx={{ mt: 2, bgcolor: '#0288d1' }}>
+          Reintentar
+        </Button>
+      </Box>
+    );
+  }
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
+    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={fetchTournament}>
       <Box
         sx={{
           p: { xs: 2, sm: 3 },
@@ -1042,7 +1077,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     </Box>
                   </Box>
                   {matchScores.map((set, index) =>
-                    index < tournament.format?.sets ? (
+                    index < tournament?.format?.sets ? (
                       <Card key={index} sx={{ bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
                         <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'medium', mb: 2 }}>
                           Set {index + 1}
@@ -1100,8 +1135,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                               <Add />
                             </IconButton>
                           </Box>
-                          {set.player1 >= tournament.format?.tiebreakSet &&
-                            set.player2 >= tournament.format?.tiebreakSet && (
+                          {set.player1 >= tournament?.format?.tiebreakSet &&
+                            set.player2 >= tournament?.format?.tiebreakSet && (
                               <>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                                   <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
