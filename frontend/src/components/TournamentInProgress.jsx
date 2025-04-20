@@ -8,11 +8,6 @@ import {
   Button,
   Tabs,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -251,6 +246,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     return null;
   }, []);
 
+  const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+
   const submitMatchResult = async (retries = 2) => {
     const validSets = matchScores.filter(set => set.player1 > 0 || set.player2 > 0);
     if (validSets.length !== tournament?.format.sets) {
@@ -279,7 +276,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
     try {
       const { matchId, roundIndex } = selectedMatch;
-      if (!matchId || !mongoose.isValidObjectId(matchId)) {
+      if (!matchId || !isValidObjectId(matchId)) {
         addNotification('ID de partido inválido', 'error');
         console.error('Invalid matchId:', matchId);
         return;
@@ -292,7 +289,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }));
       const player1Id = typeof selectedMatch.match.player1?.player1 === 'object' ? selectedMatch.match.player1.player1?._id?.toString() || selectedMatch.match.player1.player1?.$oid : selectedMatch.match.player1?.player1?.toString();
       const player2Id = typeof selectedMatch.match.player2?.player1 === 'object' ? selectedMatch.match.player2.player1?._id?.toString() || selectedMatch.match.player2.player1?.$oid : selectedMatch.match.player2?.player1?.toString();
-      if (!player1Id || !player2Id || !mongoose.isValidObjectId(player1Id) || !mongoose.isValidObjectId(player2Id)) {
+      if (!player1Id || !player2Id || !isValidObjectId(player1Id) || !isValidObjectId(player2Id)) {
         addNotification('IDs de jugadores inválidos', 'error');
         console.error('Invalid player IDs:', { player1Id, player2Id });
         return;
@@ -539,8 +536,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         runnerUp
       };
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
-        headers: { Authorization: ` W
-          Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
       const winnerPlayer = tournament.participants.find(p => 
@@ -712,7 +708,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
       </Box>
     );
@@ -736,11 +732,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         sx={{
           p: { xs: 2, sm: 3 },
           bgcolor: '#f0f4f8',
-          minHeight: '100vh',
           width: '100%',
-          overflowX: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          minHeight: '100vh',
         }}
       >
         <Box
@@ -752,6 +747,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             maxWidth: '100%',
             mx: 'auto',
             flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <Typography
@@ -779,444 +776,443 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             {tournament.rounds && tournament.rounds.length > 0 && <Tab label="Llave" />}
           </Tabs>
 
-          <Swiper
-            spaceBetween={10}
-            slidesPerView={1}
-            onSlideChange={handleSlideChange}
-            initialSlide={tabValue}
-            style={{ width: '100%', height: 'auto' }}
-            ref={swiperRef}
-          >
-            <SwiperSlide>
-              <Box sx={{ p: 2, height: 'auto' }}>
-                <Box>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Nombre:</strong> {tournament.name}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Club:</strong> {tournament.club?.name || 'No definido'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Categoría:</strong> {tournament.category || 'No definida'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Tipo:</strong> {tournament.type || 'No definido'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Deporte:</strong> {tournament.sport || 'No definido'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Modalidad:</strong> {tournament.format?.mode || 'No definido'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Sets por partido:</strong> {tournament.format?.sets || 'No definido'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Juegos por set:</strong> {tournament.format?.gamesPerSet || 'No definido'}
-                  </Typography>
-                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
-                    <strong>Participantes:</strong>
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 1 }}>
-                    {tournament.participants && tournament.participants.length > 0 ? (
-                      tournament.participants.map(part => {
-                        const player1Name = part.player1?.firstName
-                          ? `${part.player1.firstName} ${part.player1.lastName || ''}`
-                          : 'Jugador no encontrado';
-                        const player2Name =
-                          tournament.format?.mode === 'Dobles' && part.player2
-                            ? `${part.player2.firstName || ''} ${part.player2.lastName || ''}`
-                            : '';
-                        const label =
-                          tournament.format?.mode === 'Singles'
-                            ? player1Name
-                            : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                        return (
-                          <Chip
-                            key={part.player1?._id || part.player1?.$oid || part.player1}
-                            avatar={<Avatar>{player1Name.charAt(0)}</Avatar>}
-                            label={label}
-                            sx={{ m: 0.5, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                          />
-                        );
-                      })
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Swiper
+              spaceBetween={10}
+              slidesPerView={1}
+              onSlideChange={handleSlideChange}
+              initialSlide={tabValue}
+              style={{ width: '100%', flex: 1 }}
+              ref={swiperRef}
+            >
+              <SwiperSlide>
+                <Box sx={{ p: 2, height: 'auto' }}>
+                  <Box>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Nombre:</strong> {tournament.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Club:</strong> {tournament.club?.name || 'No definido'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Categoría:</strong> {tournament.category || 'No definida'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Tipo:</strong> {tournament.type || 'No definido'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Deporte:</strong> {tournament.sport || 'No definido'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Modalidad:</strong> {tournament.format?.mode || 'No definido'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Sets por partido:</strong> {tournament.format?.sets || 'No definido'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Juegos por set:</strong> {tournament.format?.gamesPerSet || 'No definido'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', mb: 1 }}>
+                      <strong>Participantes:</strong>
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 1, gap: 1 }}>
+                      {tournament.participants && tournament.participants.length > 0 ? (
+                        tournament.participants.map(part => {
+                          const player1Name = part.player1?.firstName
+                            ? `${part.player1.firstName} ${part.player1.lastName || ''}`
+                            : 'Jugador no encontrado';
+                          const player2Name =
+                            tournament.format?.mode === 'Dobles' && part.player2
+                              ? `${part.player2.firstName || ''} ${part.player2.lastName || ''}`
+                              : '';
+                          const label =
+                            tournament.format?.mode === 'Singles'
+                              ? player1Name
+                              : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                          return (
+                            <Chip
+                              key={part.player1?._id || part.player1?.$oid || part.player1}
+                              avatar={<Avatar>{player1Name.charAt(0)}</Avatar>}
+                              label={label}
+                              sx={{ m: 0.5, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                            />
+                          );
+                        })
+                      ) : (
+                        <Typography>No hay participantes disponibles.</Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Box>
+              </SwiperSlide>
+              <SwiperSlide>
+                <Box sx={{ p: 2, height: 'auto' }}>
+                  <Box sx={{ width: '100%', overflowX: 'hidden' }}>
+                    {tournament.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0 ? (
+                      tournament.groups.map((group, groupIndex) => (
+                        <Box key={group.name || groupIndex} sx={{ mb: 3 }}>
+                          <Typography
+                            variant="h6"
+                            sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                          >
+                            {group.name || `Grupo ${groupIndex + 1}`}
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
+                              group.matches.map((match, matchIndex) => (
+                                <Grid item xs={12} key={matchIndex}>
+                                  <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+                                    <CardContent>
+                                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
+                                              {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
+                                            </Avatar>
+                                            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                              {match.player1?.player1 ? getPlayerName(match.player1.player1, match.player1.player2) : 'Jugador no definido'}
+                                            </Typography>
+                                          </Box>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
+                                              {match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?'}
+                                            </Avatar>
+                                            <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
+                                              {match.player2?.player1 ? getPlayerName(match.player2.player1, match.player2.player2) : 'Jugador no definido'}
+                                            </Typography>
+                                          </Box>
+                                        </Box>
+                                        <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
+                                          {match.result?.sets && match.result.sets.length > 0
+                                            ? match.result.sets.map((set, idx) => (
+                                                <span key={idx}>
+                                                  {set.player1 || 0} - {set.player2 || 0}{' '}
+                                                  {set.tiebreak1 && set.tiebreak2
+                                                    ? `(${set.tiebreak1}-${set.tiebreak2})`
+                                                    : ''}
+                                                </span>
+                                              ))
+                                            : 'Pendiente'}
+                                        </Typography>
+                                      </Box>
+                                      <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
+                                        Fecha: {match.date || 'No definida'}
+                                      </Typography>
+                                      <Button
+                                        variant="outlined"
+                                        size="small"
+                                        onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
+                                        disabled={match.result?.winner !== null}
+                                        sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+                                      >
+                                        Actualizar Resultado
+                                      </Button>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                              ))
+                            ) : (
+                              <Typography>No hay partidos disponibles para este grupo.</Typography>
+                            )}
+                          </Grid>
+                        </Box>
+                      ))
                     ) : (
-                      <Typography>No hay participantes disponibles.</Typography>
+                      <Typography>No hay grupos disponibles para mostrar.</Typography>
+                    )}
+                    {(role === 'admin' || role === 'coach') && (!tournament.rounds || tournament.rounds.length === 0) && (
+                      <Button
+                        variant="contained"
+                        onClick={generateKnockoutPhase}
+                        sx={{
+                          mt: 2,
+                          bgcolor: '#0288d1',
+                          '&:hover': { bgcolor: '#0277bd' },
+                          fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+                        }}
+                      >
+                        Generar Fase Eliminatoria
+                      </Button>
                     )}
                   </Box>
                 </Box>
-              </Box>
-            </SwiperSlide>
-            <SwiperSlide>
-              <Box sx={{ p: 2, height: 'auto' }}>
-                <Box sx={{ width: '100%', overflowX: 'hidden' }}>
-                  {tournament.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0 ? (
-                    tournament.groups.map((group, groupIndex) => (
-                      <Box key={group.name || groupIndex} sx={{ mb: 3 }}>
-                        <Typography
-                          variant="h6"
-                          sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                        >
-                          {group.name || `Grupo ${groupIndex + 1}`}
-                        </Typography>
-                        <Grid container spacing={2}>
-                          {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
-                            group.matches.map((match, matchIndex) => (
-                              <Grid item xs={12} key={matchIndex}>
-                                <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                                  <CardContent>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          <Avatar sx={{ bgcolor: '#01579b', width: 32, height: 32 }}>
-                                            {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
-                                          </Avatar>
-                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
-                                            {match.player1?.player1 ? getPlayerName(match.player1.player1, match.player1.player2) : 'Jugador no definido'}
-                                          </Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                          <Avatar sx={{ bgcolor: '#0288d1', width: 32, height: 32 }}>
-                                            {match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?'}
-                                          </Avatar>
-                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>
-                                            {match.player2?.player1 ? getPlayerName(match.player2.player1, match.player2.player2) : 'Jugador no definido'}
-                                          </Typography>
-                                        </Box>
-                                      </Box>
-                                      <Typography sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', fontWeight: 'bold', color: '#01579b' }}>
-                                        {match.result?.sets && match.result.sets.length > 0
-                                          ? match.result.sets.map((set, idx) => (
-                                              <span key={idx}>
-                                                {set.player1 || 0} - {set.player2 || 0}{' '}
-                                                {set.tiebreak1 && set.tiebreak2
-                                                  ? `(${set.tiebreak1}-${set.tiebreak2})`
-                                                  : ''}
-                                              </span>
-                                            ))
-                                          : 'Pendiente'}
-                                      </Typography>
-                                    </Box>
-                                    <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
-                                      Fecha: {match.date || 'No definida'}
-                                    </Typography>
-                                    <Button
-                                      variant="outlined"
-                                      size="small"
-                                      onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
-                                      disabled={match.result?.winner !== null}
-                                      sx={{ mt: 1, fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-                                    >
-                                      Actualizar Resultado
-                                    </Button>
-                                  </CardContent>
-                                </Card>
-                              </Grid>
-                            ))
-                          ) : (
-                            <Typography>No hay partidos disponibles para este grupo.</Typography>
-                          )}
-                        </Grid>
-                      </Box>
-                    ))
-                  ) : (
-                    <Typography>No hay grupos disponibles para mostrar.</Typography>
-                  )}
-                  {(role === 'admin' || role === 'coach') && (!tournament.rounds || tournament.rounds.length === 0) && (
-                    <Button
-                      variant="contained"
-                      onClick={generateKnockoutPhase}
-                      sx={{
-                        mt: 2,
-                        bgcolor: '#0288d1',
-                        '&:hover': { bgcolor: '#0277bd' },
-                        fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-                      }}
+              </SwiperSlide>
+              <SwiperSlide>
+                <Box sx={{ p: 2, height: 'auto' }}>
+                  <Box sx={{ width: '100%' }}>
+                    <Typography
+                      variant="h5"
+                      gutterBottom
+                      sx={{ fontSize: 'clamp(1.25rem, 6vw, 1.5rem)' }}
                     >
-                      Generar Fase Eliminatoria
-                    </Button>
-                  )}
-                </Box>
-              </Box>
-            </SwiperSlide>
-            <SwiperSlide>
-              <Box sx={{ p: 2, height: 'auto' }}>
-                <Box sx={{ width: '100%' }}>
-                  <Typography
-                    variant="h5"
-                    gutterBottom
-                    sx={{ fontSize: 'clamp(1.25rem, 6vw, 1.5rem)' }}
-                  >
-                    Posiciones
-                  </Typography>
-                  {standings && Array.isArray(standings) && standings.length > 0 ? (
-                    standings.map((group, groupIndex) => (
-                      <Box key={group.groupName || groupIndex} sx={{ mb: 3 }}>
-                        <Typography
-                          variant="h6"
-                          sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
-                        >
-                          {group.groupName || `Grupo ${groupIndex + 1}`}
-                        </Typography>
-                        <Box sx={{ overflowX: 'auto' }}>
-                          <Table sx={{ minWidth: '600px' }}>
-                            <TableHead>
-                              <TableRow>
-                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
-                                  {tournament.format?.mode === 'Singles' ? 'Jugador' : 'Equipo'}
-                                </TableCell>
-                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>V</TableCell>
-                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>Sets</TableCell>
-                                <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>JG</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
-                                group.standings.map((player, idx) => {
-                                  const participant = tournament.participants.find(p =>
-                                    (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === player.playerId?.toString()
-                                  );
-                                  const player1Name = participant?.player1?.firstName
-                                    ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
-                                    : 'Jugador no encontrado';
-                                  const player2Name =
-                                    tournament.format?.mode === 'Dobles' && participant?.player2
-                                      ? `${participant.player2.firstName || ''} ${participant.player2.lastName || ''}`
-                                      : '';
-                                  const label =
-                                    tournament.format?.mode === 'Singles'
-                                      ? player1Name
-                                      : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
-                                  return (
-                                    <TableRow key={idx}>
-                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      Posiciones
+                    </Typography>
+                    {standings && Array.isArray(standings) && standings.length > 0 ? (
+                      standings.map((group, groupIndex) => (
+                        <Box key={group.groupName || groupIndex} sx={{ mb: 3 }}>
+                          <Typography
+                            variant="h6"
+                            sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 2 }}
+                          >
+                            {group.groupName || `Grupo ${groupIndex + 1}`}
+                          </Typography>
+                          <Grid container spacing={2}>
+                            {group.standings && Array.isArray(group.standings) && group.standings.length > 0 ? (
+                              group.standings.map((player, idx) => {
+                                const participant = tournament.participants.find(p =>
+                                  (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === player.playerId?.toString()
+                                );
+                                const player1Name = participant?.player1?.firstName
+                                  ? `${participant.player1.firstName} ${participant.player1.lastName || ''}`
+                                  : 'Jugador no encontrado';
+                                const player2Name =
+                                  tournament.format?.mode === 'Dobles' && participant?.player2
+                                    ? `${participant.player2.firstName || ''} ${participant.player2.lastName || ''}`
+                                    : '';
+                                const label =
+                                  tournament.format?.mode === 'Singles'
+                                    ? player1Name
+                                    : `${player1Name} / ${player2Name || 'Jugador no encontrado'}`;
+                                return (
+                                  <Grid item xs={12} key={idx}>
+                                    <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
+                                      <CardContent sx={{ p: 2 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                                           <Avatar
                                             sx={{ mr: 1, bgcolor: '#01579b', width: 32, height: 32 }}
                                           >
                                             {player1Name.charAt(0)}
                                           </Avatar>
-                                          {label}
+                                          <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
+                                            {label}
+                                          </Typography>
                                         </Box>
-                                      </TableCell>
-                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.wins || 0}</TableCell>
-                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.setsWon || 0}</TableCell>
-                                      <TableCell sx={{ padding: '8px', fontSize: '0.875rem' }}>{player.gamesWon || 0}</TableCell>
-                                    </TableRow>
-                                  );
-                                })
-                              ) : (
-                                <TableRow>
-                                  <TableCell colSpan={4} sx={{ textAlign: 'center' }}>
-                                    No hay posiciones disponibles para este grupo.
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </TableBody>
-                          </Table>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
+                                            <strong>Victorias:</strong> {player.wins || 0}
+                                          </Typography>
+                                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
+                                            <strong>Sets Ganados:</strong> {player.setsWon || 0}
+                                          </Typography>
+                                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
+                                            <strong>Juegos Ganados:</strong> {player.gamesWon || 0}
+                                          </Typography>
+                                        </Box>
+                                      </CardContent>
+                                    </Card>
+                                  </Grid>
+                                );
+                              })
+                            ) : (
+                              <Typography sx={{ textAlign: 'center' }}>
+                                No hay posiciones disponibles para este grupo.
+                              </Typography>
+                            )}
+                          </Grid>
                         </Box>
-                      </Box>
-                    ))
-                  ) : (
-                    <Typography sx={{ textAlign: 'center' }}>
-                      No hay posiciones disponibles para mostrar.
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
-            </SwiperSlide>
-            {tournament.rounds && tournament.rounds.length > 0 && (
-              <SwiperSlide>
-                <Box sx={{ p: 2, height: 'auto' }}>
-                  {renderBracket}
+                      ))
+                    ) : (
+                      <Typography sx={{ textAlign: 'center' }}>
+                        No hay posiciones disponibles para mostrar.
+                      </Typography>
+                    )}
+                  </Box>
                 </Box>
               </SwiperSlide>
-            )}
-          </Swiper>
+              {tournament.rounds && tournament.rounds.length > 0 && (
+                <SwiperSlide>
+                  <Box sx={{ p: 2, height: 'auto' }}>
+                    {renderBracket}
+                  </Box>
+                </SwiperSlide>
+              )}
+            </Swiper>
+          </Box>
 
           {(role === 'admin' || role === 'coach') && (
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleFinishTournament}
-              sx={{
-                mt: 2,
-                bgcolor: '#388e3c',
-                '&:hover': { bgcolor: '#2e7d32' },
-                fontSize: 'clamp(0.875rem, 4vw, 1rem)',
-              }}
-            >
-              Finalizar Torneo
-            </Button>
-          )}
-
-          <Dialog open={matchDialogOpen} onClose={() => setMatchDialogOpen(false)} fullWidth maxWidth="sm">
-            <DialogTitle sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', bgcolor: '#01579b', color: '#ffffff', p: 2 }}>
-              Actualizar Resultado del Partido
-            </DialogTitle>
-            <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
-              {selectedMatch && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar sx={{ bgcolor: '#01579b', width: 40, height: 40 }}>
-                        {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1).charAt(0) : '?'}
-                      </Avatar>
-                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
-                        {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
-                      </Typography>
-                    </Box>
-                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>vs</Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
-                        {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
-                      </Typography>
-                      <Avatar sx={{ bgcolor: '#0288d1', width: 40, height: 40 }}>
-                        {selectedMatch.match.player2?.name ? 'BYE' : (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1).charAt(0) : '?')}
-                      </Avatar>
-                    </Box>
-                  </Box>
-                  {matchScores.map((set, index) =>
-                    index < tournament?.format?.sets ? (
-                      <Card key={index} sx={{ bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
-                        <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'medium', mb: 2 }}>
-                          Set {index + 1}
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                              {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
-                            </Typography>
-                            <IconButton
-                              onClick={() => decrementScore(index, 'player1')}
-                              size="small"
-                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                            >
-                              <Remove />
-                            </IconButton>
-                            <TextField
-                              type="number"
-                              value={set.player1}
-                              onChange={e => handleScoreChange(index, 'player1', e.target.value)}
-                              inputProps={{ min: 0 }}
-                              sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                            />
-                            <IconButton
-                              onClick={() => incrementScore(index, 'player1')}
-                              size="small"
-                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                            >
-                              <Add />
-                            </IconButton>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                              {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
-                            </Typography>
-                            <IconButton
-                              onClick={() => decrementScore(index, 'player2')}
-                              size="small"
-                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                            >
-                              <Remove />
-                            </IconButton>
-                            <TextField
-                              type="number"
-                              value={set.player2}
-                              onChange={e => handleScoreChange(index, 'player2', e.target.value)}
-                              inputProps={{ min: 0 }}
-                              sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                            />
-                            <IconButton
-                              onClick={() => incrementScore(index, 'player2')}
-                              size="small"
-                              sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                            >
-                              <Add />
-                            </IconButton>
-                          </Box>
-                          {set.player1 >= tournament?.format?.tiebreakSet &&
-                            set.player2 >= tournament?.format?.tiebreakSet && (
-                              <>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                  <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                                    Tiebreak Equipo 1
-                                  </Typography>
-                                  <IconButton
-                                    onClick={() => decrementScore(index, 'tiebreak1')}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                  >
-                                    <Remove />
-                                  </IconButton>
-                                  <TextField
-                                    type="number"
-                                    value={set.tiebreak1}
-                                    onChange={e => handleScoreChange(index, 'tiebreak1', e.target.value)}
-                                    inputProps={{ min: 0 }}
-                                    sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                                  />
-                                  <IconButton
-                                    onClick={() => incrementScore(index, 'tiebreak1')}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                  >
-                                    <Add />
-                                  </IconButton>
-                                </Box>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                                  <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
-                                    Tiebreak Equipo 2
-                                  </Typography>
-                                  <IconButton
-                                    onClick={() => decrementScore(index, 'tiebreak2')}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                  >
-                                    <Remove />
-                                  </IconButton>
-                                  <TextField
-                                    type="number"
-                                    value={set.tiebreak2}
-                                    onChange={e => handleScoreChange(index, 'tiebreak2', e.target.value)}
-                                    inputProps={{ min: 0 }}
-                                    sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
-                                  />
-                                  <IconButton
-                                    onClick={() => incrementScore(index, 'tiebreak2')}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
-                                  >
-                                    <Add />
-                                  </IconButton>
-                                </Box>
-                              </>
-                            )}
-                        </Box>
-                      </Card>
-                    ) : null
-                  )}
-                </Box>
-              )}
-            </DialogContent>
-            <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Button
-                onClick={() => setMatchDialogOpen(false)}
-                sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={submitMatchResult}
-                color="primary"
                 variant="contained"
-                sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+                color="success"
+                onClick={handleFinishTournament}
+                sx={{
+                  bgcolor: '#388e3c',
+                  '&:hover': { bgcolor: '#2e7d32' },
+                  fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+                }}
               >
-                Guardar
+                Finalizar Torneo
               </Button>
-            </DialogActions>
-          </Dialog>
+            </Box>
+          )}
         </Box>
+
+        <Dialog open={matchDialogOpen} onClose={() => setMatchDialogOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', bgcolor: '#01579b', color: '#ffffff', p: 2 }}>
+            Actualizar Resultado del Partido
+          </DialogTitle>
+          <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
+            {selectedMatch && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Avatar sx={{ bgcolor: '#01579b', width: 40, height: 40 }}>
+                      {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1).charAt(0) : '?'}
+                    </Avatar>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
+                      {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>vs</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'bold' }}>
+                      {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
+                    </Typography>
+                    <Avatar sx={{ bgcolor: '#0288d1', width: 40, height: 40 }}>
+                      {selectedMatch.match.player2?.name ? 'BYE' : (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1).charAt(0) : '?')}
+                    </Avatar>
+                  </Box>
+                </Box>
+                {matchScores.map((set, index) =>
+                  index < tournament?.format?.sets ? (
+                    <Card key={index} sx={{ bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
+                      <Typography sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', fontWeight: 'medium', mb: 2 }}>
+                        Set {index + 1}
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                            {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1, selectedMatch.match.player1.player2) : 'Jugador no definido'}
+                          </Typography>
+                          <IconButton
+                            onClick={() => decrementScore(index, 'player1')}
+                            size="small"
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                          >
+                            <Remove />
+                          </IconButton>
+                          <TextField
+                            type="number"
+                            value={set.player1}
+                            onChange={e => handleScoreChange(index, 'player1', e.target.value)}
+                            inputProps={{ min: 0 }}
+                            sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                          />
+                          <IconButton
+                            onClick={() => incrementScore(index, 'player1')}
+                            size="small"
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                          >
+                            <Add />
+                          </IconButton>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                            {selectedMatch.match.player2?.name || (selectedMatch.match.player2?.player1 ? getPlayerName(selectedMatch.match.player2.player1, selectedMatch.match.player2.player2) : 'Jugador no definido')}
+                          </Typography>
+                          <IconButton
+                            onClick={() => decrementScore(index, 'player2')}
+                            size="small"
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                          >
+                            <Remove />
+                          </IconButton>
+                          <TextField
+                            type="number"
+                            value={set.player2}
+                            onChange={e => handleScoreChange(index, 'player2', e.target.value)}
+                            inputProps={{ min: 0 }}
+                            sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                          />
+                          <IconButton
+                            onClick={() => incrementScore(index, 'player2')}
+                            size="small"
+                            sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                          >
+                            <Add />
+                          </IconButton>
+                        </Box>
+                        {set.player1 >= tournament?.format?.tiebreakSet &&
+                          set.player2 >= tournament?.format?.tiebreakSet && (
+                            <>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                                  Tiebreak Equipo 1
+                                </Typography>
+                                <IconButton
+                                  onClick={() => decrementScore(index, 'tiebreak1')}
+                                  size="small"
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                >
+                                  <Remove />
+                                </IconButton>
+                                <TextField
+                                  type="number"
+                                  value={set.tiebreak1}
+                                  onChange={e => handleScoreChange(index, 'tiebreak1', e.target.value)}
+                                  inputProps={{ min: 0 }}
+                                  sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                                />
+                                <IconButton
+                                  onClick={() => incrementScore(index, 'tiebreak1')}
+                                  size="small"
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                >
+                                  <Add />
+                                </IconButton>
+                              </Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', width: '150px' }}>
+                                  Tiebreak Equipo 2
+                                </Typography>
+                                <IconButton
+                                  onClick={() => decrementScore(index, 'tiebreak2')}
+                                  size="small"
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                >
+                                  <Remove />
+                                </IconButton>
+                                <TextField
+                                  type="number"
+                                  value={set.tiebreak2}
+                                  onChange={e => handleScoreChange(index, 'tiebreak2', e.target.value)}
+                                  inputProps={{ min: 0 }}
+                                  sx={{ width: '80px', '& input': { textAlign: 'center', fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
+                                />
+                                <IconButton
+                                  onClick={() => incrementScore(index, 'tiebreak2')}
+                                  size="small"
+                                  sx={{ bgcolor: '#e0e0e0', '&:hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                                >
+                                  <Add />
+                                </IconButton>
+                              </Box>
+                            </>
+                          )}
+                      </Box>
+                    </Card>
+                  ) : null
+                )}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+            <Button
+              onClick={() => setMatchDialogOpen(false)}
+              sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={submitMatchResult}
+              color="primary"
+              variant="contained"
+              sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+            >
+              Guardar
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </ErrorBoundary>
   );

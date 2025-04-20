@@ -99,7 +99,13 @@ const App = () => {
       if (!Array.isArray(response.data)) {
         throw new Error('Unexpected response format: Data is not an array');
       }
-      setTournaments(response.data);
+      // Validate tournament data
+      const validTournaments = response.data.filter(t => t._id && typeof t._id === 'string' && t.name && t.participants);
+      if (validTournaments.length !== response.data.length) {
+        console.warn('Some tournaments have invalid data:', response.data);
+        addNotification('Algunos torneos tienen datos inválidos y fueron omitidos', 'warning');
+      }
+      setTournaments(validTournaments);
     } catch (error) {
       const errorMessage = error.response?.data?.message || `Error al cargar torneos: ${error.message}`;
       console.error('Error fetching tournaments:', error);
@@ -155,9 +161,20 @@ const App = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     logout();
+    setSelectedTournamentId(null);
+    setView('activos');
   };
 
   const handleLoginSuccess = () => setAuthDialogOpen(false);
+
+  const handleTournamentSelect = (tournamentId) => {
+    if (tournamentId && typeof tournamentId === 'string') {
+      setSelectedTournamentId(tournamentId);
+    } else {
+      console.warn('Invalid tournamentId:', tournamentId);
+      addNotification('No se pudo seleccionar el torneo', 'error');
+    }
+  };
 
   if (error) {
     return (
@@ -170,7 +187,11 @@ const App = () => {
     );
   }
 
-  if (loading) return <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}><Typography variant="h5">Cargando...</Typography></Box>;
+  if (loading) return (
+    <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <Typography variant="h5">Cargando...</Typography>
+    </Box>
+  );
 
   return (
     <ThemeProvider theme={theme}>
@@ -235,7 +256,7 @@ const App = () => {
             )}
           </Toolbar>
         </AppBar>
-        <Box sx={{ mt: 8, p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
+        <Box sx={{ mt: 8, p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           {user ? (
             <>
               {view === 'jugadores' && <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />}
@@ -254,7 +275,7 @@ const App = () => {
                         <Typography>Categoría: {tournament.category || 'No definida'}</Typography>
                         <Button
                           variant="outlined"
-                          onClick={() => setSelectedTournamentId(tournament._id)}
+                          onClick={() => handleTournamentSelect(tournament._id)}
                           sx={{ mt: 1 }}
                         >
                           Ver Detalles
