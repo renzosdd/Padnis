@@ -81,7 +81,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const standings = group.players && Array.isArray(group.players)
         ? group.players.map(p => {
             const player1Id = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
-            if (!player1Id) {
+            if (!player1Id || !isValidObjectId(player1Id)) {
               console.warn(`Invalid player1 ID in group ${group.name || groupIndex}:`, p.player1);
               return null;
             }
@@ -105,7 +105,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         group.matches.forEach(match => {
           if (match.result?.winner) {
             const winnerId = typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner.toString();
-            if (!winnerId) {
+            if (!winnerId || !isValidObjectId(winnerId)) {
               console.warn(`Invalid winner ID in match for group ${group.name || groupIndex}:`, match.result.winner);
               return;
             }
@@ -119,7 +119,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               match.result.sets.forEach(set => {
                 const p1Id = typeof match.player1?.player1 === 'object' ? match.player1.player1?._id?.toString() || match.player1.player1?.$oid : match.player1?.player1?.toString();
                 const p2Id = typeof match.player2?.player1 === 'object' ? match.player2.player1?._id?.toString() || match.player2.player1?.$oid : match.player2?.player1?.toString();
-                if (!p1Id || !p2Id) {
+                if (!p1Id || !p2Id || !isValidObjectId(p1Id) || !isValidObjectId(p2Id)) {
                   console.warn(`Invalid player IDs in match for group ${group.name || groupIndex}:`, { p1Id, p2Id });
                   return;
                 }
@@ -443,6 +443,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     if (!tournament?.rounds.length) return;
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Current round matches:', JSON.stringify(currentRound.matches, null, 2));
+      }
       if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
         addNotification('Faltan completar partidos de la ronda actual', 'error');
         return;
@@ -456,15 +459,18 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               : m.player1.player1?.toString()
           );
           if (!winnerId || !isValidObjectId(winnerId)) {
-            console.warn(`Invalid winnerId: ${winnerId}`);
+            console.warn(`Invalid winnerId in match:`, JSON.stringify(m, null, 2));
             return null;
           }
           const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
-            return pId === winnerId;
+            const pId1 = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
+            const pId2 = tournament.format.mode === 'Dobles' && p.player2
+              ? (typeof p.player2 === 'object' ? p.player2?._id?.toString() || p.player2?.$oid : p.player2?.toString())
+              : null;
+            return pId1 === winnerId || pId2 === winnerId;
           });
           if (!participant) {
-            console.warn(`Participant not found for winnerId: ${winnerId}`);
+            console.warn(`Participant not found for winnerId: ${winnerId}, participants:`, JSON.stringify(tournament.participants, null, 2));
             return null;
           }
           const player1Id = typeof participant.player1 === 'object' 
@@ -476,11 +482,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 : participant.player2?.toString())
             : null;
           if (!player1Id || !isValidObjectId(player1Id)) {
-            console.warn(`Invalid player1Id: ${player1Id}`);
+            console.warn(`Invalid player1Id: ${player1Id}, participant:`, JSON.stringify(participant, null, 2));
             return null;
           }
           if (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id)) {
-            console.warn(`Invalid player2Id: ${player2Id}`);
+            console.warn(`Invalid player2Id: ${player2Id}, participant:`, JSON.stringify(participant, null, 2));
             return null;
           }
           return {
@@ -493,7 +499,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         console.log('Winners for new round:', JSON.stringify(winners, null, 2));
       }
       if (winners.length < 1) {
-        addNotification('No hay suficientes ganadores para avanzar', 'error');
+        addNotification('No hay suficientes ganadores válidos para avanzar', 'error');
         return;
       }
       const matches = [];
@@ -665,11 +671,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   round.matches.map((match, matchIndex) => (
                     <Grid item xs={12} key={matchIndex}>
                       <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', width: '100%' }}>
-                        <CardContent sx={{ p: 1.5 }}>
+                        <CardContent sx={{ p: 1 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar sx={{ bgcolor: '#01579b', width: 28, height: 28 }}>
+                                <Avatar sx={{ bgcolor: '#01579b', width: 24, height: 24 }}>
                                   {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
                                 </Avatar>
                                 <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
@@ -677,7 +683,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                 </Typography>
                               </Box>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar sx={{ bgcolor: '#0288d1', width: 28, height: 28 }}>
+                                <Avatar sx={{ bgcolor: '#0288d1', width: 24, height: 24 }}>
                                   {match.player2?.name ? 'BYE' : (match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?')}
                                 </Avatar>
                                 <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
@@ -900,11 +906,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                               group.matches.map((match, matchIndex) => (
                                 <Grid item xs={12} key={matchIndex}>
                                   <Card sx={{ bgcolor: '#ffffff', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', width: '100%' }}>
-                                    <CardContent sx={{ p: 1.5 }}>
+                                    <CardContent sx={{ p: 1 }}>
                                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
                                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Avatar sx={{ bgcolor: '#01579b', width: 28, height: 28 }}>
+                                            <Avatar sx={{ bgcolor: '#01579b', width: 24, height: 24 }}>
                                               {match.player1?.player1 ? getPlayerName(match.player1.player1).charAt(0) : '?'}
                                             </Avatar>
                                             <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
@@ -912,7 +918,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                             </Typography>
                                           </Box>
                                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Avatar sx={{ bgcolor: '#0288d1', width: 28, height: 28 }}>
+                                            <Avatar sx={{ bgcolor: '#0288d1', width: 24, height: 24 }}>
                                               {match.player2?.player1 ? getPlayerName(match.player2.player1).charAt(0) : '?'}
                                             </Avatar>
                                             <Typography sx={{ fontSize: 'clamp(0.75rem, 3vw, 0.875rem)' }}>
@@ -987,10 +993,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     </Typography>
                     {standings && Array.isArray(standings) && standings.length > 0 ? (
                       standings.map((group, groupIndex) => (
-                        <Box key={group.groupName || groupIndex} sx={{ mb: 1 }}>
+                        <Box key={group.groupName || groupIndex} sx={{ mb: 0.5 }}>
                           <Typography
                             variant="h6"
-                            sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 1 }}
+                            sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', mb: 0.5 }}
                           >
                             {group.groupName || `Grupo ${groupIndex + 1}`}
                           </Typography>
@@ -1017,14 +1023,15 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                     bgcolor: '#ffffff',
                                     boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
                                     width: '100%',
-                                    mb: 1,
+                                    maxWidth: '100%',
+                                    mb: 0.5,
                                     borderRadius: 1,
                                   }}
                                 >
-                                  <CardContent sx={{ p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                  <CardContent sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                       <Avatar
-                                        sx={{ bgcolor: '#01579b', width: 28, height: 28 }}
+                                        sx={{ bgcolor: '#01579b', width: 24, height: 24 }}
                                       >
                                         {player1Name.charAt(0)}
                                       </Avatar>

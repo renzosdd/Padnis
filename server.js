@@ -543,7 +543,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid group match IDs for group', group.name, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds);
+            console.error('Invalid group match IDs for group', group.name, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds, 'matches:', JSON.stringify(group.matches, null, 2));
             return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para el grupo ${group.name}: ${invalidIds.join(', ')}` });
           }
         }
@@ -553,6 +553,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     if (updates.rounds) {
       for (const round of updates.rounds) {
         if (round.matches) {
+          console.log('Processing round matches for round', round.round, ':', JSON.stringify(round.matches, null, 2));
           const matchPlayerIds = round.matches.flatMap((m, index) => {
             const ids = [];
             if (m.player1?.player1) {
@@ -586,10 +587,11 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             console.error('No valid IDs found in round matches for round:', round.round, ', matches:', JSON.stringify(round.matches, null, 2));
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
           }
+          console.log('Match player IDs for round', round.round, ':', matchPlayerIds);
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
           if (playersExist.length !== matchPlayerIds.length) {
             const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid round match IDs for round', round.round, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds);
+            console.error('Invalid round match IDs for round', round.round, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds, 'matches:', JSON.stringify(round.matches, null, 2));
             return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para la ronda ${round.round}: ${invalidIds.join(', ')}` });
           }
         }
