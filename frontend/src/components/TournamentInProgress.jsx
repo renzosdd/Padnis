@@ -322,8 +322,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       for (let i = 0; i < shuffled.length; i += 2) {
         if (i + 1 < shuffled.length) {
           matches.push({
-            player1: { player1: shuffled[i].player1, player2: shuffled[i].player2, seed: false },
-            player2: { player1: shuffled[i + 1].player1, player2: shuffled[i + 1].player2, seed: false },
+            player1: { player1: shuffled[i].player1, player2: shuffled[i].player2 || null },
+            player2: { player1: shuffled[i + 1].player1, player2: shuffled[i + 1].player2 || null },
             result: { sets: [], winner: null },
             date: null,
           });
@@ -390,8 +390,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           }
           return {
             player1: player1Id,
-            player2: player2Id,
-            seed: false,
+            player2: player2Id || null,
           };
         })
         .filter(w => w !== null);
@@ -404,15 +403,15 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       for (let i = 0; i < winners.length; i += 2) {
         if (i + 1 < winners.length) {
           matches.push({
-            player1: { player1: winners[i].player1, player2: winners[i].player2, seed: false },
-            player2: { player1: winners[i + 1].player1, player2: winners[i + 1].player2, seed: false },
+            player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
+            player2: { player1: winners[i + 1].player1, player2: winners[i + 1].player2 || null },
             result: { sets: [], winner: null },
             date: null,
           });
         } else {
           matches.push({
-            player1: { player1: winners[i].player1, player2: winners[i].player2, seed: false },
-            player2: { player1: null, name: 'BYE', seed: false },
+            player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
+            player2: { player1: null, name: 'BYE' },
             result: { sets: [], winner: winners[i].player1 },
             date: null,
           });
@@ -709,7 +708,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   : 'Jugador no encontrado';
                 const player2Name =
                   tournament.format.mode === 'Dobles' && part.player2
-                    ? `${part.player2.firstName} ${part.player2.lastName}`
+                    ? `${part.player2.firstName} ${part.player2.lastName || ''}`
                     : '';
                 const label =
                   tournament.format.mode === 'Singles'
