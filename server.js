@@ -601,18 +601,34 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     }
 
     if (updates.winner && updates.runnerUp) {
+      if (!mongoose.isValidObjectId(updates.winner) || !mongoose.isValidObjectId(updates.runnerUp)) {
+        return res.status(400).json({ message: 'ID de ganador o segundo puesto inválido' });
+      }
       const winner = await Player.findById(updates.winner);
       const runnerUp = await Player.findById(updates.runnerUp);
       if (!winner || !runnerUp) {
         return res.status(400).json({ message: 'Ganador o segundo puesto no encontrado' });
       }
-      await Player.updateMany(
-        { _id: { $in: [updates.winner, updates.runnerUp] } },
+      // Update achievements separately to avoid $cond issues
+      await Player.updateOne(
+        { _id: updates.winner },
         {
           $push: {
             achievements: {
               tournamentId: id,
-              position: { $cond: [{ $eq: ['$_id', updates.winner] }, 'Winner', 'RunnerUp'] },
+              position: 'Winner',
+              date: new Date(),
+            },
+          },
+        }
+      );
+      await Player.updateOne(
+        { _id: updates.runnerUp },
+        {
+          $push: {
+            achievements: {
+              tournamentId: id,
+              position: 'RunnerUp',
               date: new Date(),
             },
           },
@@ -721,38 +737,30 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
       tournament.winner = winner;
       tournament.runnerUp = runnerUp;
 
-      const achievementUpdates = [
+      await Player.updateOne(
+        { _id: winner },
         {
-          updateOne: {
-            filter: { _id: winner },
-            update: {
-              $push: {
-                achievements: {
-                  tournamentId: tournamentId,
-                  position: 'Winner',
-                  date: new Date(),
-                },
-              },
+          $push: {
+            achievements: {
+              tournamentId: tournamentId,
+              position: 'Winner',
+              date: new Date(),
             },
           },
-        },
+        }
+      );
+      await Player.updateOne(
+        { _id: runnerUp },
         {
-          updateOne: {
-            filter: { _id: runnerUp },
-            update: {
-              $push: {
-                achievements: {
-                  tournamentId: tournamentId,
-                  position: 'RunnerUp',
-                  date: new Date(),
-                },
-              },
+          $push: {
+            achievements: {
+              tournamentId: tournamentId,
+              position: 'RunnerUp',
+              date: new Date(),
             },
           },
-        },
-      ];
-
-      await Player.bulkWrite(achievementUpdates);
+        }
+      );
     }
 
     await tournament.save();
