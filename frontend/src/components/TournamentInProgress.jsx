@@ -463,11 +463,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return null;
           }
           const participant = tournament.participants.find(p => {
-            const pId1 = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
-            const pId2 = tournament.format.mode === 'Dobles' && p.player2
-              ? (typeof p.player2 === 'object' ? p.player2?._id?.toString() || p.player2?.$oid : p.player2?.toString())
-              : null;
-            return pId1 === winnerId || pId2 === winnerId;
+            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
+            return pId === winnerId.toString();
           });
           if (!participant) {
             console.warn(`Participant not found for winnerId: ${winnerId}, participants:`, JSON.stringify(tournament.participants, null, 2));
@@ -481,12 +478,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 ? participant.player2?._id?.toString() || participant.player2?.$oid 
                 : participant.player2?.toString())
             : null;
-          if (!player1Id || !isValidObjectId(player1Id)) {
-            console.warn(`Invalid player1Id: ${player1Id}, participant:`, JSON.stringify(participant, null, 2));
-            return null;
-          }
-          if (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id)) {
-            console.warn(`Invalid player2Id: ${player2Id}, participant:`, JSON.stringify(participant, null, 2));
+          if (!player1Id || !isValidObjectId(player1Id) || (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id))) {
+            console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id, winnerId, participant: JSON.stringify(participant, null, 2) });
             return null;
           }
           return {
