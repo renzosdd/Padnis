@@ -238,7 +238,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         }
       }
     });
-    // For two-set matches, check if the final set has a valid tiebreak
     if (tournament?.format?.sets === 2 && sets.length === 2) {
       const finalSet = sets[1];
       if (finalSet.player1 === 6 && finalSet.player2 === 6 && finalSet.tiebreak1 !== undefined && finalSet.tiebreak2 !== undefined) {
@@ -248,7 +247,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           return player2Id;
         }
       }
-      // If sets are tied (1-1), no winner unless tiebreak decides
       if (setsWonByPlayer1 === setsWonByPlayer2) {
         return null;
       }
@@ -440,16 +438,20 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   };
 
   const advanceEliminationRound = async () => {
-    if (!tournament?.rounds.length) return;
+    if (!tournament?.rounds?.length) {
+      addNotification('No hay rondas para avanzar', 'error');
+      return;
+    }
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
       if (process.env.NODE_ENV === 'development') {
-        console.log('Current round matches:', JSON.stringify(currentRound.matches, null, 2));
+        console.log('Current round:', JSON.stringify(currentRound, null, 2));
       }
       if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
         addNotification('Faltan completar partidos de la ronda actual', 'error');
         return;
       }
+
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
@@ -458,8 +460,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               ? m.player1.player1?._id?.toString() || m.player1.player1?.$oid 
               : m.player1.player1?.toString()
           );
+          console.log(`Processing winnerId: ${winnerId} from match:`, JSON.stringify(m, null, 2));
           if (!winnerId || !isValidObjectId(winnerId)) {
-            console.warn(`Invalid winnerId in match:`, JSON.stringify(m, null, 2));
+            console.warn(`Invalid winnerId: ${winnerId}`);
+            addNotification(`ID de ganador inválido en partido de ronda ${currentRound.round}`, 'error');
             return null;
           }
           const participant = tournament.participants.find(p => {
@@ -467,7 +471,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return pId === winnerId.toString();
           });
           if (!participant) {
-            console.warn(`Participant not found for winnerId: ${winnerId}, participants:`, JSON.stringify(tournament.participants, null, 2));
+            console.warn(`Participant not found for winnerId: ${winnerId}`);
+            addNotification(`Participante no encontrado para ID: ${winnerId}`, 'error');
             return null;
           }
           const player1Id = typeof participant.player1 === 'object' 
@@ -479,7 +484,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 : participant.player2?.toString())
             : null;
           if (!player1Id || !isValidObjectId(player1Id) || (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id))) {
-            console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id, winnerId, participant: JSON.stringify(participant, null, 2) });
+            console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id });
+            addNotification(`IDs de jugadores inválidos para participante con winnerId: ${winnerId}`, 'error');
             return null;
           }
           return {
@@ -488,13 +494,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           };
         })
         .filter(w => w !== null);
+
       if (process.env.NODE_ENV === 'development') {
-        console.log('Winners for new round:', JSON.stringify(winners, null, 2));
+        console.log('Winners collected:', JSON.stringify(winners, null, 2));
       }
-      if (winners.length < 1) {
-        addNotification('No hay suficientes ganadores válidos para avanzar', 'error');
+
+      if (winners.length < 2) {
+        addNotification('No hay suficientes ganadores para crear la siguiente ronda', 'error');
         return;
       }
+
       const matches = [];
       for (let i = 0; i < winners.length; i += 2) {
         if (i + 1 < winners.length) {
@@ -513,12 +522,20 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           });
         }
       }
+
+      if (matches.length === 0) {
+        addNotification('No se pudieron generar partidos para la siguiente ronda', 'error');
+        return;
+      }
+
+      const nextRoundNumber = tournament.rounds.length + 1;
       const updatePayload = {
-        rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
+        rounds: [...tournament.rounds, { round: nextRoundNumber, matches }],
       };
       if (process.env.NODE_ENV === 'development') {
-        console.log('Advancing round payload:', JSON.stringify(updatePayload, null, 2));
+        console.log('Advancing to round payload:', JSON.stringify(updatePayload, null, 2));
       }
+
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -541,37 +558,55 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('Faltan completar algunos partidos', 'error');
         return;
       }
+
       let winner, runnerUp;
       if (tournament.rounds.length > 0) {
         const finalRound = tournament.rounds[tournament.rounds.length - 1];
-        if (finalRound.matches.length !== 1 || !finalRound.matches[0].result.winner) {
-          addNotification('La ronda final no está completa o no tiene un ganador', 'error');
+        if (finalRound.matches.length !== 1) {
+          addNotification('La ronda final debe tener exactamente un partido', 'error');
           return;
         }
-        winner = finalRound.matches[0].result.winner;
         const finalMatch = finalRound.matches[0];
-        const player1Id = typeof finalMatch.player1.player1 === 'object' ? finalMatch.player1.player1?._id?.toString() || finalMatch.player1.player1?.$oid : finalMatch.player1.player1.toString();
-        const player2Id = typeof finalMatch.player2.player1 === 'object' ? finalMatch.player2.player1?._id?.toString() || finalMatch.player2.player1?.$oid : finalMatch.player2.player1.toString();
+        if (!finalMatch.result.winner) {
+          addNotification('La ronda final no tiene un ganador definido', 'error');
+          return;
+        }
+        winner = finalMatch.result.winner;
+        const player1Id = typeof finalMatch.player1.player1 === 'object' 
+          ? finalMatch.player1.player1?._id?.toString() || finalMatch.player1.player1?.$oid 
+          : finalMatch.player1.player1.toString();
+        const player2Id = finalMatch.player2?.name === 'BYE' 
+          ? null 
+          : (typeof finalMatch.player2.player1 === 'object' 
+              ? finalMatch.player2.player1?._id?.toString() || finalMatch.player2.player1?.$oid 
+              : finalMatch.player2.player1.toString());
         runnerUp = winner === player1Id ? player2Id : player1Id;
+        if (!winner || (runnerUp && !isValidObjectId(runnerUp))) {
+          addNotification('IDs inválidos para ganador o subcampeón', 'error');
+          return;
+        }
       } else if (tournament.type === 'RoundRobin') {
         const allStandings = standings.flatMap(group => group.standings);
         const sortedStandings = allStandings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon);
         winner = sortedStandings[0].playerId;
         runnerUp = sortedStandings[1]?.playerId || null;
       }
-      if (!winner) {
-        addNotification('No se pudo determinar un ganador', 'error');
+
+      if (!winner || !isValidObjectId(winner)) {
+        addNotification('No se pudo determinar un ganador válido', 'error');
         return;
       }
+
       const updatePayload = { 
         status: 'Finalizado', 
         draft: false, 
         winner,
-        runnerUp
+        runnerUp: runnerUp || null,
       };
       if (process.env.NODE_ENV === 'development') {
         console.log('Finalizing tournament payload:', JSON.stringify(updatePayload, null, 2));
       }
+
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
