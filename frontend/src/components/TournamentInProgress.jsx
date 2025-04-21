@@ -444,14 +444,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Current round:', JSON.stringify(currentRound, null, 2));
-      }
+      console.log('Current round:', JSON.stringify(currentRound, null, 2));
       if (!currentRound.matches.every(m => m.result.winner || m.player2?.name === 'BYE')) {
         addNotification('Faltan completar partidos de la ronda actual', 'error');
         return;
       }
-
+  
+      // Recolectar ganadores usando _id (ObjectId)
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
@@ -462,16 +461,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           );
           console.log(`Processing winnerId: ${winnerId} from match:`, JSON.stringify(m, null, 2));
           if (!winnerId || !isValidObjectId(winnerId)) {
-            console.warn(`Invalid winnerId: ${winnerId}`);
+            console.error(`Invalid winnerId: ${winnerId}`);
             addNotification(`ID de ganador inválido en partido de ronda ${currentRound.round}`, 'error');
             return null;
           }
           const participant = tournament.participants.find(p => {
             const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
-            return pId === winnerId.toString();
+            return pId === winnerId;
           });
           if (!participant) {
-            console.warn(`Participant not found for winnerId: ${winnerId}`);
+            console.error(`Participant not found for winnerId: ${winnerId}`, tournament.participants);
             addNotification(`Participante no encontrado para ID: ${winnerId}`, 'error');
             return null;
           }
@@ -484,58 +483,66 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                 : participant.player2?.toString())
             : null;
           if (!player1Id || !isValidObjectId(player1Id) || (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id))) {
-            console.warn(`Invalid player IDs for participant:`, { player1Id, player2Id });
+            console.error(`Invalid player IDs:`, { player1Id, player2Id });
             addNotification(`IDs de jugadores inválidos para participante con winnerId: ${winnerId}`, 'error');
             return null;
           }
           return {
             player1: player1Id,
-            player2: player2Id || null,
+            player2: player2Id,
           };
         })
         .filter(w => w !== null);
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Winners collected:', JSON.stringify(winners, null, 2));
-      }
-
+  
+      console.log('Winners collected:', JSON.stringify(winners, null, 2));
+  
       if (winners.length < 2) {
         addNotification('No hay suficientes ganadores para crear la siguiente ronda', 'error');
         return;
       }
-
+  
       const matches = [];
-      for (let i = 0; i < winners.length; i += 2) {
-        if (i + 1 < winners.length) {
-          matches.push({
-            player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
-            player2: { player1: winners[i + 1].player1, player2: winners[i + 1].player2 || null },
-            result: { sets: [], winner: null },
-            date: null,
-          });
-        } else {
-          matches.push({
-            player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
-            player2: { player1: null, name: 'BYE' },
-            result: { sets: [], winner: winners[i].player1 },
-            date: null,
-          });
+      const nextRoundNumber = tournament.rounds.length + 1;
+  
+      if (winners.length === 2) {
+        // Crear un solo partido para la final
+        matches.push({
+          player1: { player1: winners[0].player1, player2: winners[0].player2 || null },
+          player2: { player1: winners[1].player1, player2: winners[1].player2 || null },
+          result: { sets: [], winner: null },
+          date: null,
+        });
+      } else {
+        // Para rondas previas, manejar 'BYE' si es necesario
+        for (let i = 0; i < winners.length; i += 2) {
+          if (i + 1 < winners.length) {
+            matches.push({
+              player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
+              player2: { player1: winners[i + 1].player1, player2: winners[i + 1].player2 || null },
+              result: { sets: [], winner: null },
+              date: null,
+            });
+          } else {
+            matches.push({
+              player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
+              player2: { player1: null, name: 'BYE' },
+              result: { sets: [], winner: winners[i].player1 },
+              date: null,
+            });
+          }
         }
       }
-
+  
       if (matches.length === 0) {
         addNotification('No se pudieron generar partidos para la siguiente ronda', 'error');
         return;
       }
-
-      const nextRoundNumber = tournament.rounds.length + 1;
+  
       const updatePayload = {
         rounds: [...tournament.rounds, { round: nextRoundNumber, matches }],
       };
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Advancing to round payload:', JSON.stringify(updatePayload, null, 2));
-      }
-
+      console.log('Advancing to round payload:', JSON.stringify(updatePayload, null, 2));
+  
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -1281,7 +1288,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               Cancelar
             </Button>
             <Button
-              onClick={submitMatchResult}
+              onClaick={submitMatchResult}
               color="primary"
               variant="contained"
               sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
