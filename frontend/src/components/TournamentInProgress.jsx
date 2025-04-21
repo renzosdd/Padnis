@@ -271,6 +271,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     }
     for (const set of validSets) {
       const { player1, player2, tiebreak1, tiebreak2 } = set;
+      if (player1 === 0 && player2 === 0) {
+        addNotification('Los puntajes de los sets no pueden ser ambos 0', 'error');
+        return;
+      }
       if (player1 === 6 && player2 <= 4) continue;
       if (player2 === 6 && player1 <= 4) continue;
       if (player1 === 7 && player2 === 5) continue;
@@ -505,7 +509,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             player1: typeof match.player2.player1 === 'object' ? match.player2.player1._id : match.player2.player1,
             player2: match.player2.player2 ? (typeof match.player2.player2 === 'object' ? match.player2.player2._id : match.player2.player2) : null
           },
-          result: { winner: match.result.winner },
+          result: { 
+            sets: match.result.sets,
+            winner: match.result.winner,
+            runnerUp: match.result.runnerUp
+          },
           date: match.date
         }))
       }));
@@ -553,6 +561,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         const finalMatch = finalRound.matches[0];
         if (!finalMatch.result.winner) {
           addNotification('La ronda final no tiene un ganador definido', 'error');
+          return;
+        }
+        if (!finalMatch.result.sets || finalMatch.result.sets.length === 0) {
+          addNotification('No se pueden finalizar partidos sin sets registrados', 'error');
           return;
         }
         winnerPair = finalMatch.result.winner;
@@ -713,15 +725,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                               </Box>
                             </Box>
                             <Typography sx={{ fontSize: 'clamp(0.875rem, 3.5vw, 1rem)', fontWeight: 'bold', color: '#01579b' }}>
-                              {match.result?.winner ? (
-                                match.result.sets && match.result.sets.length > 0 ? (
-                                  match.result.sets.map((set, i) => (
-                                    <span key={i}>
-                                      {set.player1 || 0}-{set.player2 || 0}
-                                      {set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''}{' '}
-                                    </span>
-                                  ))
-                                ) : 'Ganador definido sin sets'
+                              {match.result?.winner && match.result?.sets && match.result.sets.length > 0 ? (
+                                match.result.sets.map((set, i) => (
+                                  <span key={i}>
+                                    {set.player1 || 0}-{set.player2 || 0}
+                                    {set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''}{' '}
+                                  </span>
+                                ))
                               ) : 'Pendiente'}
                             </Typography>
                           </Box>
@@ -950,16 +960,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                                           </Box>
                                         </Box>
                                         <Typography sx={{ fontSize: 'clamp(0.875rem, 3.5vw, 1rem)', fontWeight: 'bold', color: '#01579b' }}>
-                                          {match.result?.sets && match.result.sets.length > 0
-                                            ? match.result.sets.map((set, idx) => (
-                                                <span key={idx}>
-                                                  {set.player1 || 0} - {set.player2 || 0}{' '}
-                                                  {set.tiebreak1 && set.tiebreak2
-                                                    ? `(${set.tiebreak1}-${set.tiebreak2})`
-                                                    : ''}
-                                                </span>
-                                              ))
-                                            : 'Pendiente'}
+                                          {match.result?.winner && match.result?.sets && match.result.sets.length > 0 ? (
+                                            match.result.sets.map((set, idx) => (
+                                              <span key={idx}>
+                                                {set.player1 || 0} - {set.player2 || 0}{' '}
+                                                {set.tiebreak1 && set.tiebreak2
+                                                  ? `(${set.tiebreak1}-${set.tiebreak2})`
+                                                  : ''}
+                                              </span>
+                                            ))
+                                          ) : 'Pendiente'}
                                         </Typography>
                                       </Box>
                                       <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', color: 'text.secondary', mt: 1 }}>
