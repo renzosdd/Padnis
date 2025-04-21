@@ -450,7 +450,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
   
-      // Collect winners using _id
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
@@ -487,7 +486,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         });
       }
   
-      // Map existing rounds to include only IDs
+      // Simplificar rondas existentes: solo IDs y ganador
       const existingRounds = tournament.rounds.map(round => ({
         round: round.round,
         matches: round.matches.map(match => ({
@@ -499,7 +498,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             player1: typeof match.player2.player1 === 'object' ? match.player2.player1._id : match.player2.player1,
             player2: match.player2.player2 ? (typeof match.player2.player2 === 'object' ? match.player2.player2._id : match.player2.player2) : null
           },
-          result: match.result,
+          result: { winner: match.result.winner }, // Excluir sets
           date: match.date
         }))
       }));
