@@ -1258,7 +1258,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               Cancelar
             </Button>
             <Button
-              onClaick={submitMatchResult}
+              onClick={submitMatchResult}
               color="primary"
               variant="contained"
               sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
