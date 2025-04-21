@@ -13,6 +13,15 @@ const app = express();
 
 mongoose.set('strictQuery', false);
 
+// Validate environment variables
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars);
+  process.exit(1);
+}
+
+// CORS configuration
 app.use(cors({
   origin: 'https://padnis-frontend.onrender.com',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -20,21 +29,21 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Conexión a MongoDB
+// Connection to MongoDB
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB:', mongoose.connection.db.databaseName);
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+    console.error('MongoDB connection error:', err.message, err.stack);
     process.exit(1);
   }
 };
 
-// Rutas de diagnóstico
+// Diagnostic routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Backend is running', timestamp: new Date() });
 });
@@ -44,12 +53,12 @@ app.get('/api/db-check', async (req, res) => {
     await mongoose.connection.db.admin().ping();
     res.json({ status: 'MongoDB connected', dbName: mongoose.connection.db.databaseName });
   } catch (error) {
-    console.error('MongoDB check failed:', error);
+    console.error('MongoDB check failed:', error.message, error.stack);
     res.status(500).json({ message: 'MongoDB connection failed', error: error.message });
   }
 });
 
-// Middleware de autenticación
+// Authentication middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -59,6 +68,7 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
+    console.error('Token verification failed:', err.message, err.stack);
     return res.status(403).json({ message: 'Token inválido' });
   }
 };
@@ -68,7 +78,7 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// Rutas de autenticación
+// Authentication routes
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   if (process.env.NODE_ENV === 'development') {
@@ -90,7 +100,7 @@ app.post('/api/login', async (req, res) => {
     console.log('Login successful:', { username, role: user.role });
     res.json({ token, username, role: user.role });
   } catch (error) {
-    console.error('Error in login:', error.stack);
+    console.error('Error in login:', error.message, error.stack);
     res.status(500).json({ message: 'Error en el servidor al iniciar sesión', error: error.message });
   }
 });
@@ -107,18 +117,18 @@ app.post('/api/register', async (req, res) => {
     await user.save();
     res.status(201).json({ message: 'Usuario registrado', username, role: user.role });
   } catch (error) {
-    console.error('Error in register:', error.stack);
+    console.error('Error in register:', error.message, error.stack);
     res.status(500).json({ message: 'Error en el servidor al registrar usuario', error: error.message });
   }
 });
 
-// Rutas de usuarios
+// User routes
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const users = await User.find({}, 'username role');
     res.status(200).json(users);
   } catch (error) {
-    console.error('Error fetching users:', error.stack);
+    console.error('Error fetching users:', error.message, error.stack);
     res.status(500).json({ message: 'Error fetching users', error: error.message });
   }
 });
@@ -134,12 +144,12 @@ app.put('/api/users/:username/role', authenticateToken, isAdmin, async (req, res
     await user.save();
     res.json({ message: `Rol de ${username} actualizado a ${role}` });
   } catch (error) {
-    console.error('Error updating user role:', error.stack);
+    console.error('Error updating user role:', error.message, error.stack);
     res.status(500).json({ message: 'Error al actualizar rol', error: error.message });
   }
 });
 
-// Rutas de clubes
+// Club routes
 app.post('/api/clubs', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { name, address, phone } = req.body;
@@ -152,7 +162,7 @@ app.post('/api/clubs', authenticateToken, isAdmin, async (req, res) => {
     await club.save();
     res.status(201).json(club);
   } catch (error) {
-    console.error('Error creating club:', error.stack);
+    console.error('Error creating club:', error.message, error.stack);
     res.status(500).json({ message: 'Error al crear club', error: error.message });
   }
 });
@@ -162,7 +172,7 @@ app.get('/api/clubs', async (req, res) => {
     const clubs = await Club.find();
     res.status(200).json(clubs);
   } catch (error) {
-    console.error('Error fetching clubs:', error.stack);
+    console.error('Error fetching clubs:', error.message, error.stack);
     res.status(500).json({ message: 'Error al obtener clubes', error: error.message });
   }
 });
@@ -181,7 +191,7 @@ app.put('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
     await club.save();
     res.json(club);
   } catch (error) {
-    console.error('Error updating club:', error.stack);
+    console.error('Error updating club:', error.message, error.stack);
     res.status(500).json({ message: 'Error al actualizar club', error: error.message });
   }
 });
@@ -199,12 +209,12 @@ app.delete('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
     await club.deleteOne();
     res.json({ message: 'Club eliminado correctamente' });
   } catch (error) {
-    console.error('Error deleting club:', error.stack);
+    console.error('Error deleting club:', error.message, error.stack);
     res.status(500).json({ message: 'Error al eliminar club', error: error.message });
   }
 });
 
-// Rutas de jugadores
+// Player routes
 app.get('/api/players', async (req, res) => {
   try {
     const { showInactive } = req.query;
@@ -230,7 +240,7 @@ app.get('/api/players', async (req, res) => {
       matches: player.matches,
     })));
   } catch (error) {
-    console.error('Error fetching players:', error.stack);
+    console.error('Error fetching players:', error.message, error.stack);
     res.status(500).json({ message: 'Error al obtener jugadores', error: error.message });
   }
 });
@@ -255,7 +265,7 @@ app.post('/api/players', authenticateToken, async (req, res) => {
     await player.save();
     res.status(201).json({ ...player.toObject(), _id: String(player._id) });
   } catch (error) {
-    console.error('Error creating player:', error.stack);
+    console.error('Error creating player:', error.message, error.stack);
     res.status(500).json({ message: 'Error al crear jugador', error: error.message });
   }
 });
@@ -270,12 +280,12 @@ app.put('/api/players/:playerId', authenticateToken, async (req, res) => {
     await player.save();
     res.json({ ...player.toObject(), _id: String(player._id) });
   } catch (error) {
-    console.error('Error updating player:', error.stack);
+    console.error('Error updating player:', error.message, error.stack);
     res.status(500).json({ message: 'Error al actualizar jugador', error: error.message });
   }
 });
 
-// Rutas de torneos
+// Tournament routes
 app.post('/api/tournaments', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'admin' && req.user.role !== 'coach') {
@@ -362,7 +372,7 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     console.log('Tournament created:', { name, type, sport, category, draft });
     res.status(201).json(tournament);
   } catch (error) {
-    console.error('Error creating tournament:', error.stack);
+    console.error('Error creating tournament:', error.message, error.stack);
     res.status(500).json({ message: 'Error al crear torneo', error: error.message });
   }
 });
@@ -415,7 +425,7 @@ app.get('/api/tournaments', async (req, res) => {
     }
     res.json(tournaments);
   } catch (error) {
-    console.error('Error fetching tournaments:', error.stack);
+    console.error('Error fetching tournaments:', error.message, error.stack);
     res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
   }
 });
@@ -456,7 +466,7 @@ app.get('/api/tournaments/:id', async (req, res) => {
     }
     res.json(tournament.toObject({ virtuals: true }));
   } catch (error) {
-    console.error('Error fetching tournament by ID:', error.stack);
+    console.error('Error fetching tournament by ID:', error.message, error.stack);
     res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });
   }
 });
@@ -905,11 +915,17 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
   }
 });
 
-// Iniciar el servidor
+// Start the server
 connectDB().then(() => {
   const PORT = process.env.PORT || 5001;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }).catch(err => {
-  console.error('Failed to start server:', err);
+  console.error('Failed to start server:', err.message, err.stack);
   process.exit(1);
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message, err.stack);
+  res.status(500).json({ message: 'Error interno del servidor', error: err.message });
 });

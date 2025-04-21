@@ -43,12 +43,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     fetchTournament();
   }, [tournamentId]);
 
-  const fetchTournament = async () => {
+  const fetchTournament = async (retries = 3) => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 60000, // Increased timeout to 60 seconds
       });
       if (process.env.NODE_ENV === 'development') {
         console.log('Tournament data:', JSON.stringify(response.data, null, 2));
@@ -59,11 +60,22 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
-      setError(errorMessage);
-      addNotification(`Error al cargar el torneo: ${errorMessage}`, 'error');
-      console.error('Error al cargar torneo:', error);
-    } finally {
-      setIsLoading(false);
+      const errorDetails = {
+        message: errorMessage,
+        code: error.code,
+        status: error.response?.status,
+        responseData: error.response?.data,
+        request: error.config,
+      };
+      console.error('Error al cargar torneo:', errorDetails);
+      if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying fetch tournament (${retries} retries left)...`);
+        setTimeout(() => fetchTournament(retries - 1), 5000); // Retry after 5 seconds
+      } else {
+        setError(errorMessage);
+        addNotification(`Error al cargar el torneo (código ${error.code || 'desconocido'}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
+        setIsLoading(false);
+      }
     }
   };
 
@@ -88,7 +100,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return {
               playerId: player1Id,
               player2Id: p.player2
-                ? (typeof p.player2 === 'object' ? p.player2?._id?.toString() || p.player2?.$oid : p.player2.toString())
+                ? (typeof p.player2 === 'object' ? p.player2?._id?.toString() || p.player2?.$oid : p.player2?.toString())
                 : null,
               wins: 0,
               setsWon: 0,
@@ -106,7 +118,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           if (match.result?.winner) {
             const winnerId = typeof match.result.winner === 'object' && match.result.winner.player1 
               ? match.result.winner.player1.toString() 
-              : (typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner.toString());
+              : (typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner?.toString());
             if (!winnerId || !isValidObjectId(winnerId)) {
               console.warn(`Invalid winner ID in match for group ${group.name || groupIndex}:`, match.result.winner);
               return;
@@ -263,10 +275,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
 
-  const submitMatchResult = async (retries = 2) => {
+  const submitMatchResult = async (retries = 3) => {
     const validSets = matchScores.filter(set => set.player1 > 0 || set.player2 > 0);
-    if (validSets.length !== tournament?.format.sets) {
-      addNotification(`Ingresa exactamente ${tournament?.format.sets} set${tournament?.format.sets > 1 ? 's' : ''} válidos`, 'error');
+    if (validSets.length !== tournament?.format?.sets) {
+      addNotification(`Ingresa exactamente ${tournament?.format?.sets} set${tournament?.format?.sets > 1 ? 's' : ''} válidos`, 'error');
       return;
     }
     for (const set of validSets) {
@@ -328,7 +340,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
       
       let runnerUpPair;
-      if (roundIndex !== null && tournament?.rounds.length === roundIndex + 1 && tournament?.rounds[roundIndex].matches.length === 1) {
+      if (roundIndex !== null && tournament?.rounds?.length === roundIndex + 1 && tournament?.rounds[roundIndex]?.matches?.length === 1) {
         runnerUpPair = winnerPair === player1Pair ? player2Pair : player1Pair;
       }
 
@@ -345,6 +357,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       
       const response = await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 60000,
       });
       console.log('Match update response:', response.data);
       setMatchDialogOpen(false);
@@ -359,16 +372,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         responseData: error.response?.data,
         request: error.config,
       };
-      addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}`, 'error');
+      addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
       console.error('Error updating match result:', errorDetails);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying match update (${retries} retries left)...`);
-        setTimeout(() => submitMatchResult(retries - 1), 2000);
+        setTimeout(() => submitMatchResult(retries - 1), 5000);
       }
     }
   };
 
-  const generateKnockoutPhase = async () => {
+  const generateKnockoutPhase = async (retries = 3) => {
     if (tournament?.type !== 'RoundRobin') return;
     try {
       const allMatchesCompleted = tournament.groups.every(group =>
@@ -403,7 +416,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             return null;
           }
           const player2Id = tournament.format.mode === 'Dobles' && participant.player2
-            ? (typeof participant.player2 === 'object' ? participant.player2?._id?.toString() || participant.player2?.$oid : participant.player2.toString())
+            ? (typeof participant.player2 === 'object' ? participant.player2?._id?.toString() || participant.player2?.$oid : participant.player2?.toString())
             : null;
           if (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id)) {
             console.warn(`Invalid player2Id: ${player2Id} en grupo ${group.groupName}`);
@@ -452,18 +465,23 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       };
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 60000,
       });
       await fetchTournament();
       addNotification('Fase eliminatoria generada', 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
-      addNotification(`Error al generar la fase eliminatoria (código ${statusCode}): ${errorMessage}`, 'error');
+      addNotification(`Error al generar la fase eliminatoria (código ${statusCode}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
       console.error('Error generating knockout phase:', error);
+      if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying generate knockout phase (${retries} retries left)...`);
+        setTimeout(() => generateKnockoutPhase(retries - 1), 5000);
+      }
     }
   };
 
-  const advanceEliminationRound = async () => {
+  const advanceEliminationRound = async (retries = 3) => {
     if (!tournament?.rounds?.length) {
       addNotification('No hay rondas para avanzar', 'error');
       return;
@@ -510,12 +528,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         round: round.round,
         matches: round.matches.map(match => ({
           player1: {
-            player1: typeof match.player1.player1 === 'object' ? match.player1.player1._id : match.player1.player1,
-            player2: match.player1.player2 ? (typeof match.player1.player2 === 'object' ? match.player1.player2._id : match.player1.player2) : null
+            player1: typeof match.player1.player1 === 'object' ? match.player1.player1?._id?.toString() : match.player1.player1?.toString(),
+            player2: match.player1.player2 ? (typeof match.player1.player2 === 'object' ? match.player1.player2?._id?.toString() : match.player1.player2?.toString()) : null
           },
           player2: match.player2.name === 'BYE' ? { name: 'BYE' } : {
-            player1: typeof match.player2.player1 === 'object' ? match.player2.player1._id : match.player2.player1,
-            player2: match.player2.player2 ? (typeof match.player2.player2 === 'object' ? match.player2.player2._id : match.player2.player2) : null
+            player1: typeof match.player2.player1 === 'object' ? match.player2.player1?._id?.toString() : match.player2.player1?.toString(),
+            player2: match.player2.player2 ? (typeof match.player2.player2 === 'object' ? match.player2.player2?._id?.toString() : match.player2.player2?.toString()) : null
           },
           result: { 
             sets: match.result.sets,
@@ -537,19 +555,24 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       console.log('Advancing to round payload:', JSON.stringify(updatePayload, null, 2));
 
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 60000,
       });
       await fetchTournament();
       addNotification(`Avanzado a ${getRoundName(matches.length * 2)}`, 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
-      addNotification(`Error al avanzar la ronda (código ${statusCode}): ${errorMessage}`, 'error');
+      addNotification(`Error al avanzar la ronda (código ${statusCode}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
       console.error('Error advancing round:', error);
+      if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying advance elimination round (${retries} retries left)...`);
+        setTimeout(() => advanceEliminationRound(retries - 1), 5000);
+      }
     }
   };
 
-  const handleFinishTournament = async () => {
+  const handleFinishTournament = async (retries = 3) => {
     try {
       const allMatchesCompleted = tournament.type === 'RoundRobin' && !tournament.rounds.length
         ? tournament.groups.every(group => group.matches.every(match => match.result.winner !== null))
@@ -589,23 +612,23 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         const allStandings = standings.flatMap(group => group.standings);
         const sortedStandings = allStandings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon);
         const winnerParticipant = tournament.participants.find(p =>
-          (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === sortedStandings[0].playerId?.toString()
+          (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === sortedStandings[0]?.playerId?.toString()
         );
         const runnerUpParticipant = sortedStandings[1] ? tournament.participants.find(p =>
-          (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === sortedStandings[1].playerId?.toString()
+          (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === sortedStandings[1]?.playerId?.toString()
         ) : null;
-        winnerPair = {
-          player1: winnerParticipant.player1._id.toString(),
+        winnerPair = winnerParticipant ? {
+          player1: winnerParticipant.player1?._id?.toString(),
           player2: winnerParticipant.player2 ? winnerParticipant.player2._id.toString() : null
-        };
+        } : null;
         runnerUpPair = runnerUpParticipant ? {
-          player1: runnerUpParticipant.player1._id.toString(),
+          player1: runnerUpParticipant.player1?._id?.toString(),
           player2: runnerUpParticipant.player2 ? runnerUpParticipant.player2._id.toString() : null
         } : null;
       }
 
       if (!winnerPair || !winnerPair.player1 || !isValidObjectId(winnerPair.player1) || 
-          (tournament.format.mode === 'Dobles' && (!winnerPair.player2 || !isValidObjectId(winnerPair.player2)))) {
+          (tournament.format.mode === 'Dobles' && winnerPair.player2 && !isValidObjectId(winnerPair.player2))) {
         addNotification('No se pudo determinar una pareja ganadora válida', 'error');
         return;
       }
@@ -622,25 +645,38 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 60000,
       });
       await fetchTournament();
+
       const winnerPlayer1 = tournament.participants.find(p => 
-        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === winnerPair.player1
+        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === winnerPair.player1
       );
       const runnerUpPlayer1 = runnerUpPair ? tournament.participants.find(p => 
-        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === runnerUpPair.player1
+        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === runnerUpPair.player1
       ) : null;
+
+      const winnerName = winnerPlayer1?.player1?.firstName && winnerPlayer1?.player1?.lastName
+        ? `${winnerPlayer1.player1.firstName} ${winnerPlayer1.player1.lastName}${winnerPlayer1.player2 ? ` / ${winnerPlayer1.player2.firstName || ''} ${winnerPlayer1.player2.lastName || ''}` : ''}`
+        : 'Ganador no definido';
+      const runnerUpName = runnerUpPlayer1?.player1?.firstName && runnerUpPlayer1?.player1?.lastName
+        ? `${runnerUpPlayer1.player1.firstName} ${runnerUpPlayer1.player1.lastName}${runnerUpPlayer1.player2 ? ` / ${runnerUpPlayer1.player2.firstName || ''} ${runnerUpPlayer1.player2.lastName || ''}` : ''}`
+        : '';
+
       addNotification(
-        `Torneo finalizado con éxito. Ganadores: ${winnerPlayer1?.player1.firstName} ${winnerPlayer1?.player1.lastName}${winnerPlayer1?.player2 ? ` / ${winnerPlayer1.player2.firstName} ${winnerPlayer1.player2.lastName}` : ''}` +
-        (runnerUpPlayer1 ? `, Segundo puesto: ${runnerUpPlayer1.player1.firstName} ${runnerUpPlayer1.player1.lastName}${runnerUpPlayer1.player2 ? ` / ${runnerUpPlayer1.player2.firstName} ${runnerUpPlayer1.player2.lastName}` : ''}` : ''),
+        `Torneo finalizado con éxito. Ganadores: ${winnerName}${runnerUpName ? `, Segundo puesto: ${runnerUpName}` : ''}`,
         'success'
       );
       onFinishTournament(tournament);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
-      addNotification(`Error al finalizar el torneo (código ${statusCode}): ${errorMessage}`, 'error');
+      addNotification(`Error al finalizar el torneo (código ${statusCode}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
       console.error('Error finishing tournament:', error);
+      if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying finish tournament (${retries} retries left)...`);
+        setTimeout(() => handleFinishTournament(retries - 1), 5000);
+      }
     }
   };
 
@@ -803,16 +839,19 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     return (
       <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
         <Typography color="error" variant="h6">Error al cargar el torneo</Typography>
-        <Typography color="error">{error || 'No se pudo cargar el torneo'}</Typography>
-        <Button onClick={fetchTournament} variant="contained" sx={{ mt: 2, bgcolor: '#0288d1' }}>
+        <Typography color="error">{error || 'No se pudo cargar el torneo. El servidor podría estar inactivo.'}</Typography>
+        <Button onClick={() => fetchTournament()} variant="contained" sx={{ mt: 2, bgcolor: '#0288d1', mr: 1 }}>
           Reintentar
+        </Button>
+        <Button onClick={() => window.location.reload()} variant="outlined" sx={{ mt: 2 }}>
+          Recargar Página
         </Button>
       </Box>
     );
   }
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={fetchTournament}>
+    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => fetchTournament()}>
       <Box
         sx={{
           p: { xs: 2, sm: 3 },
@@ -1145,7 +1184,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
             {selectedMatch && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Avatar sx={{ bgcolor: '#01579b', width: 40, height: 40 }}>
                       {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1).charAt(0) : '?'}
