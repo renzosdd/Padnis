@@ -343,18 +343,26 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         console.log('Submitting match result payload:', JSON.stringify(payload, null, 2));
       }
       
-      await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, payload, {
+      const response = await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
+      console.log('Match update response:', response.data);
       setMatchDialogOpen(false);
       await fetchTournament();
       addNotification('Resultado de partido actualizado', 'success');
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const statusCode = error.response?.status || 'desconocido';
+      const errorDetails = {
+        message: errorMessage,
+        status: statusCode,
+        responseData: error.response?.data,
+        request: error.config,
+      };
       addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}`, 'error');
-      console.error('Error updating match result:', error);
+      console.error('Error updating match result:', errorDetails);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying match update (${retries} retries left)...`);
         setTimeout(() => submitMatchResult(retries - 1), 2000);
       }
     }

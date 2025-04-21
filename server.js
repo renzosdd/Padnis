@@ -744,20 +744,21 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
   const { tournamentId, matchId } = req.params;
   const { sets, winner, runnerUp, isKnockout } = req.body;
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Updating match result with payload:', JSON.stringify(req.body, null, 2));
-  }
+  console.log('Received request to update match result:', { tournamentId, matchId, payload: req.body });
 
   try {
     if (!mongoose.isValidObjectId(tournamentId)) {
+      console.log('Invalid tournament ID:', tournamentId);
       return res.status(400).json({ message: 'ID de torneo inválido' });
     }
     if (!mongoose.isValidObjectId(matchId)) {
+      console.log('Invalid match ID:', matchId);
       return res.status(400).json({ message: 'ID de partido inválido' });
     }
 
     const tournament = await Tournament.findById(tournamentId);
     if (!tournament) {
+      console.log('Tournament not found:', tournamentId);
       return res.status(404).json({ message: 'Torneo no encontrado' });
     }
 
@@ -783,17 +784,22 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     }
 
     if (!match) {
+      console.log('Match not found:', matchId);
       return res.status(400).json({ message: 'Partido no encontrado' });
     }
+
+    console.log('Match found:', { matchType, matchId });
 
     // Validar la pareja ganadora
     if (!winner || !winner.player1 || !mongoose.isValidObjectId(winner.player1) ||
         (tournament.format.mode === 'Dobles' && (!winner.player2 || !mongoose.isValidObjectId(winner.player2)))) {
+      console.log('Invalid winner pair:', winner);
       return res.status(400).json({ message: 'El ganador debe incluir IDs válidos para ambos jugadores en dobles' });
     }
     const winnerPlayer1 = await Player.findById(winner.player1);
     const winnerPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(winner.player2) : null;
     if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && !winnerPlayer2)) {
+      console.log('Winner players not found:', { winnerPlayer1, winnerPlayer2 });
       return res.status(400).json({ message: 'Uno o ambos jugadores del ganador no existen' });
     }
 
@@ -801,24 +807,33 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     if (runnerUp) {
       if (!runnerUp.player1 || !mongoose.isValidObjectId(runnerUp.player1) ||
           (tournament.format.mode === 'Dobles' && (!runnerUp.player2 || !mongoose.isValidObjectId(runnerUp.player2)))) {
+        console.log('Invalid runner-up pair:', runnerUp);
         return res.status(400).json({ message: 'El subcampeón debe incluir IDs válidos para ambos jugadores en dobles' });
       }
       const runnerUpPlayer1 = await Player.findById(runnerUp.player1);
       const runnerUpPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(runnerUp.player2) : null;
       if (!runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && !runnerUpPlayer2)) {
+        console.log('Runner-up players not found:', { runnerUpPlayer1, runnerUpPlayer2 });
         return res.status(400).json({ message: 'Uno o ambos jugadores del subcampeón no existen' });
       }
     }
 
-    match.result.sets = sets || [];
-    match.result.winner = winner; // Guardar el objeto { player1, player2 }
-    match.result.runnerUp = runnerUp || null; // Guardar el objeto { player1, player2 } si existe
+    // Validar que los sets estén presentes
+    if (!sets || !Array.isArray(sets) || sets.length === 0) {
+      console.log('No sets provided:', sets);
+      return res.status(400).json({ message: 'Los sets son obligatorios para registrar un resultado' });
+    }
+
+    match.result.sets = sets;
+    match.result.winner = winner;
+    match.result.runnerUp = runnerUp || null;
 
     if (runnerUp) {
       tournament.winner = winner;
       tournament.runnerUp = runnerUp;
 
-      // Registrar logros para ambos jugadores de la pareja ganadora
+      console.log('Updating achievements for winner and runner-up:', { winner, runnerUp });
+
       await Player.updateOne(
         { _id: winner.player1 },
         {
@@ -846,7 +861,6 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
         );
       }
 
-      // Registrar logros para ambos jugadores de la pareja subcampeona
       await Player.updateOne(
         { _id: runnerUp.player1 },
         {
