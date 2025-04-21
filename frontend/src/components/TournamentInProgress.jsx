@@ -450,51 +450,25 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
   
-      // Recolectar ganadores usando _id (ObjectId)
+      // Collect winners using _id
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
-          const winnerId = m.result.winner || (
-            typeof m.player1.player1 === 'object' 
-              ? m.player1.player1?._id?.toString() || m.player1.player1?.$oid 
-              : m.player1.player1?.toString()
-          );
-          console.log(`Processing winnerId: ${winnerId} from match:`, JSON.stringify(m, null, 2));
-          if (!winnerId || !isValidObjectId(winnerId)) {
-            console.error(`Invalid winnerId: ${winnerId}`);
-            addNotification(`ID de ganador inválido en partido de ronda ${currentRound.round}`, 'error');
-            return null;
-          }
+          const winnerId = m.result.winner;
           const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString();
+            const pId = typeof p.player1 === 'object' ? p.player1._id : p.player1;
             return pId === winnerId;
           });
           if (!participant) {
-            console.error(`Participant not found for winnerId: ${winnerId}`, tournament.participants);
             addNotification(`Participante no encontrado para ID: ${winnerId}`, 'error');
             return null;
           }
-          const player1Id = typeof participant.player1 === 'object' 
-            ? participant.player1?._id?.toString() || participant.player1?.$oid 
-            : participant.player1?.toString();
-          const player2Id = tournament.format.mode === 'Dobles' && participant.player2
-            ? (typeof participant.player2 === 'object' 
-                ? participant.player2?._id?.toString() || participant.player2?.$oid 
-                : participant.player2?.toString())
-            : null;
-          if (!player1Id || !isValidObjectId(player1Id) || (tournament.format.mode === 'Dobles' && player2Id && !isValidObjectId(player2Id))) {
-            console.error(`Invalid player IDs:`, { player1Id, player2Id });
-            addNotification(`IDs de jugadores inválidos para participante con winnerId: ${winnerId}`, 'error');
-            return null;
-          }
           return {
-            player1: player1Id,
-            player2: player2Id,
+            player1: typeof participant.player1 === 'object' ? participant.player1._id : participant.player1,
+            player2: participant.player2 ? (typeof participant.player2 === 'object' ? participant.player2._id : participant.player2) : null
           };
         })
         .filter(w => w !== null);
-  
-      console.log('Winners collected:', JSON.stringify(winners, null, 2));
   
       if (winners.length < 2) {
         addNotification('No hay suficientes ganadores para crear la siguiente ronda', 'error');
@@ -505,46 +479,43 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const nextRoundNumber = tournament.rounds.length + 1;
   
       if (winners.length === 2) {
-        // Crear un solo partido para la final
         matches.push({
           player1: { player1: winners[0].player1, player2: winners[0].player2 || null },
           player2: { player1: winners[1].player1, player2: winners[1].player2 || null },
           result: { sets: [], winner: null },
-          date: null,
+          date: null
         });
-      } else {
-        // Para rondas previas, manejar 'BYE' si es necesario
-        for (let i = 0; i < winners.length; i += 2) {
-          if (i + 1 < winners.length) {
-            matches.push({
-              player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
-              player2: { player1: winners[i + 1].player1, player2: winners[i + 1].player2 || null },
-              result: { sets: [], winner: null },
-              date: null,
-            });
-          } else {
-            matches.push({
-              player1: { player1: winners[i].player1, player2: winners[i].player2 || null },
-              player2: { player1: null, name: 'BYE' },
-              result: { sets: [], winner: winners[i].player1 },
-              date: null,
-            });
-          }
-        }
       }
   
-      if (matches.length === 0) {
-        addNotification('No se pudieron generar partidos para la siguiente ronda', 'error');
-        return;
-      }
+      // Map existing rounds to include only IDs
+      const existingRounds = tournament.rounds.map(round => ({
+        round: round.round,
+        matches: round.matches.map(match => ({
+          player1: {
+            player1: typeof match.player1.player1 === 'object' ? match.player1.player1._id : match.player1.player1,
+            player2: match.player1.player2 ? (typeof match.player1.player2 === 'object' ? match.player1.player2._id : match.player1.player2) : null
+          },
+          player2: match.player2.name === 'BYE' ? { name: 'BYE' } : {
+            player1: typeof match.player2.player1 === 'object' ? match.player2.player1._id : match.player2.player1,
+            player2: match.player2.player2 ? (typeof match.player2.player2 === 'object' ? match.player2.player2._id : match.player2.player2) : null
+          },
+          result: match.result,
+          date: match.date
+        }))
+      }));
+  
+      const newRound = {
+        round: nextRoundNumber,
+        matches: matches
+      };
   
       const updatePayload = {
-        rounds: [...tournament.rounds, { round: nextRoundNumber, matches }],
+        rounds: [...existingRounds, newRound]
       };
       console.log('Advancing to round payload:', JSON.stringify(updatePayload, null, 2));
   
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       await fetchTournament();
       addNotification(`Avanzado a ${getRoundName(matches.length * 2)}`, 'success');
