@@ -590,8 +590,9 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
           }
           const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
-          if (playersExist.length !== matchPlayerIds.length) {
-            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
+          const existingIds = new Set(playersExist.map(p => p._id.toString()));
+          const invalidIds = matchPlayerIds.filter(id => !existingIds.has(id));
+          if (invalidIds.length > 0) {
             console.error('Invalid round match IDs for round', round.round, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds, 'matches:', JSON.stringify(round.matches, null, 2));
             return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para la ronda ${round.round}: ${invalidIds.join(', ')}` });
           }
