@@ -76,7 +76,7 @@ const App = () => {
       if (!token) throw new Error('No token available');
       const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 30000,
+        timeout: 60000,
       });
       const normalizedPlayers = response.data.map(player => ({ ...player, _id: String(player._id) }));
       dispatch(setPlayers(normalizedPlayers));
@@ -86,20 +86,19 @@ const App = () => {
     }
   };
 
-  const fetchTournaments = async (retries = 2) => {
+  const fetchTournaments = async (retries = 3) => {
     try {
       const token = localStorage.getItem('token');
       const url = `${BACKEND_URL}/api/tournaments?status=En%20curso`;
       console.log('Fetching tournaments from:', url, 'with token:', token ? 'present' : 'missing');
       const response = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        timeout: 30000,
+        timeout: 60000,
       });
       console.log('API response (App.jsx):', response.data);
       if (!Array.isArray(response.data)) {
         throw new Error('Unexpected response format: Data is not an array');
       }
-      // Validate tournament data
       const validTournaments = response.data.filter(t => t._id && typeof t._id === 'string' && t.name && t.participants);
       if (validTournaments.length !== response.data.length) {
         console.warn('Some tournaments have invalid data:', response.data);
@@ -107,13 +106,28 @@ const App = () => {
       }
       setTournaments(validTournaments);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || `Error al cargar torneos: ${error.message}`;
-      console.error('Error fetching tournaments:', error);
-      addNotification(errorMessage, 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      const errorDetails = {
+        message: errorMessage,
+        code: error.code,
+        status: error.response?.status,
+        responseData: error.response?.data,
+        request: error.config,
+      };
+      console.error('Error fetching tournaments:', errorDetails);
+      let userMessage = `Error al cargar torneos (código ${error.code || 'desconocido'}): ${errorMessage}`;
+      if (error.code === 'ERR_NETWORK') {
+        userMessage += '. El servidor podría estar inactivo. Por favor, intenta recargar la página o verifica el estado del servidor.';
+      }
+      addNotification(userMessage, 'error');
       if (retries > 0 && error.code === 'ERR_NETWORK') {
-        setTimeout(() => fetchTournaments(retries - 1), 2000);
+        console.log(`Retrying fetch tournaments (${retries} retries left)...`);
+        setTimeout(() => fetchTournaments(retries - 1), 5000);
       } else {
         setTournaments([]);
+        if (error.code === 'ERR_NETWORK') {
+          setError('No se pudo conectar al servidor. Es posible que el servidor esté inactivo o haya un problema de red.');
+        }
       }
     }
   };
@@ -124,7 +138,7 @@ const App = () => {
       if (!token) throw new Error('No token available');
       const response = await axios.get(`${BACKEND_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 30000,
+        timeout: 60000,
       });
       setUsers(response.data);
     } catch (error) {
@@ -182,6 +196,9 @@ const App = () => {
         <Typography variant="h5" color="error">Error: {error}</Typography>
         <Button variant="contained" color="primary" onClick={() => window.location.reload()} sx={{ mt: 2 }}>
           Recargar
+        </Button>
+        <Button variant="outlined" color="secondary" onClick={() => setError(null)} sx={{ mt: 2, ml: 2 }}>
+          Intentar de nuevo
         </Button>
       </Box>
     );
@@ -265,7 +282,7 @@ const App = () => {
                 <Box>
                   <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
                   {tournaments.length === 0 ? (
-                    <Typography>No hay torneos activos actualmente.</Typography>
+                    <Typography>No hay torneos activos actualmente. Si el servidor está inactivo, intenta recargar la página o contacta al administrador.</Typography>
                   ) : (
                     tournaments.map(tournament => (
                       <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
@@ -306,7 +323,7 @@ const App = () => {
               <Box sx={{ p: 3 }}>
                 <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
                 {tournaments.length === 0 ? (
-                  <Typography>No hay torneos activos actualmente.</Typography>
+                  <Typography>No hay torneos activos actualmente. Si el servidor está inactivo, intenta recargar la página o contacta al administrador.</Typography>
                 ) : (
                   tournaments.map(tournament => (
                     <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
