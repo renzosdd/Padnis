@@ -104,7 +104,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       if (group.matches && Array.isArray(group.matches)) {
         group.matches.forEach(match => {
           if (match.result?.winner) {
-            const winnerId = typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner.toString();
+            const winnerId = typeof match.result.winner === 'object' && match.result.winner.player1 
+              ? match.result.winner.player1.toString() 
+              : (typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner.toString());
             if (!winnerId || !isValidObjectId(winnerId)) {
               console.warn(`Invalid winner ID in match for group ${group.name || groupIndex}:`, match.result.winner);
               return;
@@ -222,7 +224,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     });
   }, []);
 
-  const determineWinner = useCallback((sets, player1Id, player2Id) => {
+  const determineWinner = useCallback((sets, player1Pair, player2Pair) => {
     let setsWonByPlayer1 = 0;
     let setsWonByPlayer2 = 0;
     sets.forEach((set, index) => {
@@ -242,9 +244,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const finalSet = sets[1];
       if (finalSet.player1 === 6 && finalSet.player2 === 6 && finalSet.tiebreak1 !== undefined && finalSet.tiebreak2 !== undefined) {
         if (finalSet.tiebreak1 > finalSet.tiebreak2) {
-          return player1Id;
+          return player1Pair;
         } else if (finalSet.tiebreak2 > finalSet.tiebreak1) {
-          return player2Id;
+          return player2Pair;
         }
       }
       if (setsWonByPlayer1 === setsWonByPlayer2) {
@@ -252,9 +254,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       }
     }
     if (setsWonByPlayer1 > setsWonByPlayer2) {
-      return player1Id;
+      return player1Pair;
     } else if (setsWonByPlayer2 > setsWonByPlayer1) {
-      return player2Id;
+      return player2Pair;
     }
     return null;
   }, [tournament?.format?.sets]);
@@ -301,30 +303,42 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         tiebreak2: set.tiebreak2 > 0 ? set.tiebreak2 : undefined,
       }));
       const player1Id = typeof selectedMatch.match.player1?.player1 === 'object' ? selectedMatch.match.player1.player1?._id?.toString() || selectedMatch.match.player1.player1?.$oid : selectedMatch.match.player1?.player1?.toString();
+      const player1Id2 = selectedMatch.match.player1?.player2 ? (typeof selectedMatch.match.player1.player2 === 'object' ? selectedMatch.match.player1.player2?._id?.toString() || selectedMatch.match.player1.player2?.$oid : selectedMatch.match.player1?.player2?.toString()) : null;
       const player2Id = typeof selectedMatch.match.player2?.player1 === 'object' ? selectedMatch.match.player2.player1?._id?.toString() || selectedMatch.match.player2.player1?.$oid : selectedMatch.match.player2?.player1?.toString();
-      if (!player1Id || !player2Id || !isValidObjectId(player1Id) || !isValidObjectId(player2Id)) {
+      const player2Id2 = selectedMatch.match.player2?.player2 ? (typeof selectedMatch.match.player2.player2 === 'object' ? selectedMatch.match.player2.player2?._id?.toString() || selectedMatch.match.player2.player2?.$oid : selectedMatch.match.player2?.player2?.toString()) : null;
+      
+      if (!player1Id || !player2Id || !isValidObjectId(player1Id) || !isValidObjectId(player2Id) || 
+          (tournament.format.mode === 'Dobles' && (!player1Id2 || !player2Id2 || !isValidObjectId(player1Id2) || !isValidObjectId(player2Id2)))) {
         addNotification('IDs de jugadores inválidos', 'error');
-        console.error('Invalid player IDs:', { player1Id, player2Id });
+        console.error('Invalid player IDs:', { player1Id, player1Id2, player2Id, player2Id2 });
         return;
       }
-      const winnerId = determineWinner(sets, player1Id, player2Id);
-      if (!winnerId) {
+      
+      const player1Pair = { player1: player1Id, player2: player1Id2 };
+      const player2Pair = { player1: player2Id, player2: player2Id2 };
+      
+      const winnerPair = determineWinner(sets, player1Pair, player2Pair);
+      if (!winnerPair) {
         addNotification('No se pudo determinar un ganador', 'error');
         return;
       }
-      let runnerUpId = null;
+      
+      let runnerUpPair;
       if (roundIndex !== null && tournament?.rounds.length === roundIndex + 1 && tournament?.rounds[roundIndex].matches.length === 1) {
-        runnerUpId = winnerId === player1Id ? player2Id : player1Id;
+        runnerUpPair = winnerPair === player1Pair ? player2Pair : player1Pair;
       }
+
       const payload = {
         sets,
-        winner: winnerId,
-        runnerUp: runnerUpId,
+        winner: winnerPair,
+        runnerUp: runnerUpPair,
         isKnockout: roundIndex !== null,
       };
+      
       if (process.env.NODE_ENV === 'development') {
         console.log('Submitting match result payload:', JSON.stringify(payload, null, 2));
       }
+      
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}/matches/${matchId}/result`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
@@ -449,34 +463,28 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         addNotification('Faltan completar partidos de la ronda actual', 'error');
         return;
       }
-  
+
       const winners = currentRound.matches
         .filter(m => m.result.winner || m.player2?.name === 'BYE')
         .map(m => {
-          const winnerId = m.result.winner;
-          const participant = tournament.participants.find(p => {
-            const pId = typeof p.player1 === 'object' ? p.player1._id : p.player1;
-            return pId === winnerId;
-          });
-          if (!participant) {
-            addNotification(`Participante no encontrado para ID: ${winnerId}`, 'error');
+          const winnerPair = m.result.winner;
+          if (!winnerPair || !winnerPair.player1 || !isValidObjectId(winnerPair.player1) ||
+              (tournament.format.mode === 'Dobles' && (!winnerPair.player2 || !isValidObjectId(winnerPair.player2)))) {
+            addNotification(`Pareja ganadora inválida en el partido`, 'error');
             return null;
           }
-          return {
-            player1: typeof participant.player1 === 'object' ? participant.player1._id : participant.player1,
-            player2: participant.player2 ? (typeof participant.player2 === 'object' ? participant.player2._id : participant.player2) : null
-          };
+          return winnerPair;
         })
         .filter(w => w !== null);
-  
+
       if (winners.length < 2) {
         addNotification('No hay suficientes ganadores para crear la siguiente ronda', 'error');
         return;
       }
-  
+
       const matches = [];
       const nextRoundNumber = tournament.rounds.length + 1;
-  
+
       if (winners.length === 2) {
         matches.push({
           player1: { player1: winners[0].player1, player2: winners[0].player2 || null },
@@ -485,8 +493,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           date: null
         });
       }
-  
-      // Simplificar rondas existentes: solo IDs y ganador
+
       const existingRounds = tournament.rounds.map(round => ({
         round: round.round,
         matches: round.matches.map(match => ({
@@ -498,21 +505,21 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             player1: typeof match.player2.player1 === 'object' ? match.player2.player1._id : match.player2.player1,
             player2: match.player2.player2 ? (typeof match.player2.player2 === 'object' ? match.player2.player2._id : match.player2.player2) : null
           },
-          result: { winner: match.result.winner }, // Excluir sets
+          result: { winner: match.result.winner },
           date: match.date
         }))
       }));
-  
+
       const newRound = {
         round: nextRoundNumber,
         matches: matches
       };
-  
+
       const updatePayload = {
         rounds: [...existingRounds, newRound]
       };
       console.log('Advancing to round payload:', JSON.stringify(updatePayload, null, 2));
-  
+
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
@@ -536,7 +543,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         return;
       }
 
-      let winner, runnerUp;
+      let winnerPair, runnerUpPair;
       if (tournament.rounds.length > 0) {
         const finalRound = tournament.rounds[tournament.rounds.length - 1];
         if (finalRound.matches.length !== 1) {
@@ -548,37 +555,46 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           addNotification('La ronda final no tiene un ganador definido', 'error');
           return;
         }
-        winner = finalMatch.result.winner;
-        const player1Id = typeof finalMatch.player1.player1 === 'object' 
-          ? finalMatch.player1.player1?._id?.toString() || finalMatch.player1.player1?.$oid 
-          : finalMatch.player1.player1.toString();
-        const player2Id = finalMatch.player2?.name === 'BYE' 
-          ? null 
-          : (typeof finalMatch.player2.player1 === 'object' 
-              ? finalMatch.player2.player1?._id?.toString() || finalMatch.player2.player1?.$oid 
-              : finalMatch.player2.player1.toString());
-        runnerUp = winner === player1Id ? player2Id : player1Id;
-        if (!winner || (runnerUp && !isValidObjectId(runnerUp))) {
+        winnerPair = finalMatch.result.winner;
+        runnerUpPair = finalMatch.result.runnerUp;
+
+        if (!winnerPair || !winnerPair.player1 || !isValidObjectId(winnerPair.player1) || 
+            (tournament.format.mode === 'Dobles' && (!winnerPair.player2 || !isValidObjectId(winnerPair.player2))) ||
+            (runnerUpPair && (!runnerUpPair.player1 || !isValidObjectId(runnerUpPair.player1) || 
+            (tournament.format.mode === 'Dobles' && (!runnerUpPair.player2 || !isValidObjectId(runnerUpPair.player2)))))) {
           addNotification('IDs inválidos para ganador o subcampeón', 'error');
           return;
         }
       } else if (tournament.type === 'RoundRobin') {
         const allStandings = standings.flatMap(group => group.standings);
         const sortedStandings = allStandings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon);
-        winner = sortedStandings[0].playerId;
-        runnerUp = sortedStandings[1]?.playerId || null;
+        const winnerParticipant = tournament.participants.find(p =>
+          (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === sortedStandings[0].playerId?.toString()
+        );
+        const runnerUpParticipant = sortedStandings[1] ? tournament.participants.find(p =>
+          (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1?.toString()) === sortedStandings[1].playerId?.toString()
+        ) : null;
+        winnerPair = {
+          player1: winnerParticipant.player1._id.toString(),
+          player2: winnerParticipant.player2 ? winnerParticipant.player2._id.toString() : null
+        };
+        runnerUpPair = runnerUpParticipant ? {
+          player1: runnerUpParticipant.player1._id.toString(),
+          player2: runnerUpParticipant.player2 ? runnerUpParticipant.player2._id.toString() : null
+        } : null;
       }
 
-      if (!winner || !isValidObjectId(winner)) {
-        addNotification('No se pudo determinar un ganador válido', 'error');
+      if (!winnerPair || !winnerPair.player1 || !isValidObjectId(winnerPair.player1) || 
+          (tournament.format.mode === 'Dobles' && (!winnerPair.player2 || !isValidObjectId(winnerPair.player2)))) {
+        addNotification('No se pudo determinar una pareja ganadora válida', 'error');
         return;
       }
 
       const updatePayload = { 
         status: 'Finalizado', 
         draft: false, 
-        winner,
-        runnerUp: runnerUp || null,
+        winner: winnerPair,
+        runnerUp: runnerUpPair || null,
       };
       if (process.env.NODE_ENV === 'development') {
         console.log('Finalizing tournament payload:', JSON.stringify(updatePayload, null, 2));
@@ -588,15 +604,15 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       await fetchTournament();
-      const winnerPlayer = tournament.participants.find(p => 
-        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === winner.toString()
+      const winnerPlayer1 = tournament.participants.find(p => 
+        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === winnerPair.player1
       );
-      const runnerUpPlayer = runnerUp ? tournament.participants.find(p => 
-        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === runnerUp.toString()
+      const runnerUpPlayer1 = runnerUpPair ? tournament.participants.find(p => 
+        (typeof p.player1 === 'object' ? p.player1?._id?.toString() || p.player1?.$oid : p.player1.toString()) === runnerUpPair.player1
       ) : null;
       addNotification(
-        `Torneo finalizado con éxito. Ganador: ${winnerPlayer?.player1.firstName} ${winnerPlayer?.player1.lastName}` +
-        (runnerUpPlayer ? `, Segundo puesto: ${runnerUpPlayer.player1.firstName} ${runnerUpPlayer.player1.lastName}` : ''),
+        `Torneo finalizado con éxito. Ganadores: ${winnerPlayer1?.player1.firstName} ${winnerPlayer1?.player1.lastName}${winnerPlayer1?.player2 ? ` / ${winnerPlayer1.player2.firstName} ${winnerPlayer1.player2.lastName}` : ''}` +
+        (runnerUpPlayer1 ? `, Segundo puesto: ${runnerUpPlayer1.player1.firstName} ${runnerUpPlayer1.player1.lastName}${runnerUpPlayer1.player2 ? ` / ${runnerUpPlayer1.player2.firstName} ${runnerUpPlayer1.player2.lastName}` : ''}` : ''),
         'success'
       );
       onFinishTournament(tournament);
@@ -697,14 +713,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                               </Box>
                             </Box>
                             <Typography sx={{ fontSize: 'clamp(0.875rem, 3.5vw, 1rem)', fontWeight: 'bold', color: '#01579b' }}>
-                              {match.result?.sets && match.result.sets.length > 0
-                                ? match.result.sets.map((set, i) => (
+                              {match.result?.winner ? (
+                                match.result.sets && match.result.sets.length > 0 ? (
+                                  match.result.sets.map((set, i) => (
                                     <span key={i}>
                                       {set.player1 || 0}-{set.player2 || 0}
                                       {set.tiebreak1 ? ` (${set.tiebreak1}-${set.tiebreak2})` : ''}{' '}
                                     </span>
                                   ))
-                                : 'Pendiente'}
+                                ) : 'Ganador definido sin sets'
+                              ) : 'Pendiente'}
                             </Typography>
                           </Box>
                           <Button

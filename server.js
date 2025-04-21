@@ -530,9 +530,17 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2?.player2);
             }
             if (m.result?.winner) {
-              const id = typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString();
+              const id = typeof m.result.winner === 'object' && m.result.winner.player1 
+                ? m.result.winner.player1.toString() 
+                : (typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString());
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match winner ID in group ${group.name}, match ${index}:`, m.result?.winner);
+              else console.warn(`Invalid group match winner.player1 ID in group ${group.name}, match ${index}:`, m.result?.winner);
+
+              if (typeof m.result.winner === 'object' && m.result.winner.player2) {
+                const id2 = m.result.winner.player2.toString();
+                if (id2 && mongoose.isValidObjectId(id2)) ids.push(id2);
+                else console.warn(`Invalid group match winner.player2 ID in group ${group.name}, match ${index}:`, m.result?.winner);
+              }
             }
             return ids;
           }).filter(Boolean);
@@ -578,9 +586,30 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2?.player2);
             }
             if (m.result?.winner) {
-              const id = typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString();
+              const id = typeof m.result.winner === 'object' && m.result.winner.player1 
+                ? m.result.winner.player1.toString() 
+                : (typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString());
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match winner ID in round ${round.round}, match ${index}:`, m.result?.winner);
+              else console.warn(`Invalid round match winner.player1 ID in round ${round.round}, match ${index}:`, m.result?.winner);
+
+              if (typeof m.result.winner === 'object' && m.result.winner.player2) {
+                const id2 = m.result.winner.player2.toString();
+                if (id2 && mongoose.isValidObjectId(id2)) ids.push(id2);
+                else console.warn(`Invalid round match winner.player2 ID in round ${round.round}, match ${index}:`, m.result?.winner);
+              }
+            }
+            if (m.result?.runnerUp) {
+              const id = typeof m.result.runnerUp === 'object' && m.result.runnerUp.player1 
+                ? m.result.runnerUp.player1.toString() 
+                : (typeof m.result.runnerUp === 'object' ? m.result.runnerUp._id?.toString() || m.result.runnerUp.$oid : m.result.runnerUp.toString());
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match runnerUp.player1 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
+
+              if (typeof m.result.runnerUp === 'object' && m.result.runnerUp.player2) {
+                const id2 = m.result.runnerUp.player2.toString();
+                if (id2 && mongoose.isValidObjectId(id2)) ids.push(id2);
+                else console.warn(`Invalid round match runnerUp.player2 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
+              }
             }
             return ids;
           }).filter(id => id && typeof id === 'string' && mongoose.isValidObjectId(id));
@@ -605,17 +634,28 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     }
 
     if (updates.winner && updates.runnerUp) {
-      if (!mongoose.isValidObjectId(updates.winner) || !mongoose.isValidObjectId(updates.runnerUp)) {
-        return res.status(400).json({ message: 'ID de ganador o segundo puesto inválido' });
+      if (!updates.winner.player1 || !mongoose.isValidObjectId(updates.winner.player1) ||
+          (tournament.format.mode === 'Dobles' && (!updates.winner.player2 || !mongoose.isValidObjectId(updates.winner.player2)))) {
+        return res.status(400).json({ message: 'El ganador debe incluir IDs válidos para ambos jugadores en dobles' });
       }
-      const winner = await Player.findById(updates.winner);
-      const runnerUp = await Player.findById(updates.runnerUp);
-      if (!winner || !runnerUp) {
-        return res.status(400).json({ message: 'Ganador o segundo puesto no encontrado' });
+      if (!updates.runnerUp.player1 || !mongoose.isValidObjectId(updates.runnerUp.player1) ||
+          (tournament.format.mode === 'Dobles' && (!updates.runnerUp.player2 || !mongoose.isValidObjectId(updates.runnerUp.player2)))) {
+        return res.status(400).json({ message: 'El subcampeón debe incluir IDs válidos para ambos jugadores en dobles' });
       }
-      // Update achievements separately to avoid $cond issues
+
+      const winnerPlayer1 = await Player.findById(updates.winner.player1);
+      const winnerPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(updates.winner.player2) : null;
+      const runnerUpPlayer1 = await Player.findById(updates.runnerUp.player1);
+      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(updates.runnerUp.player2) : null;
+
+      if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && !winnerPlayer2) ||
+          !runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && !runnerUpPlayer2)) {
+        return res.status(400).json({ message: 'Uno o ambos jugadores del ganador o subcampeón no encontrados' });
+      }
+
+      // Registrar logros para ambos jugadores de la pareja ganadora
       await Player.updateOne(
-        { _id: updates.winner },
+        { _id: updates.winner.player1 },
         {
           $push: {
             achievements: {
@@ -626,8 +666,24 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           },
         }
       );
+      if (tournament.format.mode === 'Dobles') {
+        await Player.updateOne(
+          { _id: updates.winner.player2 },
+          {
+            $push: {
+              achievements: {
+                tournamentId: id,
+                position: 'Winner',
+                date: new Date(),
+              },
+            },
+          }
+        );
+      }
+
+      // Registrar logros para ambos jugadores de la pareja subcampeona
       await Player.updateOne(
-        { _id: updates.runnerUp },
+        { _id: updates.runnerUp.player1 },
         {
           $push: {
             achievements: {
@@ -638,6 +694,20 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           },
         }
       );
+      if (tournament.format.mode === 'Dobles') {
+        await Player.updateOne(
+          { _id: updates.runnerUp.player2 },
+          {
+            $push: {
+              achievements: {
+                tournamentId: id,
+                position: 'RunnerUp',
+                date: new Date(),
+              },
+            },
+          }
+        );
+      }
     }
 
     Object.assign(tournament, updates);
@@ -716,33 +786,41 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
       return res.status(400).json({ message: 'Partido no encontrado' });
     }
 
-    if (winner && !mongoose.isValidObjectId(winner)) {
-      return res.status(400).json({ message: `El ID del ganador ${winner} es inválido` });
+    // Validar la pareja ganadora
+    if (!winner || !winner.player1 || !mongoose.isValidObjectId(winner.player1) ||
+        (tournament.format.mode === 'Dobles' && (!winner.player2 || !mongoose.isValidObjectId(winner.player2)))) {
+      return res.status(400).json({ message: 'El ganador debe incluir IDs válidos para ambos jugadores en dobles' });
     }
-    if (winner) {
-      const playerExists = await Player.findById(winner);
-      if (!playerExists) {
-        return res.status(400).json({ message: `El ganador con ID ${winner} no existe` });
-      }
+    const winnerPlayer1 = await Player.findById(winner.player1);
+    const winnerPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(winner.player2) : null;
+    if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && !winnerPlayer2)) {
+      return res.status(400).json({ message: 'Uno o ambos jugadores del ganador no existen' });
     }
 
-    if (runnerUp && !mongoose.isValidObjectId(runnerUp)) {
-      return res.status(400).json({ message: `El ID del segundo puesto ${runnerUp} es inválido` });
+    // Validar la pareja subcampeona (si aplica)
+    if (runnerUp) {
+      if (!runnerUp.player1 || !mongoose.isValidObjectId(runnerUp.player1) ||
+          (tournament.format.mode === 'Dobles' && (!runnerUp.player2 || !mongoose.isValidObjectId(runnerUp.player2)))) {
+        return res.status(400).json({ message: 'El subcampeón debe incluir IDs válidos para ambos jugadores en dobles' });
+      }
+      const runnerUpPlayer1 = await Player.findById(runnerUp.player1);
+      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(runnerUp.player2) : null;
+      if (!runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && !runnerUpPlayer2)) {
+        return res.status(400).json({ message: 'Uno o ambos jugadores del subcampeón no existen' });
+      }
     }
 
     match.result.sets = sets || [];
-    match.result.winner = winner || null;
+    match.result.winner = winner; // Guardar el objeto { player1, player2 }
+    match.result.runnerUp = runnerUp || null; // Guardar el objeto { player1, player2 } si existe
 
     if (runnerUp) {
-      const runnerUpExists = await Player.findById(runnerUp);
-      if (!runnerUpExists) {
-        return res.status(400).json({ message: `El segundo puesto con ID ${runnerUp} no existe` });
-      }
       tournament.winner = winner;
       tournament.runnerUp = runnerUp;
 
+      // Registrar logros para ambos jugadores de la pareja ganadora
       await Player.updateOne(
-        { _id: winner },
+        { _id: winner.player1 },
         {
           $push: {
             achievements: {
@@ -753,8 +831,24 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
           },
         }
       );
+      if (tournament.format.mode === 'Dobles') {
+        await Player.updateOne(
+          { _id: winner.player2 },
+          {
+            $push: {
+              achievements: {
+                tournamentId: tournamentId,
+                position: 'Winner',
+                date: new Date(),
+              },
+            },
+          }
+        );
+      }
+
+      // Registrar logros para ambos jugadores de la pareja subcampeona
       await Player.updateOne(
-        { _id: runnerUp },
+        { _id: runnerUp.player1 },
         {
           $push: {
             achievements: {
@@ -765,6 +859,20 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
           },
         }
       );
+      if (tournament.format.mode === 'Dobles') {
+        await Player.updateOne(
+          { _id: runnerUp.player2 },
+          {
+            $push: {
+              achievements: {
+                tournamentId: tournamentId,
+                position: 'RunnerUp',
+                date: new Date(),
+              },
+            },
+          }
+        );
+      }
     }
 
     await tournament.save();
