@@ -66,8 +66,10 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
 
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>Crear Nuevo Jugador</DialogTitle>
-      <DialogContent>
+      <DialogTitle sx={{ fontSize: 'clamp(1rem, 5vw, 1.25rem)', bgcolor: '#01579b', color: '#ffffff', p: 2 }}>
+        Crear Nuevo Jugador
+      </DialogTitle>
+      <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
         <TextField
           id="new-player-firstName"
           label="Nombre *"
@@ -101,9 +103,18 @@ const NewPlayerDialog = ({ open, onClose, onAddPlayer }) => {
           sx={{ mt: 2 }}
         />
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleAddPlayer}>Crear</Button>
+      <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
+        <Button onClick={onClose} sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleAddPlayer}
+          color="primary"
+          variant="contained"
+          sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)', bgcolor: '#0288d1', '&:hover': { bgcolor: '#0277bd' } }}
+        >
+          Crear
+        </Button>
       </DialogActions>
     </Dialog>
   );
@@ -184,7 +195,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       } else {
         setFormData(prev => ({
           ...prev,
-          participants: prev.participants.map(pair => ({ ...pair, seed: formData.seededPlayers.includes(pair.player1) || formData.seededPlayers.includes(pair.player2) })),
+          participants: prev.participants.map(pair => ({ ...pair, seed: formData.seededPlayers.includes(pair.player1) || (pair.player2 && formData.seededPlayers.includes(pair.player2)) })),
         }));
       }
     }
@@ -204,10 +215,9 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         groups: formData.groups,
         rounds: formData.rounds,
         schedule: formData.schedule,
-        seededPlayers: formData.seededPlayers,
         playersPerGroupToAdvance: formData.playersPerGroupToAdvance,
         draft,
-        status: draft ? 'Pendiente' : 'En curso', // Asegurar estado correcto
+        status: draft ? 'Pendiente' : 'En curso',
       };
       const response = await axios.post('https://padnis.onrender.com/api/tournaments', tournament, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -254,13 +264,13 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Stack
         spacing={3}
         sx={{
-          maxWidth: 600, // Igualar ancho al Stepper
+          maxWidth: 600,
           width: '100%',
           mx: 'auto',
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         }}
       >
         <TextField
@@ -269,90 +279,97 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           onChange={handleNameChange}
           fullWidth
           variant="outlined"
+          sx={{ '& .MuiInputLabel-root': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
         />
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="club-label">Club</InputLabel>
+          <InputLabel id="club-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Club</InputLabel>
           <Select
             labelId="club-label"
             id="club"
             value={formData.clubId}
             label="Club"
             onChange={(e) => setFormData({ ...formData, clubId: e.target.value })}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value="">Ninguno</MenuItem>
+            <MenuItem value="" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Ninguno</MenuItem>
             {clubs.map(club => (
-              <MenuItem key={club._id} value={club._id}>{club.name}</MenuItem>
+              <MenuItem key={club._id} value={club._id} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>{club.name}</MenuItem>
             ))}
           </Select>
         </FormControl>
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
+          <InputLabel id="tournament-type-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Tipo de Torneo</InputLabel>
           <Select
             labelId="tournament-type-label"
             id="tournament-type"
             value={formData.type}
             label="Tipo de Torneo"
             onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value="RoundRobin">Round Robin</MenuItem>
-            <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
+            <MenuItem value="RoundRobin" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Round Robin</MenuItem>
+            <MenuItem value="Eliminatorio" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Eliminatorio</MenuItem>
           </Select>
         </FormControl>
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="sport-label">Deporte</InputLabel>
+          <InputLabel id="sport-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Deporte</InputLabel>
           <Select
             labelId="sport-label"
             id="sport"
             value={formData.sport}
             label="Deporte"
             onChange={(e) => setFormData({ ...formData, sport: e.target.value, category: '' })}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value="Tenis">Tenis</MenuItem>
-            <MenuItem value="Pádel">Pádel</MenuItem>
+            <MenuItem value="Tenis" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Tenis</MenuItem>
+            <MenuItem value="Pádel" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Pádel</MenuItem>
           </Select>
         </FormControl>
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="category-label">Categoría *</InputLabel>
+          <InputLabel id="category-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Categoría *</InputLabel>
           <Select
             labelId="category-label"
             id="category"
             value={formData.category}
             label="Categoría"
             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
             {categories.map(cat => (
-              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+              <MenuItem key={cat} value={cat} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>{cat}</MenuItem>
             ))}
           </Select>
         </FormControl>
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="format-mode-label">Modalidad</InputLabel>
+          <InputLabel id="format-mode-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Modalidad</InputLabel>
           <Select
             labelId="format-mode-label"
             id="format-mode"
             value={formData.format.mode}
             label="Modalidad"
             onChange={(e) => setFormData({ ...formData, format: { ...formData.format, mode: e.target.value }, participants: [] })}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value="Singles">Singles</MenuItem>
-            <MenuItem value="Dobles">Dobles</MenuItem>
+            <MenuItem value="Singles" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Singles</MenuItem>
+            <MenuItem value="Dobles" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Dobles</MenuItem>
           </Select>
         </FormControl>
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="sets-label">Sets por Partido</InputLabel>
+          <InputLabel id="sets-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Sets por Partido</InputLabel>
           <Select
             labelId="sets-label"
             id="sets"
             value={formData.format.sets}
             label="Sets por Partido"
             onChange={(e) => setFormData({ ...formData, format: { ...formData.format, sets: e.target.value } })}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value={1}>1 Set</MenuItem>
-            <MenuItem value={2}>2 Sets</MenuItem>
+            <MenuItem value={1} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>1 Set</MenuItem>
+            <MenuItem value={2} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>2 Sets</MenuItem>
           </Select>
         </FormControl>
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="players-per-group-label">Jugadores que pasan por grupo</InputLabel>
+          <InputLabel id="players-per-group-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Jugadores que pasan por grupo</InputLabel>
           <Select
             labelId="players-per-group-label"
             id="players-per-group"
@@ -360,10 +377,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             label="Jugadores que pasan por grupo"
             onChange={(e) => setFormData({ ...formData, playersPerGroupToAdvance: e.target.value })}
             disabled={formData.type !== 'RoundRobin'}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value={1}>1</MenuItem>
-            <MenuItem value={2}>2</MenuItem>
-            <MenuItem value={3}>3</MenuItem>
+            <MenuItem value={1} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>1</MenuItem>
+            <MenuItem value={2} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>2</MenuItem>
+            <MenuItem value={3} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>3</MenuItem>
           </Select>
         </FormControl>
       </Stack>
@@ -450,13 +468,13 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Stack
         spacing={3}
         sx={{
-          maxWidth: 600, // Igualar ancho al Stepper
+          maxWidth: 600,
           width: '100%',
           mx: 'auto',
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         }}
       >
         <TextField
@@ -466,12 +484,15 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           onChange={(e) => setSearch(e.target.value)}
           fullWidth
           variant="outlined"
+          sx={{ '& .MuiInputLabel-root': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
         />
-        <Typography variant="subtitle1">Jugadores Disponibles</Typography>
-        <Box sx={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: 2 }}>
+        <Typography variant="subtitle1" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', color: '#01579b', fontWeight: 'bold' }}>
+          Jugadores Disponibles
+        </Typography>
+        <Box sx={{ maxHeight: '30vh', overflowY: 'auto', border: '1px solid #e0e0e0', borderRadius: 2, p: 1 }}>
           {filteredPlayers.map(player => (
             <Box key={player._id} sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-              <Typography>{`${player.firstName} ${player.lastName}`}</Typography>
+              <Typography sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>{`${player.firstName} ${player.lastName}`}</Typography>
               <Button
                 variant="contained"
                 onClick={() => handleAddPlayer(player._id)}
@@ -481,27 +502,56 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                     (pairPlayers.includes(String(player._id)) ||
                       formData.participants.some(p => p.player1 === String(player._id) || p.player2 === String(player._id))))
                 }
+                sx={{
+                  bgcolor: '#0288d1',
+                  '&:hover': { bgcolor: '#0277bd' },
+                  fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)',
+                  py: 0.5,
+                  px: 2,
+                }}
               >
                 Agregar
               </Button>
             </Box>
           ))}
         </Box>
-        <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setNewPlayerDialogOpen(true)}>
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon />}
+          onClick={() => setNewPlayerDialogOpen(true)}
+          sx={{
+            borderColor: '#0288d1',
+            color: '#0288d1',
+            fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)',
+            '&:hover': { borderColor: '#0277bd', bgcolor: '#e3f2fd' },
+          }}
+        >
           Agregar Jugador
         </Button>
         {formData.format.mode === 'Dobles' && (
           <>
-            <Button variant="contained" onClick={addPair} disabled={pairPlayers.length !== 2}>
+            <Button
+              variant="contained"
+              onClick={addPair}
+              disabled={pairPlayers.length !== 2}
+              sx={{
+                bgcolor: '#0288d1',
+                '&:hover': { bgcolor: '#0277bd' },
+                fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)',
+              }}
+            >
               Formar Pareja
             </Button>
-            <Typography variant="subtitle1">Parejas Seleccionadas</Typography>
+            <Typography variant="subtitle1" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', color: '#01579b', fontWeight: 'bold' }}>
+              Parejas Seleccionadas
+            </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               {formData.participants.map((pair, idx) => (
                 <Chip
                   key={idx}
                   label={`${localPlayers.find(p => p._id === pair.player1)?.firstName} / ${localPlayers.find(p => p._id === pair.player2)?.firstName}`}
                   onDelete={() => removePair(pair)}
+                  sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
                 />
               ))}
             </Box>
@@ -509,20 +559,23 @@ const TournamentForm = ({ players, onCreateTournament }) => {
         )}
         {formData.format.mode === 'Singles' && (
           <>
-            <Typography variant="subtitle1">Jugadores Seleccionados</Typography>
+            <Typography variant="subtitle1" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', color: '#01579b', fontWeight: 'bold' }}>
+              Jugadores Seleccionados
+            </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
               {selectedPlayers.map(playerId => (
                 <Chip
                   key={playerId}
                   label={`${localPlayers.find(p => p._id === playerId)?.firstName} ${localPlayers.find(p => p._id === playerId)?.lastName}`}
                   onDelete={() => removeParticipant(playerId)}
+                  sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
                 />
               ))}
             </Box>
           </>
         )}
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="seeded-players-label">Cabezas de Serie (hasta 6)</InputLabel>
+          <InputLabel id="seeded-players-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Cabezas de Serie (hasta 6)</InputLabel>
           <Select
             labelId="seeded-players-label"
             id="seeded-players"
@@ -532,13 +585,14 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             renderValue={(selected) => (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                 {selected.map((value) => (
-                  <Chip key={value} label={localPlayers.find(p => p._id === value)?.firstName} />
+                  <Chip key={value} label={localPlayers.find(p => p._id === value)?.firstName} sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }} />
                 ))}
               </Box>
             )}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
             {localPlayers.map((player) => (
-              <MenuItem key={player._id} value={player._id}>
+              <MenuItem key={player._id} value={player._id} sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}>
                 <Checkbox checked={formData.seededPlayers.indexOf(player._id) > -1} />
                 <ListItemText primary={`${player.firstName} ${player.lastName}`} />
               </MenuItem>
@@ -552,7 +606,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
 
   const Step3 = () => {
     const generateAutoGroups = () => {
-      const seeded = formData.seededPlayers.map(id => ({ player1: id, seed: true }));
+      const seeded = formData.seededPlayers.map(id => ({
+        player1: id,
+        player2: formData.participants.find(p => p.player1 === id)?.player2 || null,
+        seed: true,
+      }));
       const unseeded = formData.participants.filter(p => !formData.seededPlayers.includes(p.player1)).sort(() => 0.5 - Math.random());
       const participants = [...seeded, ...unseeded];
       const groups = [];
@@ -566,22 +624,31 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             date: formData.schedule.group || null,
           }))
         );
-        groups.push({ name: `Grupo ${groups.length + 1}`, players: groupPlayers, matches, standings: [] });
+        groups.push({ name: `Grupo ${groups.length + 1}`, players: groupPlayers, matches });
       }
       return groups;
     };
 
     const generateAutoRounds = () => {
-      const seeded = formData.seededPlayers.map(id => ({ player1: id, seed: true }));
+      const seeded = formData.seededPlayers.map(id => ({
+        player1: id,
+        player2: formData.participants.find(p => p.player1 === id)?.player2 || null,
+        seed: true,
+      }));
       const unseeded = formData.participants.filter(p => !formData.seededPlayers.includes(p.player1)).sort(() => 0.5 - Math.random());
       const participants = [...seeded, ...unseeded];
       const totalSlots = Math.pow(2, Math.ceil(Math.log2(participants.length)));
       const byes = totalSlots - participants.length;
       const matches = [];
       for (let i = 0; i < totalSlots / 2; i++) {
-        const p1 = i < participants.length ? participants[i] : { player1: null, name: 'BYE' };
-        const p2 = i < byes ? { player1: null, name: 'BYE' } : participants[totalSlots - 1 - i] || { player1: null, name: 'BYE' };
-        matches.push({ player1: p1, player2: p2, result: { sets: [], winner: p1.player1 && !p2.player1 ? p1.player1 : null }, date: formData.schedule.group || null });
+        const p1 = i < participants.length ? participants[i] : { player1: null, player2: null, name: 'BYE' };
+        const p2 = i < byes ? { player1: null, player2: null, name: 'BYE' } : participants[totalSlots - 1 - i] || { player1: null, player2: null, name: 'BYE' };
+        matches.push({
+          player1: p1,
+          player2: p2,
+          result: { sets: [], winner: p1.player1 && !p2.player1 ? { player1: p1.player1, player2: p1.player2 } : null },
+          date: formData.schedule.group || null,
+        });
       }
       return [{ round: 1, matches }];
     };
@@ -590,17 +657,17 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       <Stack
         spacing={3}
         sx={{
-          maxWidth: 600, // Igualar ancho al Stepper
+          maxWidth: 600,
           width: '100%',
           mx: 'auto',
           bgcolor: '#ffffff',
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         }}
       >
         <FormControl fullWidth variant="outlined">
-          <InputLabel id="group-size-label">Tamaño de Grupos (Round Robin)</InputLabel>
+          <InputLabel id="group-size-label" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>Tamaño de Grupos (Round Robin)</InputLabel>
           <Select
             labelId="group-size-label"
             id="group-size"
@@ -608,10 +675,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             label="Tamaño de Grupos (Round Robin)"
             onChange={(e) => setFormData({ ...formData, groupSize: e.target.value })}
             disabled={formData.type === 'Eliminatorio'}
+            sx={{ '& .MuiSelect-select': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
           >
-            <MenuItem value={3}>3 Jugadores</MenuItem>
-            <MenuItem value={4}>4 Jugadores</MenuItem>
-            <MenuItem value={5}>5 Jugadores</MenuItem>
+            <MenuItem value={3} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>3 Jugadores</MenuItem>
+            <MenuItem value={4} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>4 Jugadores</MenuItem>
+            <MenuItem value={5} sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)' }}>5 Jugadores</MenuItem>
           </Select>
         </FormControl>
         <TextField
@@ -622,6 +690,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
           fullWidth
           variant="outlined"
           InputLabelProps={{ shrink: true }}
+          sx={{ '& .MuiInputLabel-root': { fontSize: 'clamp(0.875rem, 4vw, 1rem)' } }}
         />
         <Button
           variant="contained"
@@ -632,6 +701,11 @@ const TournamentForm = ({ players, onCreateTournament }) => {
               rounds: formData.type === 'Eliminatorio' ? generateAutoRounds() : [],
             })
           }
+          sx={{
+            bgcolor: '#0288d1',
+            '&:hover': { bgcolor: '#0277bd' },
+            fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+          }}
         >
           Generar Vista Previa
         </Button>
@@ -640,7 +714,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
             {formData.type === 'RoundRobin'
               ? formData.groups.map(group => (
                   <Box key={group.name} sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1">{group.name}</Typography>
+                    <Typography variant="subtitle1" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', color: '#01579b', fontWeight: 'bold' }}>{group.name}</Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {group.players.map(p => (
                         <Chip
@@ -648,8 +722,9 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                           label={
                             formData.format.mode === 'Singles'
                               ? `${localPlayers.find(pl => pl._id === p.player1)?.firstName} ${localPlayers.find(pl => pl._id === p.player1)?.lastName}`
-                              : `${localPlayers.find(pl => pl._id === p.player1)?.firstName} / ${localPlayers.find(pl => pl._id === p.player2)?.firstName}`
+                              : `${localPlayers.find(pl => pl._id === p.player1)?.firstName} / ${localPlayers.find(pl => pl._id === p.player2)?.firstName || 'N/A'}`
                           }
+                          sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
                         />
                       ))}
                     </Box>
@@ -657,7 +732,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                 ))
               : formData.rounds.map(round => (
                   <Box key={round.round} sx={{ mb: 2 }}>
-                    <Typography variant="subtitle1">Ronda {round.round}</Typography>
+                    <Typography variant="subtitle1" sx={{ fontSize: 'clamp(0.875rem, 4vw, 1rem)', color: '#01579b', fontWeight: 'bold' }}>Ronda {round.round}</Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                       {round.matches.map((m, idx) => (
                         <Chip
@@ -665,8 +740,9 @@ const TournamentForm = ({ players, onCreateTournament }) => {
                           label={
                             formData.format.mode === 'Singles'
                               ? `${localPlayers.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName || 'BYE'}`
-                              : `${localPlayers.find(p => p._id === m.player1.player1)?.firstName} / ${localPlayers.find(p => p._id === m.player1.player2)?.firstName || 'BYE'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName} / ${localPlayers.find(p => p._id === m.player2.player2)?.firstName || 'BYE'}`
+                              : `${localPlayers.find(p => p._id === m.player1.player1)?.firstName || 'BYE'} / ${localPlayers.find(p => p._id === m.player1.player2)?.firstName || 'N/A'} vs ${m.player2.name || localPlayers.find(p => p._id === m.player2.player1)?.firstName || 'BYE'} / ${localPlayers.find(p => p._id === m.player2.player2)?.firstName || 'N/A'}`
                           }
+                          sx={{ fontSize: 'clamp(0.75rem, 3.5vw, 0.875rem)' }}
                         />
                       ))}
                     </Box>
@@ -681,14 +757,35 @@ const TournamentForm = ({ players, onCreateTournament }) => {
   const steps = ['Datos Básicos', 'Participantes', 'Grupos/Rondas'];
 
   return (
-    <Box sx={{ p: { xs: 3, sm: 4 }, maxWidth: '100%', mx: 'auto', bgcolor: '#f5f5f5', minHeight: '100vh' }}>
-      <Typography variant="h5" gutterBottom sx={{ fontSize: { xs: '1.8rem', sm: '2rem' }, color: '#333', fontWeight: 600, textAlign: 'center' }}>
+    <Box sx={{ p: { xs: 2, sm: 3 }, bgcolor: '#f0f4f8', minHeight: '100vh' }}>
+      <Typography
+        variant="h5"
+        gutterBottom
+        sx={{
+          fontSize: 'clamp(1.5rem, 6vw, 2rem)',
+          color: '#01579b',
+          fontWeight: 700,
+          textAlign: 'center',
+        }}
+      >
         Crear Torneo
       </Typography>
-      <Stepper activeStep={step} orientation={isMobile ? 'vertical' : 'horizontal'} sx={{ mb: 3, bgcolor: '#ffffff', p: 2, borderRadius: 2, boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)', maxWidth: 600, mx: 'auto' }}>
+      <Stepper
+        activeStep={step}
+        orientation={isMobile ? 'vertical' : 'horizontal'}
+        sx={{
+          mb: 3,
+          bgcolor: '#ffffff',
+          p: 2,
+          borderRadius: 2,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          maxWidth: 600,
+          mx: 'auto',
+        }}
+      >
         {steps.map(label => (
           <Step key={label}>
-            <StepLabel sx={{ fontSize: { xs: '0.9rem', sm: '1rem' }, color: '#333' }}>{label}</StepLabel>
+            <StepLabel sx={{ '& .MuiStepLabel-label': { fontSize: 'clamp(0.875rem, 4vw, 1rem)', color: '#01579b' } }}>{label}</StepLabel>
           </Step>
         ))}
       </Stepper>
@@ -697,21 +794,65 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       {step === 2 && <Step3 />}
       <Stack direction="row" spacing={2} justifyContent="space-between" sx={{ mt: 3, px: 2, maxWidth: 600, mx: 'auto' }}>
         {step > 0 && (
-          <Button variant="outlined" onClick={() => setStep(step - 1)} sx={{ borderColor: '#d32f2f', color: '#d32f2f', fontSize: { xs: '0.9rem', sm: '1rem' }, py: 1, px: 3, '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' } }}>
+          <Button
+            variant="outlined"
+            onClick={() => setStep(step - 1)}
+            sx={{
+              borderColor: '#d32f2f',
+              color: '#d32f2f',
+              fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+              py: 1,
+              px: 3,
+              '&:hover': { borderColor: '#b71c1c', bgcolor: '#ffebee' },
+            }}
+          >
             Atrás
           </Button>
         )}
         {step < 2 && (
-          <Button variant="contained" onClick={handleNext} sx={{ bgcolor: '#1976d2', color: '#fff', fontSize: { xs: '0.9rem', sm: '1rem' }, py: 1, px: 3, '&:hover': { bgcolor: '#1565c0' } }}>
+          <Button
+            variant="contained"
+            onClick={handleNext}
+            sx={{
+              bgcolor: '#0288d1',
+              color: '#fff',
+              fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+              py: 1,
+              px: 3,
+              '&:hover': { bgcolor: '#0277bd' },
+            }}
+          >
             Siguiente
           </Button>
         )}
         {step === 2 && (
           <>
-            <Button variant="contained" onClick={() => handleSubmit(false)} sx={{ bgcolor: '#388e3c', color: '#fff', fontSize: { xs: '0.9rem', sm: '1rem' }, py: 1, px: 3, '&:hover': { bgcolor: '#2e7d32' } }}>
+            <Button
+              variant="contained"
+              onClick={() => handleSubmit(false)}
+              sx={{
+                bgcolor: '#388e3c',
+                color: '#fff',
+                fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+                py: 1,
+                px: 3,
+                '&:hover': { bgcolor: '#2e7d32' },
+              }}
+            >
               Iniciar Torneo
             </Button>
-            <Button variant="outlined" onClick={() => handleSubmit(true)} sx={{ borderColor: '#1976d2', color: '#1976d2', fontSize: { xs: '0.9rem', sm: '1rem' }, py: 1, px: 3, '&:hover': { borderColor: '#1565c0', bgcolor: '#e3f2fd' } }}>
+            <Button
+              variant="outlined"
+              onClick={() => handleSubmit(true)}
+              sx={{
+                borderColor: '#0288d1',
+                color: '#0288d1',
+                fontSize: 'clamp(0.875rem, 4vw, 1rem)',
+                py: 1,
+                px: 3,
+                '&:hover': { borderColor: '#0277bd', bgcolor: '#e3f2fd' },
+              }}
+            >
               Guardar Borrador
             </Button>
           </>
