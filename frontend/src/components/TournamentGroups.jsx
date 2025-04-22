@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Grid, Card, CardContent, Avatar, Button } from '@mui/material';
-import { getPlayerName } from './utils/tournamentUtils';
+import { getPlayerName } from './tournamentUtils.js';
 
 const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutPhase }) => {
   return (

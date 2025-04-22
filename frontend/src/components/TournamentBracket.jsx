@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Grid, Card, CardContent, Avatar, Button } from '@mui/material';
-import { getPlayerName, getRoundName } from './tournamentUtils';
+import { getPlayerName, getRoundName } from './tournamentUtils.js';
 
 const TournamentBracket = ({ tournament, role, openMatchDialog, advanceEliminationRound }) => {
   if (!tournament) {
