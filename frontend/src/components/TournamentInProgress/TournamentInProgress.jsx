@@ -9,9 +9,9 @@ import React, { useState, useCallback, useRef } from 'react';
   import TournamentStandings from './TournamentStandings';
   import TournamentBracket from './TournamentBracket';
   import MatchDialog from './MatchDialog';
-  import { useAuth } from '../contexts/AuthContext';
   import { useNotification } from '../contexts/NotificationContext';
-
+  import { useAuth } from '../contexts/AuthContext';
+  
   const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     const [tabValue, setTabValue] = useState(0);
     const [matchDialogOpen, setMatchDialogOpen] = useState(false);

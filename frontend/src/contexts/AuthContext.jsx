@@ -6,6 +6,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [role, setRole] = useState(null);
 
+ 
   const login = (username, role) => {
     setUser(username);
     setRole(role);
