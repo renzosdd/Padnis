@@ -3,6 +3,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const { body, param, validationResult } = require('express-validator');
+const winston = require('winston');
 
 const User = require('./models/User');
 const Player = require('./models/Player');
@@ -13,21 +17,44 @@ const app = express();
 
 mongoose.set('strictQuery', false);
 
+// Configure Winston logger
+const logger = winston.createLogger({
+  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+});
+
 // Validate environment variables
-const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
-const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
+const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 if (missingEnvVars.length > 0) {
-  console.error('Missing required environment variables:', missingEnvVars);
+  logger.error('Missing required environment variables:', missingEnvVars);
   process.exit(1);
 }
 
-// CORS configuration
+// Middleware
+app.use(helmet());
 app.use(cors({
   origin: 'https://padnis-frontend.onrender.com',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
+
+// Rate limiting for login endpoint
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 requests per window
+  message: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos.',
+});
+app.use('/api/login', loginLimiter);
 
 // Connection to MongoDB
 const connectDB = async () => {
@@ -36,29 +63,24 @@ const connectDB = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
-    console.log('Connected to MongoDB:', mongoose.connection.db.databaseName);
+    logger.info('Connected to MongoDB:', { dbName: mongoose.connection.db.databaseName });
   } catch (err) {
-    console.error('MongoDB connection error:', err.message, err.stack);
+    logger.error('MongoDB connection error:', { message: err.message, stack: err.stack });
     process.exit(1);
   }
 };
 
-// Diagnostic routes
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'Backend is running', timestamp: new Date() });
-});
+// Utility Functions
+const validateObjectId = (id) => mongoose.isValidObjectId(id);
 
-app.get('/api/db-check', async (req, res) => {
-  try {
-    await mongoose.connection.db.admin().ping();
-    res.json({ status: 'MongoDB connected', dbName: mongoose.connection.db.databaseName });
-  } catch (error) {
-    console.error('MongoDB check failed:', error.message, error.stack);
-    res.status(500).json({ message: 'MongoDB connection failed', error: error.message });
-  }
-});
+const checkPlayersExist = async (playerIds) => {
+  if (!playerIds.length) return [];
+  const players = await Player.find({ _id: { $in: playerIds } }).lean();
+  const existingIds = new Set(players.map((p) => p._id.toString()));
+  return playerIds.filter((id) => !existingIds.has(id));
+};
 
-// Authentication middleware
+// Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -68,7 +90,7 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
-    console.error('Token verification failed:', err.message, err.stack);
+    logger.error('Token verification failed:', { message: err.message, stack: err.stack });
     return res.status(403).json({ message: 'Token inválido' });
   }
 };
@@ -78,38 +100,75 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// Authentication routes
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Login attempt:', { username });
+const isAdminOrCoach = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'coach') {
+    return res.status(403).json({ message: 'Requiere rol de admin o coach' });
   }
+  next();
+};
+
+// Validation Middleware
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: 'Errores de validación', errors: errors.array() });
+  }
+  next();
+};
+
+// Diagnostic Routes
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'Backend is running', timestamp: new Date() });
+});
+
+app.get('/api/db-check', async (req, res) => {
   try {
-    if (!username || !password) return res.status(400).json({ message: 'Usuario y contraseña son obligatorios' });
-    const user = await User.findOne({ username });
+    await mongoose.connection.db.admin().ping();
+    res.json({ status: 'MongoDB connected', dbName: mongoose.connection.db.databaseName });
+  } catch (error) {
+    logger.error('MongoDB check failed:', { message: error.message, stack: error.stack });
+    res.status(500).json({ message: 'MongoDB connection failed', error: error.message });
+  }
+});
+
+// Authentication Routes
+app.post('/api/login', [
+  body('username').notEmpty().withMessage('Usuario es obligatorio'),
+  body('password').notEmpty().withMessage('Contraseña es obligatoria'),
+  validateRequest,
+], async (req, res) => {
+  const { username, password } = req.body;
+  logger.debug('Login attempt:', { username });
+  try {
+    const user = await User.findOne({ username }).lean();
     if (!user) {
-      console.log('User not found:', username);
+      logger.info('User not found:', { username });
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      console.log('Password mismatch for user:', username);
+      logger.info('Password mismatch for user:', { username });
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
-    const token = jwt.sign({ _id: user._id, username, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    console.log('Login successful:', { username, role: user.role });
+    const token = jwt.sign({ _id: user._id, username, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+    });
+    logger.info('Login successful:', { username, role: user.role });
     res.json({ token, username, role: user.role });
   } catch (error) {
-    console.error('Error in login:', error.message, error.stack);
+    logger.error('Error in login:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error en el servidor al iniciar sesión', error: error.message });
   }
 });
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', [
+  body('username').notEmpty().withMessage('Usuario es obligatorio'),
+  body('password').notEmpty().withMessage('Contraseña es obligatoria'),
+  validateRequest,
+], async (req, res) => {
   const { username, password } = req.body;
   try {
-    if (!username || !password) return res.status(400).json({ message: 'Usuario y contraseña son obligatorios' });
-    const existingUser = await User.findOne({ username });
+    const existingUser = await User.findOne({ username }).lean();
     if (existingUser) return res.status(400).json({ message: 'El usuario ya existe' });
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -117,43 +176,47 @@ app.post('/api/register', async (req, res) => {
     await user.save();
     res.status(201).json({ message: 'Usuario registrado', username, role: user.role });
   } catch (error) {
-    console.error('Error in register:', error.message, error.stack);
+    logger.error('Error in register:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error en el servidor al registrar usuario', error: error.message });
   }
 });
 
-// User routes
+// User Routes
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
-    const users = await User.find({}, 'username role');
+    const users = await User.find({}, 'username role').lean();
     res.status(200).json(users);
   } catch (error) {
-    console.error('Error fetching users:', error.message, error.stack);
-    res.status(500).json({ message: 'Error fetching users', error: error.message });
+    logger.error('Error fetching users:', { message: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Error al obtener usuarios', error: error.message });
   }
 });
 
-app.put('/api/users/:username/role', authenticateToken, isAdmin, async (req, res) => {
+app.put('/api/users/:username/role', authenticateToken, isAdmin, [
+  body('role').isIn(['admin', 'coach', 'player']).withMessage('Rol inválido'),
+  validateRequest,
+], async (req, res) => {
   const { username } = req.params;
   const { role } = req.body;
   try {
-    if (!['admin', 'coach', 'player'].includes(role)) return res.status(400).json({ message: 'Rol inválido' });
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
     user.role = role;
     await user.save();
     res.json({ message: `Rol de ${username} actualizado a ${role}` });
   } catch (error) {
-    console.error('Error updating user role:', error.message, error.stack);
+    logger.error('Error updating user role:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al actualizar rol', error: error.message });
   }
 });
 
-// Club routes
-app.post('/api/clubs', authenticateToken, isAdmin, async (req, res) => {
+// Club Routes
+app.post('/api/clubs', authenticateToken, isAdmin, [
+  body('name').notEmpty().withMessage('El nombre del club es obligatorio'),
+  validateRequest,
+], async (req, res) => {
   try {
     const { name, address, phone } = req.body;
-    if (!name) return res.status(400).json({ message: 'El nombre del club es obligatorio' });
     const club = new Club({
       name,
       address: address || '',
@@ -162,27 +225,29 @@ app.post('/api/clubs', authenticateToken, isAdmin, async (req, res) => {
     await club.save();
     res.status(201).json(club);
   } catch (error) {
-    console.error('Error creating club:', error.message, error.stack);
+    logger.error('Error creating club:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al crear club', error: error.message });
   }
 });
 
 app.get('/api/clubs', async (req, res) => {
   try {
-    const clubs = await Club.find();
+    const clubs = await Club.find().lean();
     res.status(200).json(clubs);
   } catch (error) {
-    console.error('Error fetching clubs:', error.message, error.stack);
+    logger.error('Error fetching clubs:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al obtener clubes', error: error.message });
   }
 });
 
-app.put('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
+app.put('/api/clubs/:id', authenticateToken, isAdmin, [
+  param('id').custom(validateObjectId).withMessage('ID de club inválido'),
+  body('name').notEmpty().withMessage('El nombre del club es obligatorio'),
+  validateRequest,
+], async (req, res) => {
   try {
     const { id } = req.params;
     const { name, address, phone } = req.body;
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'ID de club inválido' });
-    if (!name) return res.status(400).json({ message: 'El nombre del club es obligatorio' });
     const club = await Club.findById(id);
     if (!club) return res.status(404).json({ message: 'Club no encontrado' });
     club.name = name;
@@ -191,30 +256,32 @@ app.put('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
     await club.save();
     res.json(club);
   } catch (error) {
-    console.error('Error updating club:', error.message, error.stack);
+    logger.error('Error updating club:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al actualizar club', error: error.message });
   }
 });
 
-app.delete('/api/clubs/:id', authenticateToken, isAdmin, async (req, res) => {
+app.delete('/api/clubs/:id', authenticateToken, isAdmin, [
+  param('id').custom(validateObjectId).withMessage('ID de club inválido'),
+  validateRequest,
+], async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'ID de club inválido' });
     const club = await Club.findById(id);
     if (!club) return res.status(404).json({ message: 'Club no encontrado' });
-    const tournaments = await Tournament.find({ club: id });
+    const tournaments = await Tournament.find({ club: id }).lean();
     if (tournaments.length > 0) {
       return res.status(400).json({ message: 'No se puede eliminar el club porque está asociado a torneos' });
     }
     await club.deleteOne();
     res.json({ message: 'Club eliminado correctamente' });
   } catch (error) {
-    console.error('Error deleting club:', error.message, error.stack);
+    logger.error('Error deleting club:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al eliminar club', error: error.message });
   }
 });
 
-// Player routes
+// Player Routes
 app.get('/api/players', async (req, res) => {
   try {
     const { showInactive } = req.query;
@@ -224,8 +291,8 @@ app.get('/api/players', async (req, res) => {
       const user = jwt.verify(token, process.env.JWT_SECRET);
       if (user.role === 'admin' && showInactive === 'true') query = {};
     }
-    const players = await Player.find(query).populate('user', 'username');
-    res.status(200).json(players.map(player => ({
+    const players = await Player.find(query).populate('user', 'username').lean();
+    res.status(200).json(players.map((player) => ({
       _id: String(player._id),
       playerId: player.playerId,
       firstName: player.firstName,
@@ -238,21 +305,22 @@ app.get('/api/players', async (req, res) => {
       user: player.user ? player.user.username : null,
       active: player.active,
       matches: player.matches,
+      achievements: player.achievements,
     })));
   } catch (error) {
-    console.error('Error fetching players:', error.message, error.stack);
+    logger.error('Error fetching players:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al obtener jugadores', error: error.message });
   }
 });
 
-app.post('/api/players', authenticateToken, async (req, res) => {
+app.post('/api/players', authenticateToken, isAdminOrCoach, [
+  body('firstName').notEmpty().withMessage('El nombre es obligatorio'),
+  body('lastName').notEmpty().withMessage('El apellido es obligatorio'),
+  validateRequest,
+], async (req, res) => {
   try {
-    if (req.user.role !== 'admin' && req.user.role !== 'coach') return res.status(403).json({ message: 'Requiere rol de admin o coach' });
     const { firstName, lastName, email, phone, photo, dominantHand, racketBrand } = req.body;
-    const lastPlayer = await Player.findOne().sort({ playerId: -1 });
-    const playerId = lastPlayer ? lastPlayer.playerId + 1 : 1;
     const player = new Player({
-      playerId,
       firstName,
       lastName,
       email: email || undefined,
@@ -265,12 +333,15 @@ app.post('/api/players', authenticateToken, async (req, res) => {
     await player.save();
     res.status(201).json({ ...player.toObject(), _id: String(player._id) });
   } catch (error) {
-    console.error('Error creating player:', error.message, error.stack);
+    logger.error('Error creating player:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al crear jugador', error: error.message });
   }
 });
 
-app.put('/api/players/:playerId', authenticateToken, async (req, res) => {
+app.put('/api/players/:playerId', authenticateToken, isAdminOrCoach, [
+  param('playerId').isInt().withMessage('ID de jugador inválido'),
+  validateRequest,
+], async (req, res) => {
   try {
     const { playerId } = req.params;
     const updates = req.body;
@@ -280,74 +351,58 @@ app.put('/api/players/:playerId', authenticateToken, async (req, res) => {
     await player.save();
     res.json({ ...player.toObject(), _id: String(player._id) });
   } catch (error) {
-    console.error('Error updating player:', error.message, error.stack);
+    logger.error('Error updating player:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al actualizar jugador', error: error.message });
   }
 });
 
-// Tournament routes
-app.post('/api/tournaments', authenticateToken, async (req, res) => {
+// Tournament Routes
+app.post('/api/tournaments', authenticateToken, isAdminOrCoach, [
+  body('name').notEmpty().withMessage('El nombre del torneo es obligatorio'),
+  body('type').isIn(['RoundRobin', 'Eliminatorio']).withMessage('Tipo de torneo inválido'),
+  body('sport').isIn(['Tenis', 'Pádel']).withMessage('Deporte inválido'),
+  body('category').notEmpty().withMessage('La categoría es obligatoria'),
+  body('format.mode').isIn(['Singles', 'Dobles']).withMessage('Formato inválido'),
+  body('participants').isArray({ min: 1 }).withMessage('Debe haber al menos un participante'),
+  validateRequest,
+], async (req, res) => {
   try {
-    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
-      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
-    }
     const { name, clubId, type, sport, category, format, participants, groups, rounds, schedule, draft, playersPerGroupToAdvance } = req.body;
+    logger.debug('Creating tournament:', { name, type, sport, category });
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Creating tournament with payload:', JSON.stringify(req.body, null, 2));
-    }
-
-    if (!name) return res.status(400).json({ message: 'El nombre del torneo es obligatorio' });
-    if (!type || !['RoundRobin', 'Eliminatorio'].includes(type)) {
-      return res.status(400).json({ message: 'Tipo de torneo inválido' });
-    }
-    if (!sport || !['Tenis', 'Pádel'].includes(sport)) {
-      return res.status(400).json({ message: 'Deporte inválido' });
-    }
-    if (!category) return res.status(400).json({ message: 'La categoría es obligatoria' });
     if (sport === 'Tenis' && !['A', 'B', 'C', 'D', 'E'].includes(category)) {
       return res.status(400).json({ message: 'Categoría inválida para Tenis' });
     }
     if (sport === 'Pádel' && !['Séptima', 'Sexta', 'Quinta', 'Cuarta', 'Tercera', 'Segunda', 'Primera'].includes(category)) {
       return res.status(400).json({ message: 'Categoría inválida para Pádel' });
     }
-    if (!format || !['Singles', 'Dobles'].includes(format.mode)) {
-      return res.status(400).json({ message: 'Formato inválido' });
-    }
-    if (!participants || participants.length < (format.mode === 'Singles' ? 2 : 1)) {
+    if (participants.length < (format.mode === 'Singles' ? 2 : 1)) {
       return res.status(400).json({ message: `Mínimo ${format.mode === 'Singles' ? 2 : 1} participantes requeridos` });
     }
 
-    if (clubId && !mongoose.isValidObjectId(clubId)) {
+    if (clubId && !validateObjectId(clubId)) {
       return res.status(400).json({ message: 'ID de club inválido' });
     }
     if (clubId) {
-      const club = await Club.findById(clubId);
+      const club = await Club.findById(clubId).lean();
       if (!club) return res.status(400).json({ message: 'Club no encontrado' });
     }
 
-    const playerIds = participants.flatMap(p => {
+    const playerIds = participants.flatMap((p) => {
       const ids = [];
       if (p.player1) {
         const id = typeof p.player1 === 'object' ? p.player1._id?.toString() || p.player1.$oid : p.player1.toString();
-        if (id && mongoose.isValidObjectId(id)) ids.push(id);
-        else console.warn('Invalid participant player1 ID:', p.player1);
+        if (validateObjectId(id)) ids.push(id);
       }
       if (p.player2 && format.mode === 'Dobles') {
         const id = typeof p.player2 === 'object' ? p.player2._id?.toString() || p.player2.$oid : p.player2.toString();
-        if (id && mongoose.isValidObjectId(id)) ids.push(id);
-        else console.warn('Invalid participant player2 ID:', p.player2);
+        if (validateObjectId(id)) ids.push(id);
       }
       return ids;
-    }).filter(Boolean);
+    });
 
-    if (playerIds.length === 0 && participants.length > 0) {
-      return res.status(400).json({ message: 'Ningún ID de participante válido proporcionado' });
-    }
-    const playersExist = await Player.find({ _id: { $in: playerIds } });
-    if (playersExist.length !== playerIds.length) {
-      const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-      console.error('Invalid participant IDs:', invalidIds);
+    const invalidIds = await checkPlayersExist(playerIds);
+    if (invalidIds.length > 0) {
       return res.status(400).json({ message: `Algunos jugadores no existen: ${invalidIds.join(', ')}` });
     }
 
@@ -369,10 +424,9 @@ app.post('/api/tournaments', authenticateToken, async (req, res) => {
     });
 
     await tournament.save();
-    console.log('Tournament created:', { name, type, sport, category, draft });
     res.status(201).json(tournament);
   } catch (error) {
-    console.error('Error creating tournament:', error.message, error.stack);
+    logger.error('Error creating tournament:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al crear torneo', error: error.message });
   }
 });
@@ -386,7 +440,7 @@ app.get('/api/tournaments', async (req, res) => {
       try {
         user = jwt.verify(token, process.env.JWT_SECRET);
       } catch (err) {
-        console.log('Invalid token, proceeding as spectator');
+        logger.debug('Invalid token, proceeding as spectator');
       }
     }
     const query = { draft: false };
@@ -400,9 +454,6 @@ app.get('/api/tournaments', async (req, res) => {
     } else if (user) {
       query.$or = [{ creator: user._id }, { draft: false }];
     }
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Fetching tournaments with query:', query);
-    }
     const tournaments = await Tournament.find(query)
       .populate('creator', 'username')
       .populate('club', 'name')
@@ -413,34 +464,32 @@ app.get('/api/tournaments', async (req, res) => {
       .populate({
         path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
         select: 'firstName lastName',
-        options: { strictPopulate: false },
       })
       .populate({
         path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
         select: 'firstName lastName',
-        options: { strictPopulate: false },
-      });
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Tournaments fetched:', { query, count: tournaments.length });
-    }
+      })
+      .lean();
     res.json(tournaments);
   } catch (error) {
-    console.error('Error fetching tournaments:', error.message, error.stack);
+    logger.error('Error fetching tournaments:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al obtener torneos', error: error.message });
   }
 });
 
-app.get('/api/tournaments/:id', async (req, res) => {
+app.get('/api/tournaments/:id', [
+  param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
+  validateRequest,
+], async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'ID de torneo inválido' });
     const token = req.headers['authorization']?.split(' ')[1];
     let user = null;
     if (token) {
       try {
         user = jwt.verify(token, process.env.JWT_SECRET);
       } catch (err) {
-        console.log('Invalid token, proceeding as spectator');
+        logger.debug('Invalid token, proceeding as spectator');
       }
     }
     const tournament = await Tournament.findById(id)
@@ -453,178 +502,135 @@ app.get('/api/tournaments/:id', async (req, res) => {
       .populate({
         path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
         select: 'firstName lastName',
-        options: { strictPopulate: false },
       })
       .populate({
         path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
         select: 'firstName lastName',
-        options: { strictPopulate: false },
-      });
+      })
+      .lean();
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
     if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
       return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
     }
-    res.json(tournament.toObject({ virtuals: true }));
+    res.json(tournament);
   } catch (error) {
-    console.error('Error fetching tournament by ID:', error.message, error.stack);
+    logger.error('Error fetching tournament by ID:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al obtener el torneo', error: error.message });
   }
 });
 
-app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
+app.put('/api/tournaments/:id', authenticateToken, isAdminOrCoach, [
+  param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
+  validateRequest,
+], async (req, res) => {
   try {
-    if (req.user.role !== 'admin' && req.user.role !== 'coach') {
-      return res.status(403).json({ message: 'Requiere rol de admin o coach' });
-    }
     const { id } = req.params;
     const updates = req.body;
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Updating tournament with payload:', JSON.stringify(updates, null, 2));
-    }
-
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'ID de torneo inválido' });
+    logger.debug('Updating tournament:', { id, updates });
 
     const tournament = await Tournament.findById(id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
     if (updates.participants) {
-      const playerIds = updates.participants.flatMap((p, index) => {
+      const playerIds = updates.participants.flatMap((p) => {
         const ids = [];
         if (p.player1) {
           const id = typeof p.player1 === 'object' ? p.player1._id?.toString() || p.player1.$oid : p.player1.toString();
-          if (id && mongoose.isValidObjectId(id)) ids.push(id);
-          else console.warn(`Invalid participant player1 ID at index ${index}:`, p.player1);
+          if (validateObjectId(id)) ids.push(id);
         }
         if (p.player2 && tournament.format.mode === 'Dobles') {
           const id = typeof p.player2 === 'object' ? p.player2._id?.toString() || p.player2.$oid : p.player2.toString();
-          if (id && mongoose.isValidObjectId(id)) ids.push(id);
-          else console.warn(`Invalid participant player2 ID at index ${index}:`, p.player2);
+          if (validateObjectId(id)) ids.push(id);
         }
         return ids;
-      }).filter(Boolean);
-      if (playerIds.length === 0 && updates.participants.length > 0) {
-        return res.status(400).json({ message: 'Ningún ID de participante válido proporcionado' });
-      }
-      const playersExist = await Player.find({ _id: { $in: playerIds } });
-      if (playersExist.length !== playerIds.length) {
-        const invalidIds = playerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-        console.error('Invalid participant IDs:', invalidIds);
-        return res.status(400).json({ message: `Algunos jugadores no existen en participantes: ${invalidIds.join(', ')}` });
+      });
+      const invalidIds = await checkPlayersExist(playerIds);
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ message: `Algunos jugadores no existen: ${invalidIds.join(', ')}` });
       }
     }
 
     if (updates.groups) {
       for (const group of updates.groups) {
         if (group.matches) {
-          const matchPlayerIds = group.matches.flatMap((m, index) => {
+          const matchPlayerIds = group.matches.flatMap((m) => {
             const ids = [];
             if (m.player1?.player1) {
               const id = typeof m.player1.player1 === 'object' ? m.player1.player1._id?.toString() || m.player1.player1.$oid : m.player1.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player1.player1 ID in group ${group.name}, match ${index}:`, m.player1?.player1);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.player1?.player2 && tournament.format.mode === 'Dobles') {
               const id = typeof m.player1.player2 === 'object' ? m.player1.player2._id?.toString() || m.player1.player2.$oid : m.player1.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player1.player2 ID in group ${group.name}, match ${index}:`, m.player1?.player2);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.player2?.player1 && !m.player2.name) {
               const id = typeof m.player2.player1 === 'object' ? m.player2.player1._id?.toString() || m.player2.player1.$oid : m.player2.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player2.player1 ID in group ${group.name}, match ${index}:`, m.player2?.player1);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.player2?.player2 && !m.player2.name && tournament.format.mode === 'Dobles') {
               const id = typeof m.player2.player2 === 'object' ? m.player2.player2._id?.toString() || m.player2.player2.$oid : m.player2.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2?.player2);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.result?.winner?.player1) {
               const id = m.result.winner.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match winner.player1 ID in group ${group.name}, match ${index}:`, m.result?.winner);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.result?.winner?.player2) {
               const id = m.result.winner.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid group match winner.player2 ID in group ${group.name}, match ${index}:`, m.result?.winner);
+              if (validateObjectId(id)) ids.push(id);
             }
             return ids;
-          }).filter(Boolean);
-          if (matchPlayerIds.length === 0 && group.matches.length > 0) {
-            console.error('No valid IDs found in group matches for group:', group.name, ', matches:', JSON.stringify(group.matches, null, 2));
-            return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de grupos para el grupo ${group.name}` });
-          }
-          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
-          if (playersExist.length !== matchPlayerIds.length) {
-            const invalidIds = matchPlayerIds.filter(id => !playersExist.some(p => p._id.toString() === id));
-            console.error('Invalid group match IDs for group', group.name, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds, 'matches:', JSON.stringify(group.matches, null, 2));
-            return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para el grupo ${group.name}: ${invalidIds.join(', ')}` });
+          });
+          const invalidIds = await checkPlayersExist(matchPlayerIds);
+          if (invalidIds.length > 0) {
+            return res.status(400).json({ message: `Algunos jugadores no existen en partidos de grupos: ${invalidIds.join(', ')}` });
           }
         }
       }
     }
 
     if (updates.rounds) {
-      console.log('Raw updates.rounds payload:', JSON.stringify(updates.rounds, null, 2));
       for (const round of updates.rounds) {
         if (round.matches) {
-          console.log('Processing round matches for round', round.round, ':', JSON.stringify(round.matches, null, 2));
-          const matchPlayerIds = round.matches.flatMap((m, index) => {
+          const matchPlayerIds = round.matches.flatMap((m) => {
             const ids = [];
             if (m.player1?.player1) {
               const id = typeof m.player1.player1 === 'object' ? m.player1.player1._id?.toString() || m.player1.player1.$oid : m.player1.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player1 ID in round ${round.round}, match ${index}:`, m.player1?.player1);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.player1?.player2 && tournament.format.mode === 'Dobles') {
               const id = typeof m.player1.player2 === 'object' ? m.player1.player2._id?.toString() || m.player1.player2.$oid : m.player1.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player1.player2 ID in round ${round.round}, match ${index}:`, m.player1?.player2);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.player2?.player1 && !m.player2.name) {
               const id = typeof m.player2.player1 === 'object' ? m.player2.player1._id?.toString() || m.player2.player1.$oid : m.player2.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player1 ID in round ${round.round}, match ${index}:`, m.player2?.player1);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.player2?.player2 && !m.player2.name && tournament.format.mode === 'Dobles') {
               const id = typeof m.player2.player2 === 'object' ? m.player2.player2._id?.toString() || m.player2.player2.$oid : m.player2.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2?.player2);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.result?.winner?.player1) {
               const id = m.result.winner.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match winner.player1 ID in round ${round.round}, match ${index}:`, m.result?.winner);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.result?.winner?.player2) {
               const id = m.result.winner.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match winner.player2 ID in round ${round.round}, match ${index}:`, m.result?.winner);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.result?.runnerUp?.player1) {
               const id = m.result.runnerUp.player1.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match runnerUp.player1 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
+              if (validateObjectId(id)) ids.push(id);
             }
             if (m.result?.runnerUp?.player2) {
               const id = m.result.runnerUp.player2.toString();
-              if (id && mongoose.isValidObjectId(id)) ids.push(id);
-              else console.warn(`Invalid round match runnerUp.player2 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
+              if (validateObjectId(id)) ids.push(id);
             }
             return ids;
-          }).filter(id => id && typeof id === 'string' && mongoose.isValidObjectId(id));
-          console.log('Match player IDs for round', round.round, ':', matchPlayerIds);
-          if (matchPlayerIds.length === 0 && round.matches.length > 0 && !round.matches.some(m => m.player2?.name === 'BYE')) {
-            console.error('No valid IDs found in round matches for round:', round.round, ', matches:', JSON.stringify(round.matches, null, 2));
-            return res.status(400).json({ message: `Ningún ID de jugador válido en partidos de rondas para la ronda ${round.round}` });
-          }
-          const playersExist = await Player.find({ _id: { $in: matchPlayerIds } });
-          const existingIds = new Set(playersExist.map(p => p._id.toString()));
-          const invalidIds = matchPlayerIds.filter(id => !existingIds.has(id));
+          });
+          const invalidIds = await checkPlayersExist(matchPlayerIds);
           if (invalidIds.length > 0) {
-            console.error('Invalid round match IDs for round', round.round, ':', invalidIds, 'matchPlayerIds:', matchPlayerIds, 'matches:', JSON.stringify(round.matches, null, 2));
-            return res.status(400).json({ message: `Algunos jugadores no existen en la base de datos para la ronda ${round.round}: ${invalidIds.join(', ')}` });
+            return res.status(400).json({ message: `Algunos jugadores no existen en partidos de rondas: ${invalidIds.join(', ')}` });
           }
         }
       }
@@ -635,26 +641,25 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
     }
 
     if (updates.winner && updates.runnerUp) {
-      if (!updates.winner.player1 || !mongoose.isValidObjectId(updates.winner.player1) ||
-          (tournament.format.mode === 'Dobles' && (!updates.winner.player2 || !mongoose.isValidObjectId(updates.winner.player2)))) {
+      if (!updates.winner.player1 || !validateObjectId(updates.winner.player1) ||
+          (tournament.format.mode === 'Dobles' && (!updates.winner.player2 || !validateObjectId(updates.winner.player2)))) {
         return res.status(400).json({ message: 'El ganador debe incluir IDs válidos para ambos jugadores en dobles' });
       }
-      if (!updates.runnerUp.player1 || !mongoose.isValidObjectId(updates.runnerUp.player1) ||
-          (tournament.format.mode === 'Dobles' && (!updates.runnerUp.player2 || !mongoose.isValidObjectId(updates.runnerUp.player2)))) {
+      if (!updates.runnerUp.player1 || !validateObjectId(updates.runnerUp.player1) ||
+          (tournament.format.mode === 'Dobles' && (!updates.runnerUp.player2 || !validateObjectId(updates.runnerUp.player2)))) {
         return res.status(400).json({ message: 'El subcampeón debe incluir IDs válidos para ambos jugadores en dobles' });
       }
 
-      const winnerPlayer1 = await Player.findById(updates.winner.player1);
-      const winnerPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(updates.winner.player2) : null;
-      const runnerUpPlayer1 = await Player.findById(updates.runnerUp.player1);
-      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(updates.runnerUp.player2) : null;
+      const winnerPlayer1 = await Player.findById(updates.winner.player1).lean();
+      const winnerPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(updates.winner.player2).lean() : null;
+      const runnerUpPlayer1 = await Player.findById(updates.runnerUp.player1).lean();
+      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(updates.runnerUp.player2).lean() : null;
 
       if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && !winnerPlayer2) ||
           !runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && !runnerUpPlayer2)) {
         return res.status(400).json({ message: 'Uno o ambos jugadores del ganador o subcampeón no encontrados' });
       }
 
-      // Registrar logros para ambos jugadores de la pareja ganadora
       await Player.updateOne(
         { _id: updates.winner.player1 },
         {
@@ -667,7 +672,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           },
         }
       );
-      if (tournament.format.mode === 'Dobles') {
+      if (tournament.format.mode === 'Dobles' && updates.winner.player2) {
         await Player.updateOne(
           { _id: updates.winner.player2 },
           {
@@ -682,7 +687,6 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
         );
       }
 
-      // Registrar logros para ambos jugadores de la pareja subcampeona
       await Player.updateOne(
         { _id: updates.runnerUp.player1 },
         {
@@ -695,7 +699,7 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
           },
         }
       );
-      if (tournament.format.mode === 'Dobles') {
+      if (tournament.format.mode === 'Dobles' && updates.runnerUp.player2) {
         await Player.updateOne(
           { _id: updates.runnerUp.player2 },
           {
@@ -723,45 +727,33 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
       .populate({
         path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
         select: 'firstName lastName',
-        options: { strictPopulate: false },
       })
       .populate({
         path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
         select: 'firstName lastName',
-        options: { strictPopulate: false },
-      });
+      })
+      .lean();
     res.json(updatedTournament);
   } catch (error) {
-    console.error('Error updating tournament:', {
-      message: error.message,
-      stack: error.stack,
-      updates: JSON.stringify(req.body, null, 2),
-    });
+    logger.error('Error updating tournament:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al actualizar torneo', error: error.message });
   }
 });
 
-app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, async (req, res) => {
+app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, isAdminOrCoach, [
+  param('tournamentId').custom(validateObjectId).withMessage('ID de torneo inválido'),
+  param('matchId').custom(validateObjectId).withMessage('ID de partido inválido'),
+  body('sets').isArray().withMessage('Los sets deben ser un arreglo'),
+  body('winner').notEmpty().withMessage('El ganador es obligatorio'),
+  validateRequest,
+], async (req, res) => {
   const { tournamentId, matchId } = req.params;
-  const { sets, winner, runnerUp, isKnockout } = req.body;
-
-  console.log('Received request to update match result:', { tournamentId, matchId, payload: req.body });
+  const { sets, winner, runnerUp, isKnockout, matchTiebreak1, matchTiebreak2 } = req.body;
+  logger.debug('Updating match result:', { tournamentId, matchId, payload: req.body });
 
   try {
-    if (!mongoose.isValidObjectId(tournamentId)) {
-      console.log('Invalid tournament ID:', tournamentId);
-      return res.status(400).json({ message: 'ID de torneo inválido' });
-    }
-    if (!mongoose.isValidObjectId(matchId)) {
-      console.log('Invalid match ID:', matchId);
-      return res.status(400).json({ message: 'ID de partido inválido' });
-    }
-
     const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) {
-      console.log('Tournament not found:', tournamentId);
-      return res.status(404).json({ message: 'Torneo no encontrado' });
-    }
+    if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
     let match;
     let matchType = '';
@@ -784,45 +776,45 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
       }
     }
 
-    if (!match) {
-      console.log('Match not found:', matchId);
-      return res.status(400).json({ message: 'Partido no encontrado' });
+    if (!match) return res.status(400).json({ message: 'Partido no encontrado' });
+
+    // Validate sets
+    if (!sets || !Array.isArray(sets) || sets.length === 0) {
+      return res.status(400).json({ message: 'Los sets son obligatorios para registrar un resultado' });
     }
 
-    console.log('Match found:', { matchType, matchId });
-
-    // Validate the winner pair
-    if (!winner || !winner.player1 || !mongoose.isValidObjectId(winner.player1) ||
-        (tournament.format.mode === 'Dobles' && winner.player2 && !mongoose.isValidObjectId(winner.player2))) {
-      console.log('Invalid winner pair:', winner);
+    // Validate winner pair
+    if (!winner || !winner.player1 || !validateObjectId(winner.player1) ||
+        (tournament.format.mode === 'Dobles' && winner.player2 && !validateObjectId(winner.player2))) {
       return res.status(400).json({ message: 'El ganador debe incluir IDs válidos para ambos jugadores en dobles' });
     }
-    const winnerPlayer1 = await Player.findById(winner.player1);
-    const winnerPlayer2 = tournament.format.mode === 'Dobles' && winner.player2 ? await Player.findById(winner.player2) : null;
+    const winnerPlayer1 = await Player.findById(winner.player1).lean();
+    const winnerPlayer2 = tournament.format.mode === 'Dobles' && winner.player2 ? await Player.findById(winner.player2).lean() : null;
     if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && winner.player2 && !winnerPlayer2)) {
-      console.log('Winner players not found:', { winnerPlayer1, winnerPlayer2 });
       return res.status(400).json({ message: 'Uno o ambos jugadores del ganador no existen' });
     }
 
-    // Validate the runner-up pair (if provided)
+    // Validate runner-up pair (if provided)
     if (runnerUp) {
-      if (!runnerUp.player1 || !mongoose.isValidObjectId(runnerUp.player1) ||
-          (tournament.format.mode === 'Dobles' && runnerUp.player2 && !mongoose.isValidObjectId(runnerUp.player2))) {
-        console.log('Invalid runner-up pair:', runnerUp);
+      if (!runnerUp.player1 || !validateObjectId(runnerUp.player1) ||
+          (tournament.format.mode === 'Dobles' && runnerUp.player2 && !validateObjectId(runnerUp.player2))) {
         return res.status(400).json({ message: 'El subcampeón debe incluir IDs válidos para ambos jugadores en dobles' });
       }
-      const runnerUpPlayer1 = await Player.findById(runnerUp.player1);
-      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' && runnerUp.player2 ? await Player.findById(runnerUp.player2) : null;
+      const runnerUpPlayer1 = await Player.findById(runnerUp.player1).lean();
+      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' && runnerUp.player2 ? await Player.findById(runnerUp.player2).lean() : null;
       if (!runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && runnerUp.player2 && !runnerUpPlayer2)) {
-        console.log('Runner-up players not found:', { runnerUpPlayer1, runnerUpPlayer2 });
         return res.status(400).json({ message: 'Uno o ambos jugadores del subcampeón no existen' });
       }
     }
 
-    // Validate that sets are present
-    if (!sets || !Array.isArray(sets) || sets.length === 0) {
-      console.log('No sets provided:', sets);
-      return res.status(400).json({ message: 'Los sets son obligatorios para registrar un resultado' });
+    // Validate match tiebreak for two-set matches
+    if (tournament.format.sets === 2 && matchTiebreak1 != null && matchTiebreak2 != null) {
+      if (matchTiebreak1 === matchTiebreak2) {
+        return res.status(400).json({ message: 'El tiebreak del partido no puede resultar en empate' });
+      }
+      if (Math.abs(matchTiebreak1 - matchTiebreak2) < 2) {
+        return res.status(400).json({ message: 'El tiebreak del partido debe tener al menos 2 puntos de diferencia' });
+      }
     }
 
     // Assign the result
@@ -835,6 +827,8 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
       player1: runnerUp.player1,
       player2: runnerUp.player2 || null,
     } : null;
+    match.result.matchTiebreak1 = matchTiebreak1 || undefined;
+    match.result.matchTiebreak2 = matchTiebreak2 || undefined;
 
     if (runnerUp) {
       tournament.winner = {
@@ -845,8 +839,6 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
         player1: runnerUp.player1,
         player2: runnerUp.player2 || null,
       };
-
-      console.log('Updating achievements for winner and runner-up:', { winner, runnerUp });
 
       await Player.updateOne(
         { _id: winner.player1 },
@@ -904,32 +896,24 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
     }
 
     await tournament.save();
-
-    console.log(`Match result updated for tournament ${tournamentId}, ${matchType}, match ${matchId}:`, { sets, winner, runnerUp });
     res.json({ message: 'Resultado actualizado' });
   } catch (error) {
-    console.error('Error updating match result:', {
-      message: error.message,
-      stack: error.stack,
-      tournamentId,
-      matchId,
-      payload: JSON.stringify(req.body, null, 2),
-    });
+    logger.error('Error updating match result:', { message: error.message, stack: error.stack });
     res.status(500).json({ message: 'Error al actualizar resultado', error: error.message });
   }
 });
 
-// Start the server
-connectDB().then(() => {
-  const PORT = process.env.PORT || 5001;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}).catch(err => {
-  console.error('Failed to start server:', err.message, err.stack);
-  process.exit(1);
+// Global Error Handler
+app.use((err, req, res, next) => {
+  logger.error('Unhandled error:', { message: err.message, stack: err.stack });
+  res.status(500).json({ message: 'Error interno del servidor', error: err.message });
 });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err.message, err.stack);
-  res.status(500).json({ message: 'Error interno del servidor', error: err.message });
+// Start the Server
+connectDB().then(() => {
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => logger.info(`Server running on port ${PORT}`));
+}).catch((err) => {
+  logger.error('Failed to start server:', { message: err.message, stack: err.stack });
+  process.exit(1);
 });
