@@ -49,7 +49,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     try {
       const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        timeout: 60000, // Increased timeout to 60 seconds
+        timeout: 60000,
       });
       if (process.env.NODE_ENV === 'development') {
         console.log('Tournament data:', JSON.stringify(response.data, null, 2));
@@ -70,7 +70,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       console.error('Error al cargar torneo:', errorDetails);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying fetch tournament (${retries} retries left)...`);
-        setTimeout(() => fetchTournament(retries - 1), 5000); // Retry after 5 seconds
+        setTimeout(() => fetchTournament(retries - 1), 5000);
       } else {
         setError(errorMessage);
         addNotification(`Error al cargar el torneo (código ${error.code || 'desconocido'}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
@@ -116,9 +116,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       if (group.matches && Array.isArray(group.matches)) {
         group.matches.forEach(match => {
           if (match.result?.winner) {
-            const winnerId = typeof match.result.winner === 'object' && match.result.winner.player1 
-              ? match.result.winner.player1.toString() 
-              : (typeof match.result.winner === 'object' ? match.result.winner?._id?.toString() || match.result.winner?.$oid : match.result.winner?.toString());
+            const winnerId = match.result.winner?.player1?.toString();
             if (!winnerId || !isValidObjectId(winnerId)) {
               console.warn(`Invalid winner ID in match for group ${group.name || groupIndex}:`, match.result.winner);
               return;
@@ -324,7 +322,8 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
       const player2Id2 = selectedMatch.match.player2?.player2 ? (typeof selectedMatch.match.player2.player2 === 'object' ? selectedMatch.match.player2.player2?._id?.toString() || selectedMatch.match.player2.player2?.$oid : selectedMatch.match.player2?.player2?.toString()) : null;
       
       if (!player1Id || !player2Id || !isValidObjectId(player1Id) || !isValidObjectId(player2Id) || 
-          (tournament.format.mode === 'Dobles' && (!player1Id2 || !player2Id2 || !isValidObjectId(player1Id2) || !isValidObjectId(player2Id2)))) {
+          (tournament.format.mode === 'Dobles' && player1Id2 && !isValidObjectId(player1Id2)) ||
+          (tournament.format.mode === 'Dobles' && player2Id2 && !isValidObjectId(player2Id2))) {
         addNotification('IDs de jugadores inválidos', 'error');
         console.error('Invalid player IDs:', { player1Id, player1Id2, player2Id, player2Id2 });
         return;
@@ -372,7 +371,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         responseData: error.response?.data,
         request: error.config,
       };
-      addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}. El servidor podría estar inactivo.`, 'error');
+      addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}.`, 'error');
       console.error('Error updating match result:', errorDetails);
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying match update (${retries} retries left)...`);
@@ -499,7 +498,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         .map(m => {
           const winnerPair = m.result.winner;
           if (!winnerPair || !winnerPair.player1 || !isValidObjectId(winnerPair.player1) ||
-              (tournament.format.mode === 'Dobles' && (!winnerPair.player2 || !isValidObjectId(winnerPair.player2)))) {
+              (tournament.format.mode === 'Dobles' && winnerPair.player2 && !isValidObjectId(winnerPair.player2))) {
             addNotification(`Pareja ganadora inválida en el partido`, 'error');
             return null;
           }
@@ -602,9 +601,9 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         runnerUpPair = finalMatch.result.runnerUp;
 
         if (!winnerPair || !winnerPair.player1 || !isValidObjectId(winnerPair.player1) || 
-            (tournament.format.mode === 'Dobles' && (!winnerPair.player2 || !isValidObjectId(winnerPair.player2))) ||
+            (tournament.format.mode === 'Dobles' && winnerPair.player2 && !isValidObjectId(winnerPair.player2)) ||
             (runnerUpPair && (!runnerUpPair.player1 || !isValidObjectId(runnerUpPair.player1) || 
-            (tournament.format.mode === 'Dobles' && (!runnerUpPair.player2 || !isValidObjectId(runnerUpPair.player2)))))) {
+            (tournament.format.mode === 'Dobles' && runnerUpPair.player2 && !isValidObjectId(runnerUpPair.player2))))) {
           addNotification('IDs inválidos para ganador o subcampeón', 'error');
           return;
         }
@@ -837,7 +836,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   if (error || !tournament) {
     return (
-      <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
+      <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: '0 2px 8px rgba(0, 0, 0, 0.1)', textAlign: 'center' }}>
         <Typography color="error" variant="h6">Error al cargar el torneo</Typography>
         <Typography color="error">{error || 'No se pudo cargar el torneo. El servidor podría estar inactivo.'}</Typography>
         <Button onClick={() => fetchTournament()} variant="contained" sx={{ mt: 2, bgcolor: '#0288d1', mr: 1 }}>
@@ -1184,7 +1183,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           <DialogContent sx={{ bgcolor: '#f5f5f5', p: 3 }}>
             {selectedMatch && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#ffffff', p: 2, borderRadius: 1, boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Avatar sx={{ bgcolor: '#01579b', width: 40, height: 40 }}>
                       {selectedMatch.match.player1?.player1 ? getPlayerName(selectedMatch.match.player1.player1).charAt(0) : '?'}

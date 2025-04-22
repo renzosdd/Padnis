@@ -539,18 +539,15 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid group match player2.player2 ID in group ${group.name}, match ${index}:`, m.player2?.player2);
             }
-            if (m.result?.winner) {
-              const id = typeof m.result.winner === 'object' && m.result.winner.player1 
-                ? m.result.winner.player1.toString() 
-                : (typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString());
+            if (m.result?.winner?.player1) {
+              const id = m.result.winner.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid group match winner.player1 ID in group ${group.name}, match ${index}:`, m.result?.winner);
-
-              if (typeof m.result.winner === 'object' && m.result.winner.player2) {
-                const id2 = m.result.winner.player2.toString();
-                if (id2 && mongoose.isValidObjectId(id2)) ids.push(id2);
-                else console.warn(`Invalid group match winner.player2 ID in group ${group.name}, match ${index}:`, m.result?.winner);
-              }
+            }
+            if (m.result?.winner?.player2) {
+              const id = m.result.winner.player2.toString();
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid group match winner.player2 ID in group ${group.name}, match ${index}:`, m.result?.winner);
             }
             return ids;
           }).filter(Boolean);
@@ -595,31 +592,25 @@ app.put('/api/tournaments/:id', authenticateToken, async (req, res) => {
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid round match player2.player2 ID in round ${round.round}, match ${index}:`, m.player2?.player2);
             }
-            if (m.result?.winner) {
-              const id = typeof m.result.winner === 'object' && m.result.winner.player1 
-                ? m.result.winner.player1.toString() 
-                : (typeof m.result.winner === 'object' ? m.result.winner._id?.toString() || m.result.winner.$oid : m.result.winner.toString());
+            if (m.result?.winner?.player1) {
+              const id = m.result.winner.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid round match winner.player1 ID in round ${round.round}, match ${index}:`, m.result?.winner);
-
-              if (typeof m.result.winner === 'object' && m.result.winner.player2) {
-                const id2 = m.result.winner.player2.toString();
-                if (id2 && mongoose.isValidObjectId(id2)) ids.push(id2);
-                else console.warn(`Invalid round match winner.player2 ID in round ${round.round}, match ${index}:`, m.result?.winner);
-              }
             }
-            if (m.result?.runnerUp) {
-              const id = typeof m.result.runnerUp === 'object' && m.result.runnerUp.player1 
-                ? m.result.runnerUp.player1.toString() 
-                : (typeof m.result.runnerUp === 'object' ? m.result.runnerUp._id?.toString() || m.result.runnerUp.$oid : m.result.runnerUp.toString());
+            if (m.result?.winner?.player2) {
+              const id = m.result.winner.player2.toString();
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match winner.player2 ID in round ${round.round}, match ${index}:`, m.result?.winner);
+            }
+            if (m.result?.runnerUp?.player1) {
+              const id = m.result.runnerUp.player1.toString();
               if (id && mongoose.isValidObjectId(id)) ids.push(id);
               else console.warn(`Invalid round match runnerUp.player1 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
-
-              if (typeof m.result.runnerUp === 'object' && m.result.runnerUp.player2) {
-                const id2 = m.result.runnerUp.player2.toString();
-                if (id2 && mongoose.isValidObjectId(id2)) ids.push(id2);
-                else console.warn(`Invalid round match runnerUp.player2 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
-              }
+            }
+            if (m.result?.runnerUp?.player2) {
+              const id = m.result.runnerUp.player2.toString();
+              if (id && mongoose.isValidObjectId(id)) ids.push(id);
+              else console.warn(`Invalid round match runnerUp.player2 ID in round ${round.round}, match ${index}:`, m.result?.runnerUp);
             }
             return ids;
           }).filter(id => id && typeof id === 'string' && mongoose.isValidObjectId(id));
@@ -800,47 +791,60 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
 
     console.log('Match found:', { matchType, matchId });
 
-    // Validar la pareja ganadora
+    // Validate the winner pair
     if (!winner || !winner.player1 || !mongoose.isValidObjectId(winner.player1) ||
-        (tournament.format.mode === 'Dobles' && (!winner.player2 || !mongoose.isValidObjectId(winner.player2)))) {
+        (tournament.format.mode === 'Dobles' && winner.player2 && !mongoose.isValidObjectId(winner.player2))) {
       console.log('Invalid winner pair:', winner);
       return res.status(400).json({ message: 'El ganador debe incluir IDs válidos para ambos jugadores en dobles' });
     }
     const winnerPlayer1 = await Player.findById(winner.player1);
-    const winnerPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(winner.player2) : null;
-    if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && !winnerPlayer2)) {
+    const winnerPlayer2 = tournament.format.mode === 'Dobles' && winner.player2 ? await Player.findById(winner.player2) : null;
+    if (!winnerPlayer1 || (tournament.format.mode === 'Dobles' && winner.player2 && !winnerPlayer2)) {
       console.log('Winner players not found:', { winnerPlayer1, winnerPlayer2 });
       return res.status(400).json({ message: 'Uno o ambos jugadores del ganador no existen' });
     }
 
-    // Validar la pareja subcampeona (si aplica)
+    // Validate the runner-up pair (if provided)
     if (runnerUp) {
       if (!runnerUp.player1 || !mongoose.isValidObjectId(runnerUp.player1) ||
-          (tournament.format.mode === 'Dobles' && (!runnerUp.player2 || !mongoose.isValidObjectId(runnerUp.player2)))) {
+          (tournament.format.mode === 'Dobles' && runnerUp.player2 && !mongoose.isValidObjectId(runnerUp.player2))) {
         console.log('Invalid runner-up pair:', runnerUp);
         return res.status(400).json({ message: 'El subcampeón debe incluir IDs válidos para ambos jugadores en dobles' });
       }
       const runnerUpPlayer1 = await Player.findById(runnerUp.player1);
-      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' ? await Player.findById(runnerUp.player2) : null;
-      if (!runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && !runnerUpPlayer2)) {
+      const runnerUpPlayer2 = tournament.format.mode === 'Dobles' && runnerUp.player2 ? await Player.findById(runnerUp.player2) : null;
+      if (!runnerUpPlayer1 || (tournament.format.mode === 'Dobles' && runnerUp.player2 && !runnerUpPlayer2)) {
         console.log('Runner-up players not found:', { runnerUpPlayer1, runnerUpPlayer2 });
         return res.status(400).json({ message: 'Uno o ambos jugadores del subcampeón no existen' });
       }
     }
 
-    // Validar que los sets estén presentes
+    // Validate that sets are present
     if (!sets || !Array.isArray(sets) || sets.length === 0) {
       console.log('No sets provided:', sets);
       return res.status(400).json({ message: 'Los sets son obligatorios para registrar un resultado' });
     }
 
+    // Assign the result
     match.result.sets = sets;
-    match.result.winner = winner;
-    match.result.runnerUp = runnerUp || null;
+    match.result.winner = {
+      player1: winner.player1,
+      player2: winner.player2 || null,
+    };
+    match.result.runnerUp = runnerUp ? {
+      player1: runnerUp.player1,
+      player2: runnerUp.player2 || null,
+    } : null;
 
     if (runnerUp) {
-      tournament.winner = winner;
-      tournament.runnerUp = runnerUp;
+      tournament.winner = {
+        player1: winner.player1,
+        player2: winner.player2 || null,
+      };
+      tournament.runnerUp = {
+        player1: runnerUp.player1,
+        player2: runnerUp.player2 || null,
+      };
 
       console.log('Updating achievements for winner and runner-up:', { winner, runnerUp });
 
@@ -856,7 +860,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
           },
         }
       );
-      if (tournament.format.mode === 'Dobles') {
+      if (tournament.format.mode === 'Dobles' && winner.player2) {
         await Player.updateOne(
           { _id: winner.player2 },
           {
@@ -883,7 +887,7 @@ app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateTo
           },
         }
       );
-      if (tournament.format.mode === 'Dobles') {
+      if (tournament.format.mode === 'Dobles' && runnerUp.player2) {
         await Player.updateOne(
           { _id: runnerUp.player2 },
           {
