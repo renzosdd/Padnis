@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Box, Typography, Button, Tabs, Tab, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation, Pagination, Lazy } from 'swiper/modules';
+import { Navigation, Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
@@ -131,7 +131,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => fetchTournament()}>
       <Box
         sx={{
-          p: { xs: 1, sm: 2 }, // Reduced padding
+          p: { xs: 1, sm: 2 }, // Reduced padding for tighter layout
           bgcolor: '#f0f4f8',
           width: '100%',
           display: 'flex',
@@ -154,7 +154,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             variant="h5"
             gutterBottom
             sx={{
-              fontSize: { xs: '1.25rem', sm: '1.5rem' }, // Smaller font for mobile
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }, // Responsive font size
               color: '#1976d2',
               fontWeight: 700,
               textAlign: 'center',
@@ -181,12 +181,11 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
           <Box sx={{ display: 'flex', flexDirection: 'column' }}>
             <Swiper
-              modules={[Navigation, Pagination, Lazy]}
+              modules={[Navigation, Pagination]}
               navigation
               pagination={{ clickable: true }}
               spaceBetween={10}
               slidesPerView={1}
-              lazy={{ loadPrevNext: true }}
               onSlideChange={handleSlideChange}
               initialSlide={tabValue}
               style={{ width: '100%' }}
@@ -194,13 +193,12 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               aria-label="Carrusel de vistas del torneo"
             >
               <SwiperSlide style={{ height: 'auto' }}>
-                <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }} className="swiper-lazy">
+                <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                   <TournamentDetails tournament={tournament} />
-                  <div className="swiper-lazy-preloader" />
                 </Box>
               </SwiperSlide>
               <SwiperSlide style={{ height: 'auto' }}>
-                <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }} className="swiper-lazy">
+                <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                   <TournamentGroups
                     tournament={tournament}
                     role={role}
@@ -208,18 +206,16 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     generateKnockoutPhase={generateKnockoutPhase}
                     getPlayerName={getPlayerName}
                   />
-                  <div className="swiper-lazy-preloader" />
                 </Box>
               </SwiperSlide>
               <SwiperSlide style={{ height: 'auto' }}>
-                <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }} className="swiper-lazy">
+                <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                   <TournamentStandings tournament={tournament} standings={standings} getPlayerName={getPlayerName} />
-                  <div className="swiper-lazy-preloader" />
                 </Box>
               </SwiperSlide>
               {tournament.rounds && tournament.rounds.length > 0 && (
                 <SwiperSlide style={{ height: 'auto' }}>
-                  <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }} className="swiper-lazy">
+                  <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                     <TournamentBracket
                       tournament={tournament}
                       role={role}
@@ -228,7 +224,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                       openMatchDialog={openMatchDialog}
                       advanceEliminationRound={advanceEliminationRound}
                     />
-                    <div className="swiper-lazy-preloader" />
                   </Box>
                 </SwiperSlide>
               )}
@@ -236,7 +231,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           </Box>
 
           {(role === 'admin' || role === 'coach') && (
-            <Box sx={{ mt: 1, textAlign: 'center' }}> {/* Reduced margin */}
+            <Box sx={{ mt: 1, textAlign: 'center' }}> {/* Reduced margin for tighter layout */}
               <Button
                 variant="contained"
                 color="success"
