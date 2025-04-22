@@ -1,101 +1,75 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { Box, Typography, Button, Tabs, Tab, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Box, Typography, Button, useMediaQuery, useTheme } from '@mui/material';
 import { Swiper, SwiperSlide } from 'swiper/react';
+import { Navigation, Pagination } from 'swiper/modules';
 import 'swiper/css';
-import { ErrorBoundary } from 'react-error-boundary';
-import useTournament from './useTournament.js';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
 import TournamentDetails from './TournamentDetails';
 import TournamentGroups from './TournamentGroups';
 import TournamentStandings from './TournamentStandings';
-import TournamentBracket from './TournamentBracket';
-import MatchDialog from './MatchDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { getRoundName } from './tournamentUtils.js';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
-  const [tabValue, setTabValue] = useState(0);
-  const [matchDialogOpen, setMatchDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState(null);
-  const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
-  const swiperRef = useRef(null);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
+  const [tournament, setTournament] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Validate tournamentId
-  if (!tournamentId || typeof tournamentId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(tournamentId)) {
-    return (
-      <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
-        <Typography color="error" variant="h6">
-          Error: ID de torneo inválido
-        </Typography>
-        <Typography color="error">
-          El ID del torneo proporcionado no es válido. Por favor, selecciona otro torneo.
-        </Typography>
-        <Button onClick={() => window.location.reload()} variant="outlined" sx={{ mt: 2, minHeight: 40 }} aria-label="Recargar página">
-          Recargar Página
-        </Button>
-      </Box>
-    );
-  }
-
-  const {
-    tournament,
-    standings,
-    isLoading,
-    error,
-    fetchTournament,
-    generateKnockoutPhase,
-    advanceEliminationRound,
-    handleFinishTournament,
-    getPlayerName,
-  } = useTournament(tournamentId, addNotification, onFinishTournament);
-
-  const handleTabChange = useCallback((event, newValue) => {
-    setTabValue(newValue);
-    if (swiperRef.current && swiperRef.current.swiper) {
-      swiperRef.current.swiper.slideTo(newValue);
-    }
-  }, []);
-
-  const handleSlideChange = useCallback((swiper) => {
-    setTabValue(swiper.activeIndex);
-  }, []);
-
-  const openMatchDialog = useCallback(
-    (match, groupIndex, matchIndex, roundIndex = null) => {
-      if (role !== 'admin' && role !== 'coach') {
-        addNotification('Solo admin o coach pueden actualizar partidos', 'error');
-        return;
+  useEffect(() => {
+    const fetchTournament = async () => {
+      try {
+        const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        setTournament(response.data);
+      } catch (error) {
+        addNotification(`Error al cargar el torneo: ${error.response?.data?.message || error.message}`, 'error');
+      } finally {
+        setLoading(false);
       }
-      setSelectedMatch({ match, groupIndex, matchIndex, roundIndex, matchId: match._id });
-      setMatchDialogOpen(true);
-    },
-    [role, addNotification]
-  );
+    };
+    fetchTournament();
+  }, [tournamentId, addNotification]);
 
-  const handleConfirmFinish = () => {
-    setConfirmFinishOpen(true);
+  const handleGenerateKnockout = async () => {
+    try {
+      const response = await axios.put(
+        `https://padnis.onrender.com/api/tournaments/${tournamentId}`,
+        { status: 'En curso', draft: false, rounds: generateKnockoutRounds(tournament) },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      setTournament(response.data);
+      addNotification('Fase eliminatoria generada', 'success');
+    } catch (error) {
+      addNotification(`Error al generar fase eliminatoria: ${error.response?.data?.message || error.message}`, 'error');
+    }
   };
 
-  const handleFinishConfirmed = async () => {
-    await handleFinishTournament();
-    setConfirmFinishOpen(false);
+  const handleFinishTournament = async () => {
+    try {
+      const response = await axios.put(
+        `https://padnis.onrender.com/api/tournaments/${tournamentId}`,
+        { status: 'Finalizado', winner: null, runnerUp: null }, // Update with actual winner/runner-up logic
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      onFinishTournament(response.data);
+      addNotification('Torneo finalizado', 'success');
+    } catch (error) {
+      addNotification(`Error al finalizar torneo: ${error.response?.data?.message || error.message}`, 'error');
+    }
   };
 
-  const ErrorFallback = ({ error, resetErrorBoundary }) => (
-    <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
-      <Typography color="error" variant="h6">
-        Error al cargar el torneo
-      </Typography>
-      <Typography color="error">{error.message}</Typography>
-      <Button onClick={resetErrorBoundary} variant="contained" sx={{ mt: 2, bgcolor: '#1976d2', minHeight: 40 }} aria-label="Reintentar carga">
-        Reintentar
-      </Button>
-    </Box>
-  );
+  const generateKnockoutRounds = (tournament) => {
+    // Placeholder logic for knockout rounds
+    return [];
+  };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress aria-label="Cargando torneo" />
@@ -103,168 +77,65 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     );
   }
 
-  if (error || !tournament) {
+  if (!tournament) {
     return (
-      <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
-        <Typography color="error" variant="h6">
-          Error al cargar el torneo
+      <Box sx={{ p: isMobile ? 2 : 3, textAlign: 'center' }}>
+        <Typography variant={isMobile ? 'h6' : 'h5'} color="error">
+          No se pudo cargar el torneo
         </Typography>
-        <Typography color="error">{error || 'No se pudo cargar el torneo. El servidor podría estar inactivo.'}</Typography>
-        <Button onClick={() => fetchTournament()} variant="contained" sx={{ mt: 2, bgcolor: '#1976d2', mr: 1, minHeight: 40 }} aria-label="Reintentar carga">
-          Reintentar
-        </Button>
-        <Button onClick={() => window.location.reload()} variant="outlined" sx={{ mt: 2, minHeight: 40 }} aria-label="Recargar página">
-          Recargar Página
-        </Button>
       </Box>
     );
   }
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => fetchTournament()}>
-      <Box
-        sx={{
-          p: { xs: 2, sm: 3 },
-          bgcolor: '#f0f4f8',
-          width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: '100vh',
-        }}
-      >
-        <Box
-          sx={{
-            bgcolor: '#fff',
-            p: { xs: 2, sm: 3 },
-            borderRadius: 2,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            maxWidth: '100%',
-            mx: 'auto',
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+    <Box sx={{ p: isMobile ? 2 : 3, bgcolor: '#f0f4f8', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Typography variant={isMobile ? 'h5' : 'h4'} sx={{ color: '#1976d2', textAlign: 'center' }}>
+        {tournament.name}
+      </Typography>
+      <Box sx={{ flex: 0, minHeight: 0 }}>
+        <Swiper
+          modules={[Navigation, Pagination]}
+          navigation
+          pagination={{ clickable: true }}
+          spaceBetween={10}
+          slidesPerView={1}
+          style={{ width: '100%' }}
         >
-          <Typography
-            variant="h5"
-            gutterBottom
-            sx={{
-              fontSize: { xs: '1.5rem', sm: '2rem' },
-              color: '#1976d2',
-              fontWeight: 700,
-              textAlign: 'center',
-            }}
-          >
-            {tournament.name} - {tournament.sport} ({tournament.format?.mode || 'No definido'}) en{' '}
-            {tournament.club?.name || 'No definido'}
-          </Typography>
-          <Tabs
-            value={tabValue}
-            onChange={handleTabChange}
-            sx={{ mb: 2 }}
-            variant="scrollable"
-            scrollButtons="auto"
-            aria-label="Pestañas de navegación del torneo"
-          >
-            <Tab label="Detalles" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }} />
-            <Tab label="Grupos" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }} />
-            <Tab label="Posiciones" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }} />
-            {tournament.rounds && tournament.rounds.length > 0 && <Tab label="Llave" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }} />}
-          </Tabs>
-
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <Swiper
-              spaceBetween={10}
-              slidesPerView={1}
-              onSlideChange={handleSlideChange}
-              initialSlide={tabValue}
-              style={{ width: '100%', flex: 1 }}
-              ref={swiperRef}
-            >
-              <SwiperSlide style={{ height: '100%' }}>
-                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
-                  <TournamentDetails tournament={tournament} />
-                </Box>
-              </SwiperSlide>
-              <SwiperSlide style={{ height: '100%' }}>
-                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
-                  <TournamentGroups
-                    tournament={tournament}
-                    role={role}
-                    openMatchDialog={openMatchDialog}
-                    generateKnockoutPhase={generateKnockoutPhase}
-                    getPlayerName={getPlayerName}
-                  />
-                </Box>
-              </SwiperSlide>
-              <SwiperSlide style={{ height: '100%' }}>
-                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
-                  <TournamentStandings tournament={tournament} standings={standings} getPlayerName={getPlayerName} />
-                </Box>
-              </SwiperSlide>
-              {tournament.rounds && tournament.rounds.length > 0 && (
-                <SwiperSlide style={{ height: '100%' }}>
-                  <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
-                    <TournamentBracket
-                      tournament={tournament}
-                      role={role}
-                      getPlayerName={getPlayerName}
-                      getRoundName={getRoundName}
-                      openMatchDialog={openMatchDialog}
-                      advanceEliminationRound={advanceEliminationRound}
-                    />
-                  </Box>
-                </SwiperSlide>
-              )}
-            </Swiper>
-          </Box>
-
-          {(role === 'admin' || role === 'coach') && (
-            <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Button
-                variant="contained"
-                color="success"
-                onClick={handleConfirmFinish}
-                sx={{
-                  bgcolor: '#388e3c',
-                  ':hover': { bgcolor: '#2e7d32' },
-                  fontSize: { xs: '0.875rem', sm: '1rem' },
-                  py: { xs: 1, sm: 1.5 },
-                  minHeight: { xs: 40, sm: 48 },
-                }}
-                aria-label="Finalizar torneo"
-              >
-                Finalizar Torneo
-              </Button>
-            </Box>
-          )}
-        </Box>
-
-        <MatchDialog
-          open={matchDialogOpen}
-          onClose={() => setMatchDialogOpen(false)}
-          selectedMatch={selectedMatch}
-          tournament={tournament}
-          getPlayerName={getPlayerName}
-          addNotification={addNotification}
-          fetchTournament={fetchTournament}
-          role={role}
-        />
-
-        <Dialog open={confirmFinishOpen} onClose={() => setConfirmFinishOpen(false)} aria-labelledby="confirm-finish-dialog-title">
-          <DialogTitle id="confirm-finish-dialog-title">Confirmar Finalización</DialogTitle>
-          <DialogContent>
-            <Typography>¿Estás seguro de que quieres finalizar el torneo? Esta acción no se puede deshacer.</Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setConfirmFinishOpen(false)} aria-label="Cancelar finalización">Cancelar</Button>
-            <Button onClick={handleFinishConfirmed} variant="contained" color="error" aria-label="Confirmar finalización">
-              Finalizar
-            </Button>
-          </DialogActions>
-        </Dialog>
+          <SwiperSlide style={{ height: 'auto' }}>
+            <TournamentDetails tournament={tournament} />
+          </SwiperSlide>
+          <SwiperSlide style={{ height: 'auto' }}>
+            <TournamentGroups tournament={tournament} onUpdate={() => fetchTournaments()} />
+          </SwiperSlide>
+          <SwiperSlide style={{ height: 'auto' }}>
+            <TournamentStandings tournament={tournament} />
+          </SwiperSlide>
+        </Swiper>
       </Box>
-    </ErrorBoundary>
+      {(role === 'admin' || role === 'coach') && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 2 }}>
+          {tournament.type === 'RoundRobin' && (
+            <Button
+              variant="contained"
+              onClick={handleGenerateKnockout}
+              sx={{ bgcolor: '#1976d2', fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+              aria-label="Generar fase eliminatoria"
+            >
+              Generar Fase Eliminatoria
+            </Button>
+          )}
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleFinishTournament}
+            sx={{ bgcolor: '#d32f2f', fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+            aria-label="Finalizar torneo"
+          >
+            Finalizar Torneo
+          </Button>
+        </Box>
+      )}
+    </Box>
   );
 };
 
