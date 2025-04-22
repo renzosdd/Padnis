@@ -3,7 +3,7 @@ import React, { useState, useCallback, useRef } from 'react';
   import { Swiper, SwiperSlide } from 'swiper/react';
   import 'swiper/css';
   import { ErrorBoundary } from 'react-error-boundary';
-  import useTournament from '../hooks/useTournament.js';
+  import useTournament from '../hooks/usesTournament.js';
   import TournamentDetails from './TournamentDetails';
   import TournamentGroups from './TournamentGroups';
   import TournamentStandings from './TournamentStandings';
