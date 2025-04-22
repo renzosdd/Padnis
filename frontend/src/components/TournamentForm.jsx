@@ -24,6 +24,7 @@ import {
   Alert,
   useMediaQuery,
   useTheme,
+  FormHelperText,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { useAuth } from '../contexts/AuthContext';
@@ -201,13 +202,14 @@ const Step1 = ({ name, formData, clubs, errors, onNameChange, onFormDataChange, 
         {errors.clubId && <FormHelperText>{errors.clubId}</FormHelperText>}
       </FormControl>
       <FormControl fullWidth error={!!errors.type}>
-        <InputLabel id="tournament-type-label">Tipo de Torneo</InputLabel>
+        <InputLabel id="tournament-type-label">Tipo de Torneo *</InputLabel>
         <Select
           labelId="tournament-type-label"
           value={formData.type}
           label="Tipo de Torneo"
           onChange={(e) => onFormDataChange({ type: e.target.value })}
           size={isMobile ? 'small' : 'medium'}
+          inputProps={{ 'aria-required': true }}
         >
           <MenuItem value="RoundRobin">Round Robin</MenuItem>
           <MenuItem value="Eliminatorio">Eliminatorio</MenuItem>
@@ -215,13 +217,14 @@ const Step1 = ({ name, formData, clubs, errors, onNameChange, onFormDataChange, 
         {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
       </FormControl>
       <FormControl fullWidth error={!!errors.sport}>
-        <InputLabel id="sport-label">Deporte</InputLabel>
+        <InputLabel id="sport-label">Deporte *</InputLabel>
         <Select
           labelId="sport-label"
           value={formData.sport}
           label="Deporte"
           onChange={(e) => onFormDataChange({ sport: e.target.value, category: '' })}
           size={isMobile ? 'small' : 'medium'}
+          inputProps={{ 'aria-required': true }}
         >
           <MenuItem value="Tenis">Tenis</MenuItem>
           <MenuItem value="Pádel">Pádel</MenuItem>
@@ -247,13 +250,14 @@ const Step1 = ({ name, formData, clubs, errors, onNameChange, onFormDataChange, 
         {errors.category && <FormHelperText>{errors.category}</FormHelperText>}
       </FormControl>
       <FormControl fullWidth error={!!errors.format}>
-        <InputLabel id="format-mode-label">Modalidad</InputLabel>
+        <InputLabel id="format-mode-label">Modalidad *</InputLabel>
         <Select
           labelId="format-mode-label"
           value={formData.format.mode}
           label="Modalidad"
           onChange={(e) => onFormDataChange({ format: { ...formData.format, mode: e.target.value }, participants: [] })}
           size={isMobile ? 'small' : 'medium'}
+          inputProps={{ 'aria-required': true }}
         >
           <MenuItem value="Singles">Singles</MenuItem>
           <MenuItem value="Dobles">Dobles</MenuItem>
@@ -261,20 +265,21 @@ const Step1 = ({ name, formData, clubs, errors, onNameChange, onFormDataChange, 
         {errors.format && <FormHelperText>{errors.format}</FormHelperText>}
       </FormControl>
       <FormControl fullWidth>
-        <InputLabel id="sets-label">Sets por Partido</InputLabel>
+        <InputLabel id="sets-label">Sets por Partido *</InputLabel>
         <Select
           labelId="sets-label"
           value={formData.format.sets}
           label="Sets por Partido"
           onChange={(e) => onFormDataChange({ format: { ...formData.format, sets: Number(e.target.value) } })}
           size={isMobile ? 'small' : 'medium'}
+          inputProps={{ 'aria-required': true }}
         >
           <MenuItem value={1}>1 Set</MenuItem>
           <MenuItem value={2}>2 Sets</MenuItem>
         </Select>
       </FormControl>
       <FormControl fullWidth>
-        <InputLabel id="players-per-group-label">Jugadores que pasan por grupo</InputLabel>
+        <InputLabel id="players-per-group-label">Jugadores que pasan por grupo *</InputLabel>
         <Select
           labelId="players-per-group-label"
           value={formData.playersPerGroupToAdvance}
@@ -282,6 +287,7 @@ const Step1 = ({ name, formData, clubs, errors, onNameChange, onFormDataChange, 
           onChange={(e) => onFormDataChange({ playersPerGroupToAdvance: Number(e.target.value) })}
           disabled={formData.type !== 'RoundRobin'}
           size={isMobile ? 'small' : 'medium'}
+          inputProps={{ 'aria-required': true }}
         >
           <MenuItem value={1}>1</MenuItem>
           <MenuItem value={2}>2</MenuItem>
@@ -599,7 +605,7 @@ const Step3 = ({ formData, localPlayers, onFormDataChange, isMobile }) => {
       }}
     >
       <FormControl fullWidth>
-        <InputLabel id="group-size-label">Tamaño de Grupos (Round Robin)</InputLabel>
+        <InputLabel id="group-size-label">Tamaño de Grupos (Round Robin) *</InputLabel>
         <Select
           labelId="group-size-label"
           value={formData.groupSize}
@@ -607,6 +613,7 @@ const Step3 = ({ formData, localPlayers, onFormDataChange, isMobile }) => {
           onChange={(e) => onFormDataChange({ groupSize: Number(e.target.value) })}
           disabled={formData.type === 'Eliminatorio'}
           size={isMobile ? 'small' : 'medium'}
+          inputProps={{ 'aria-required': true }}
         >
           <MenuItem value={3}>3 Jugadores</MenuItem>
           <MenuItem value={4}>4 Jugadores</MenuItem>
@@ -702,7 +709,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
     type: 'RoundRobin',
     sport: 'Tenis',
     category: '',
-    format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
+    format: { mode: 'Singles', sets: 2, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
     participants: [],
     groups: [],
     rounds: [],
@@ -738,7 +745,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       });
       setClubs(response.data);
     } catch (error) {
-      addNotification('Error al cargar clubes', 'error');
+      addNotification('Error al cargar clubes: ' + (error.response?.data?.message || error.message), 'error');
     } finally {
       setIsLoading(false);
     }
@@ -831,7 +838,7 @@ const TournamentForm = ({ players, onCreateTournament }) => {
       type: 'RoundRobin',
       sport: 'Tenis',
       category: '',
-      format: { mode: 'Singles', sets: 1, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
+      format: { mode: 'Singles', sets: 2, gamesPerSet: 6, tiebreakSet: 6, tiebreakMatch: 10 },
       participants: [],
       groups: [],
       rounds: [],

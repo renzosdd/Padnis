@@ -1,8 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
 import { setPlayers } from './store';
-import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Box, Menu, MenuItem, Button, Dialog, DialogTitle, DialogContent, useMediaQuery } from '@mui/material';
+import {
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
+  AppBar,
+  Toolbar,
+  Typography,
+  Box,
+  Menu,
+  MenuItem,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  useMediaQuery,
+  CircularProgress,
+} from '@mui/material';
 import { People, EmojiEvents, Settings, ExpandMore } from '@mui/icons-material';
 import ErrorBoundary from './components/ErrorBoundary';
 import PlayerForm from './components/PlayerForm';
@@ -46,29 +62,9 @@ const App = () => {
   const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const players = useSelector(state => state.players.list);
+  const players = useSelector((state) => state.players.list);
   const dispatch = useDispatch();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await fetchTournaments();
-        if (user) {
-          await Promise.all([
-            role !== 'player' ? fetchPlayers() : Promise.resolve(),
-            (role === 'admin' || role === 'coach') ? fetchUsers() : Promise.resolve(),
-          ]);
-        }
-        setLoading(false);
-      } catch (err) {
-        setError(err.message);
-        setLoading(false);
-        addNotification('Error al cargar datos iniciales', 'error');
-      }
-    };
-    fetchData();
-  }, [user, role]);
 
   const fetchPlayers = async () => {
     try {
@@ -78,15 +74,15 @@ const App = () => {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 60000,
       });
-      const normalizedPlayers = response.data.map(player => ({ ...player, _id: String(player._id) }));
+      const normalizedPlayers = response.data.map((player) => ({ ...player, _id: String(player._id) }));
       dispatch(setPlayers(normalizedPlayers));
     } catch (error) {
-      addNotification('No se pudieron cargar los jugadores.', 'error');
+      addNotification('No se pudieron cargar los jugadores: ' + (error.response?.data?.message || error.message), 'error');
       dispatch(setPlayers([]));
     }
   };
 
-  const fetchTournaments = async (retries = 3) => {
+  const fetchTournaments = useCallback(async (retries = 3, backoff = 5000) => {
     try {
       const token = localStorage.getItem('token');
       const url = `${BACKEND_URL}/api/tournaments?status=En%20curso`;
@@ -99,7 +95,7 @@ const App = () => {
       if (!Array.isArray(response.data)) {
         throw new Error('Unexpected response format: Data is not an array');
       }
-      const validTournaments = response.data.filter(t => {
+      const validTournaments = response.data.filter((t) => {
         const isValid = t._id && typeof t._id === 'string' && t.name && t.participants;
         if (!isValid) {
           console.warn('Invalid tournament entry:', t);
@@ -110,13 +106,17 @@ const App = () => {
         console.warn('Some tournaments have invalid data:', response.data);
         addNotification('Algunos torneos tienen datos inválidos y fueron omitidos', 'warning');
       }
+      if (validTournaments.length === 0) {
+        console.log('No tournaments found for query:', { status: 'En curso', draft: false, user: user ? user._id : 'none' });
+      }
       // Ensure selectedTournamentId is still valid
-      if (selectedTournamentId && !validTournaments.some(t => t._id === selectedTournamentId)) {
+      if (selectedTournamentId && !validTournaments.some((t) => t._id === selectedTournamentId)) {
         setSelectedTournamentId(null);
         setView('activos');
         addNotification('El torneo seleccionado ya no está disponible', 'warning');
       }
       setTournaments(validTournaments);
+      setError(null);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const errorDetails = {
@@ -134,7 +134,7 @@ const App = () => {
       addNotification(userMessage, 'error');
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         console.log(`Retrying fetch tournaments (${retries} retries left)...`);
-        setTimeout(() => fetchTournaments(retries - 1), 5000);
+        setTimeout(() => fetchTournaments(retries - 1, backoff * 2), backoff);
       } else {
         setTournaments([]);
         setSelectedTournamentId(null);
@@ -144,7 +144,7 @@ const App = () => {
         }
       }
     }
-  };
+  }, [user, selectedTournamentId, addNotification]);
 
   const fetchUsers = async () => {
     try {
@@ -156,13 +156,34 @@ const App = () => {
       });
       setUsers(response.data);
     } catch (error) {
-      addNotification('No se pudieron cargar los usuarios.', 'error');
+      addNotification('No se pudieron cargar los usuarios: ' + (error.response?.data?.message || error.message), 'error');
       setUsers([]);
     }
   };
 
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        await fetchTournaments();
+        if (user) {
+          await Promise.all([
+            role !== 'player' ? fetchPlayers() : Promise.resolve(),
+            role === 'admin' || role === 'coach' ? fetchUsers() : Promise.resolve(),
+          ]);
+        }
+      } catch (err) {
+        setError(err.message);
+        addNotification('Error al cargar datos iniciales: ' + err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [user, role, fetchTournaments]);
+
   const updatePlayer = (updatedPlayer) => {
-    dispatch(setPlayers(players.map(p => p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p)));
+    dispatch(setPlayers(players.map((p) => (p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p))));
   };
 
   const createTournament = async () => {
@@ -172,7 +193,7 @@ const App = () => {
   const handlePlayerAdded = () => fetchPlayers();
 
   const handleFinishTournament = (finishedTournament) => {
-    setTournaments(prev => prev.map(t => t._id === finishedTournament._id ? finishedTournament : t));
+    setTournaments((prev) => prev.filter((t) => t._id !== finishedTournament._id));
     setSelectedTournamentId(null);
     setView('activos');
   };
@@ -198,6 +219,7 @@ const App = () => {
   const handleTournamentSelect = (tournamentId) => {
     if (tournamentId && typeof tournamentId === 'string') {
       setSelectedTournamentId(tournamentId);
+      setView('activos');
     } else {
       console.warn('Invalid tournamentId:', tournamentId);
       addNotification('No se pudo seleccionar el torneo', 'error');
@@ -206,23 +228,42 @@ const App = () => {
 
   if (error) {
     return (
-      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh' }}>
-        <Typography variant="h5" color="error">Error: {error}</Typography>
-        <Button variant="contained" color="primary" onClick={() => window.location.reload()} sx={{ mt: 2 }}>
-          Recargar
+      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', textAlign: 'center' }}>
+        <Typography variant="h5" color="error" gutterBottom>
+          Error: {error}
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            setError(null);
+            fetchTournaments();
+          }}
+          sx={{ mt: 2, mr: 2 }}
+          aria-label="Reintentar cargar datos"
+        >
+          Reintentar
         </Button>
-        <Button variant="outlined" color="secondary" onClick={() => setError(null)} sx={{ mt: 2, ml: 2 }}>
-          Intentar de nuevo
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={() => window.location.reload()}
+          sx={{ mt: 2 }}
+          aria-label="Recargar página"
+        >
+          Recargar Página
         </Button>
       </Box>
     );
   }
 
-  if (loading) return (
-    <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <Typography variant="h5">Cargando...</Typography>
-    </Box>
-  );
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress aria-label="Cargando aplicación" />
+      </Box>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -230,84 +271,215 @@ const App = () => {
       <ErrorBoundary>
         <AppBar position="fixed">
           <Toolbar>
-            <Typography variant="h6" sx={{ mr: 2 }}>Padnis</Typography>
+            <Typography variant="h6" sx={{ mr: 2 }} aria-label="Padnis">
+              Padnis
+            </Typography>
             {user ? (
               <>
                 {role !== 'player' && (
-                  <Button color="inherit" startIcon={<People />} onClick={() => setView('jugadores')} sx={{ mx: 1 }}>
+                  <Button
+                    color="inherit"
+                    startIcon={<People />}
+                    onClick={() => {
+                      setView('jugadores');
+                      setSelectedTournamentId(null);
+                    }}
+                    sx={{ mx: 1 }}
+                    aria-label="Ver jugadores"
+                  >
                     {!isSmallScreen && 'Jugadores'}
                   </Button>
                 )}
-                <Button color="inherit" startIcon={<EmojiEvents />} onClick={handleTournamentClick} endIcon={!isSmallScreen && <ExpandMore />} sx={{ mx: 1 }}>
+                <Button
+                  color="inherit"
+                  startIcon={<EmojiEvents />}
+                  onClick={handleTournamentClick}
+                  endIcon={!isSmallScreen && <ExpandMore />}
+                  sx={{ mx: 1 }}
+                  aria-label="Menú de torneos"
+                  aria-haspopup="true"
+                >
                   {!isSmallScreen && 'Torneos'}
                 </Button>
                 <Menu anchorEl={tournamentAnchor} open={Boolean(tournamentAnchor)} onClose={handleClose}>
                   {(role === 'admin' || role === 'coach') && (
-                    <MenuItem onClick={() => { setView('crear'); setSelectedTournamentId(null); handleClose(); }}>Crear Torneo</MenuItem>
+                    <MenuItem
+                      onClick={() => {
+                        setView('crear');
+                        setSelectedTournamentId(null);
+                        handleClose();
+                      }}
+                    >
+                      Crear Torneo
+                    </MenuItem>
                   )}
-                  <MenuItem onClick={() => { setView('activos'); setSelectedTournamentId(null); handleClose(); }}>Torneos Activos</MenuItem>
-                  <MenuItem onClick={() => { setView('historial'); setSelectedTournamentId(null); handleClose(); }}>Historial</MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setView('activos');
+                      setSelectedTournamentId(null);
+                      handleClose();
+                    }}
+                  >
+                    Torneos Activos
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setView('historial');
+                      setSelectedTournamentId(null);
+                      handleClose();
+                    }}
+                  >
+                    Historial
+                  </MenuItem>
                 </Menu>
                 {role === 'admin' && (
-                  <Button color="inherit" startIcon={<Settings />} onClick={handleSettingsClick} endIcon={!isSmallScreen && <ExpandMore />} sx={{ mx: 1 }}>
+                  <Button
+                    color="inherit"
+                    startIcon={<Settings />}
+                    onClick={handleSettingsClick}
+                    endIcon={!isSmallScreen && <ExpandMore />}
+                    sx={{ mx: 1 }}
+                    aria-label="Menú de configuraciones"
+                    aria-haspopup="true"
+                  >
                     {!isSmallScreen && 'Settings'}
                   </Button>
                 )}
                 <Menu anchorEl={settingsAnchor} open={Boolean(settingsAnchor)} onClose={handleClose}>
                   {role === 'admin' && (
                     <>
-                      <MenuItem onClick={() => { setView('roles'); setSelectedTournamentId(null); handleClose(); }}>Gestionar Roles</MenuItem>
-                      <MenuItem onClick={() => { setView('clubs'); setSelectedTournamentId(null); handleClose(); }}>Gestionar Clubes</MenuItem>
+                      <MenuItem
+                        onClick={() => {
+                          setView('roles');
+                          setSelectedTournamentId(null);
+                          handleClose();
+                        }}
+                      >
+                        Gestionar Roles
+                      </MenuItem>
+                      <MenuItem
+                        onClick={() => {
+                          setView('clubs');
+                          setSelectedTournamentId(null);
+                          handleClose();
+                        }}
+                      >
+                        Gestionar Clubes
+                      </MenuItem>
                     </>
                   )}
                 </Menu>
               </>
             ) : (
-              <Button color="inherit" startIcon={<EmojiEvents />} onClick={() => setView('activos')} sx={{ mx: 1 }}>
+              <Button
+                color="inherit"
+                startIcon={<EmojiEvents />}
+                onClick={() => {
+                  setView('activos');
+                  setSelectedTournamentId(null);
+                }}
+                sx={{ mx: 1 }}
+                aria-label="Ver torneos activos"
+              >
                 {!isSmallScreen && 'Torneos Activos'}
               </Button>
             )}
             <Box sx={{ flexGrow: 1 }} />
             {user ? (
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Button color="inherit" onClick={handleUserClick} endIcon={<ExpandMore />} sx={{ mx: 1 }}>
+                <Button
+                  color="inherit"
+                  onClick={handleUserClick}
+                  endIcon={<ExpandMore />}
+                  sx={{ mx: 1 }}
+                  aria-label={`Menú de usuario ${user}`}
+                  aria-haspopup="true"
+                >
                   <Typography sx={{ color: '#f5f5f5', mr: 1 }}>{user}</Typography>
                 </Button>
                 <Menu anchorEl={userAnchor} open={Boolean(userAnchor)} onClose={handleClose}>
-                  <MenuItem onClick={() => { setView('perfil'); setSelectedTournamentId(null); handleClose(); }}>
+                  <MenuItem
+                    onClick={() => {
+                      setView('perfil');
+                      setSelectedTournamentId(null);
+                      handleClose();
+                    }}
+                  >
                     <People sx={{ mr: 1 }} /> Perfil
                   </MenuItem>
                   <MenuItem onClick={handleLogout}>Cerrar Sesión</MenuItem>
                 </Menu>
               </Box>
             ) : (
-              <Button variant="contained" sx={{ bgcolor: 'accent.main', color: 'secondary.main' }} onClick={() => setAuthDialogOpen(true)}>
+              <Button
+                variant="contained"
+                sx={{ bgcolor: 'accent.main', color: 'secondary.main' }}
+                onClick={() => setAuthDialogOpen(true)}
+                aria-label="Iniciar sesión"
+              >
                 Iniciar Sesión
               </Button>
             )}
           </Toolbar>
         </AppBar>
-        <Box sx={{ mt: 8, p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ mt: 8, p: isMobile ? 2 : 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           {user ? (
             <>
-              {view === 'jugadores' && <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />}
-              {view === 'crear' && (role === 'admin' || role === 'coach') && <TournamentForm players={players} onCreateTournament={createTournament} />}
+              {view === 'jugadores' && (
+                <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />
+              )}
+              {view === 'crear' && (role === 'admin' || role === 'coach') && (
+                <TournamentForm players={players} onCreateTournament={createTournament} />
+              )}
               {view === 'activos' && !selectedTournamentId && (
                 <Box>
-                  <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
+                  <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ color: '#1976d2' }}>
+                    Torneos Activos
+                  </Typography>
                   {tournaments.length === 0 ? (
-                    <Typography>No hay torneos activos actualmente. Si el servidor está inactivo, intenta recargar la página o contacta al administrador.</Typography>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography sx={{ mb: 2, fontSize: isMobile ? '1rem' : '1.25rem' }}>
+                        No hay torneos activos actualmente.{' '}
+                        {(role === 'admin' || role === 'coach') ? 'Crea uno nuevo arriba.' : 'Intenta recargar o contacta al administrador.'}
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => fetchTournaments()}
+                        sx={{ bgcolor: '#1976d2' }}
+                        aria-label="Reintentar cargar torneos"
+                      >
+                        Reintentar
+                      </Button>
+                    </Box>
                   ) : (
-                    tournaments.map(tournament => (
-                      <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
-                        <Typography variant="h6">{tournament.name}</Typography>
-                        <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
-                        <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
-                        <Typography>Categoría: {tournament.category || 'No definida'}</Typography>
+                    tournaments.map((tournament) => (
+                      <Box
+                        key={tournament._id}
+                        sx={{
+                          mb: 2,
+                          p: isMobile ? 1 : 2,
+                          border: '1px solid #e0e0e0',
+                          borderRadius: 2,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          bgcolor: 'background.paper',
+                        }}
+                      >
+                        <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
+                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                          {tournament.type} - {tournament.sport} ({tournament.format.mode})
+                        </Typography>
+                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                          Club: {tournament.club?.name || 'No definido'}
+                        </Typography>
+                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                          Categoría: {tournament.category || 'No definida'}
+                        </Typography>
                         <Button
                           variant="outlined"
                           onClick={() => handleTournamentSelect(tournament._id)}
-                          sx={{ mt: 1 }}
+                          sx={{ mt: 1, fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                          aria-label={`Ver detalles de ${tournament.name}`}
                         >
                           Ver Detalles
                         </Button>
@@ -326,26 +498,71 @@ const App = () => {
               {view === 'roles' && role === 'admin' && <ManageRoles />}
               {view === 'clubs' && role === 'admin' && <ClubManagement />}
               {view === 'perfil' && (
-                <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
-                  <Typography variant="h5" gutterBottom>Perfil</Typography>
-                  <Typography>Modifica tus datos personales y preferencias (a desarrollar)</Typography>
+                <Box
+                  sx={{
+                    p: isMobile ? 1 : 2,
+                    border: '1px solid #e0e0e0',
+                    borderRadius: 2,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ color: '#1976d2' }}>
+                    Perfil
+                  </Typography>
+                  <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                    Modifica tus datos personales y preferencias (a desarrollar)
+                  </Typography>
                 </Box>
               )}
             </>
           ) : (
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Box sx={{ p: 3 }}>
-                <Typography variant="h5" gutterBottom>Torneos Activos</Typography>
+              <Box sx={{ p: isMobile ? 2 : 3, maxWidth: 600, width: '100%' }}>
+                <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ color: '#1976d2' }}>
+                  Torneos Activos
+                </Typography>
                 {tournaments.length === 0 ? (
-                  <Typography>No hay torneos activos actualmente. Si el servidor está inactivo, intenta recargar la página o contacta al administrador.</Typography>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography sx={{ mb: 2, fontSize: isMobile ? '1rem' : '1.25rem' }}>
+                      No hay torneos activos actualmente. Intenta recargar la página o contacta al administrador.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => fetchTournaments()}
+                      sx={{ bgcolor: '#1976d2' }}
+                      aria-label="Reintentar cargar torneos"
+                    >
+                      Reintentar
+                    </Button>
+                  </Box>
                 ) : (
-                  tournaments.map(tournament => (
-                    <Box key={tournament._id} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: '0 2px 4px rgba(0,0,0,0.1)', bgcolor: 'background.paper' }}>
-                      <Typography variant="h6">{tournament.name}</Typography>
-                      <Typography>{tournament.type} - {tournament.sport} ({tournament.format.mode})</Typography>
-                      <Typography>Club: {tournament.club?.name || 'No definido'}</Typography>
-                      <Typography>Categoría: {tournament.category || 'No definida'}</Typography>
-                      <Typography>Estado: {tournament.status}</Typography>
+                  tournaments.map((tournament) => (
+                    <Box
+                      key={tournament._id}
+                      sx={{
+                        mb: 2,
+                        p: isMobile ? 1 : 2,
+                        border: '1px solid #e0e0e0',
+                        borderRadius: 2,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        bgcolor: 'background.paper',
+                      }}
+                    >
+                      <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        {tournament.type} - {tournament.sport} ({tournament.format.mode})
+                      </Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        Club: {tournament.club?.name || 'No definido'}
+                      </Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        Categoría: {tournament.category || 'No definida'}
+                      </Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        Estado: {tournament.status}
+                      </Typography>
                     </Box>
                   ))
                 )}
@@ -353,8 +570,15 @@ const App = () => {
             </Box>
           )}
         </Box>
-        <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} maxWidth="sm" fullWidth sx={{ '& .MuiDialog-paper': { borderTop: `4px solid ${theme.palette.primary.main}` } }}>
-          <DialogTitle>{authView === 'login' ? 'Iniciar Sesión' : 'Registrarse'}</DialogTitle>
+        <Dialog
+          open={authDialogOpen}
+          onClose={() => setAuthDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          sx={{ '& .MuiDialog-paper': { borderTop: `4px solid ${theme.palette.primary.main}` } }}
+          aria-labelledby="auth-dialog-title"
+        >
+          <DialogTitle id="auth-dialog-title">{authView === 'login' ? 'Iniciar Sesión' : 'Registrarse'}</DialogTitle>
           <DialogContent>
             {authView === 'login' ? (
               <LoginForm onSwitchToRegister={() => setAuthView('register')} onLoginSuccess={handleLoginSuccess} />
