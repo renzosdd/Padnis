@@ -8,7 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import PlayerForm from './components/PlayerForm';
 import TournamentForm from './components/TournamentForm';
 import TournamentHistory from './components/TournamentHistory';
-import TournamentInProgress from './components/TournamentInProgress/TournamentInProgress';
+import TournamentInProgress from './components/TournamentInProgress';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import ManageRoles from './components/ManageRoles';

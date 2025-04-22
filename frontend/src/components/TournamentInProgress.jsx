@@ -3,15 +3,15 @@ import React, { useState, useCallback, useRef } from 'react';
   import { Swiper, SwiperSlide } from 'swiper/react';
   import 'swiper/css';
   import { ErrorBoundary } from 'react-error-boundary';
-  import useTournament from '../hooks/usesTournament.js';
-  import TournamentDetails from './TournamentDetails';
-  import TournamentGroups from './TournamentGroups';
-  import TournamentStandings from './TournamentStandings';
-  import TournamentBracket from './TournamentBracket';
-  import MatchDialog from './MatchDialog';
-  import { useNotification } from '../contexts/NotificationContext';
-  import { useAuth } from '../contexts/AuthContext';
-  
+  import useTournament from './hooks/useTournament.js';
+  import TournamentDetails from './TournamentInProgress/TournamentDetails.jsx';
+  import TournamentGroups from './TournamentInProgress/TournamentGroups.jsx';
+  import TournamentStandings from './TournamentInProgress/TournamentStandings.jsx';
+  import TournamentBracket from './TournamentInProgress/TournamentBracket.jsx';
+  import MatchDialog from './TournamentInProgress/MatchDialog.jsx';
+  import { useNotification } from './contexts/NotificationContext';
+  import { useAuth } from './contexts/AuthContext';
+
   const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     const [tabValue, setTabValue] = useState(0);
     const [matchDialogOpen, setMatchDialogOpen] = useState(false);
