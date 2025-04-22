@@ -11,6 +11,7 @@ import TournamentBracket from './TournamentBracket';
 import MatchDialog from './MatchDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { getRoundName } from './tournamentUtils.js';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
@@ -180,13 +181,13 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               style={{ width: '100%', flex: 1 }}
               ref={swiperRef}
             >
-              <SwiperSlide>
-                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%' }}>
+              <SwiperSlide style={{ height: '100%' }}>
+                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
                   <TournamentDetails tournament={tournament} />
                 </Box>
               </SwiperSlide>
-              <SwiperSlide>
-                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%' }}>
+              <SwiperSlide style={{ height: '100%' }}>
+                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
                   <TournamentGroups
                     tournament={tournament}
                     role={role}
@@ -196,14 +197,14 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   />
                 </Box>
               </SwiperSlide>
-              <SwiperSlide>
-                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%' }}>
+              <SwiperSlide style={{ height: '100%' }}>
+                <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
                   <TournamentStandings tournament={tournament} standings={standings} getPlayerName={getPlayerName} />
                 </Box>
               </SwiperSlide>
               {tournament.rounds && tournament.rounds.length > 0 && (
-                <SwiperSlide>
-                  <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%' }}>
+                <SwiperSlide style={{ height: '100%' }}>
+                  <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
                     <TournamentBracket
                       tournament={tournament}
                       role={role}

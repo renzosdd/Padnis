@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Box, Typography, Card, CardContent, Avatar, Button, CircularProgress } from '@mui/material';
+import React, { useMemo } from 'react';
+import { Box, Typography, Card, CardContent, Avatar, CircularProgress } from '@mui/material';
 import { getPlayerName } from './tournamentUtils.js';
 
 const StandingCard = ({ player, participant, tournament, index }) => {
@@ -49,20 +49,17 @@ const StandingCard = ({ player, participant, tournament, index }) => {
 };
 
 const TournamentStandings = ({ tournament, standings }) => {
-  const [sortBy, setSortBy] = useState('wins');
   const isLoading = !tournament || !standings;
 
   const sortedStandings = useMemo(() => {
     if (!standings || !Array.isArray(standings)) return [];
     return standings.map((group) => ({
       ...group,
-      standings: [...(group.standings || [])].sort((a, b) => {
-        if (sortBy === 'wins') return (b.wins || 0) - (a.wins || 0);
-        if (sortBy === 'sets') return (b.setsWon || 0) - (a.setsWon || 0);
-        return (b.gamesWon || 0) - (a.gamesWon || 0);
-      }),
+      standings: [...(group.standings || [])].sort(
+        (a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon
+      ),
     }));
-  }, [standings, sortBy]);
+  }, [standings]);
 
   if (isLoading) {
     return (
@@ -73,7 +70,7 @@ const TournamentStandings = ({ tournament, standings }) => {
   }
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%' }}>
+    <Box sx={{ p: { xs: 1, sm: 2 }, height: '100%', overflowY: 'auto' }}>
       <Box sx={{ width: '100%' }}>
         <Typography
           variant="h5"
@@ -82,32 +79,6 @@ const TournamentStandings = ({ tournament, standings }) => {
         >
           Posiciones
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-          <Button
-            variant={sortBy === 'wins' ? 'contained' : 'outlined'}
-            onClick={() => setSortBy('wins')}
-            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minHeight: { xs: 32, sm: 36 } }}
-            aria-label="Ordenar por victorias"
-          >
-            Victorias
-          </Button>
-          <Button
-            variant={sortBy === 'sets' ? 'contained' : 'outlined'}
-            onClick={() => setSortBy('sets')}
-            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minHeight: { xs: 32, sm: 36 } }}
-            aria-label="Ordenar por sets ganados"
-          >
-            Sets
-          </Button>
-          <Button
-            variant={sortBy === 'games' ? 'contained' : 'outlined'}
-            onClick={() => setSortBy('games')}
-            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minHeight: { xs: 32, sm: 36 } }}
-            aria-label="Ordenar por juegos ganados"
-          >
-            Juegos
-          </Button>
-        </Box>
         {sortedStandings.length > 0 ? (
           sortedStandings.map((group, groupIndex) => (
             <Box key={group.groupName || groupIndex} sx={{ mb: 2 }}>

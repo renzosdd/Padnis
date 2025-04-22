@@ -276,6 +276,8 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
             sets: match.result.sets,
             winner: match.result.winner,
             runnerUp: match.result.runnerUp,
+            matchTiebreak1: match.result.matchTiebreak1,
+            matchTiebreak2: match.result.matchTiebreak2,
           },
           date: match.date,
         })),
@@ -333,6 +335,32 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
         if (!finalMatch.result.sets || finalMatch.result.sets.length === 0) {
           addNotification('No se pueden finalizar partidos sin sets registrados.', 'error');
           return;
+        }
+        // Validate match tiebreak for two-set matches
+        if (tournament.format.sets === 2) {
+          let setsWonByPlayer1 = 0;
+          let setsWonByPlayer2 = 0;
+          finalMatch.result.sets.forEach((set) => {
+            if (set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)) {
+              setsWonByPlayer1 += 1;
+            } else if (set.player2 > set.player1 || (set.player1 === set.player2 && set.tiebreak2 > set.tiebreak1)) {
+              setsWonByPlayer2 += 1;
+            }
+          });
+          if (setsWonByPlayer1 === 1 && setsWonByPlayer2 === 1) {
+            if (!finalMatch.result.matchTiebreak1 || !finalMatch.result.matchTiebreak2) {
+              addNotification('Se requiere un tiebreak de partido para determinar el ganador.', 'error');
+              return;
+            }
+            if (Math.abs(finalMatch.result.matchTiebreak1 - finalMatch.result.matchTiebreak2) < 2) {
+              addNotification('El tiebreak del partido debe tener al menos 2 puntos de diferencia.', 'error');
+              return;
+            }
+            if (finalMatch.result.matchTiebreak1 === finalMatch.result.matchTiebreak2) {
+              addNotification('El tiebreak del partido no puede resultar en empate.', 'error');
+              return;
+            }
+          }
         }
         winnerPair = finalMatch.result.winner;
         runnerUpPair = finalMatch.result.runnerUp;

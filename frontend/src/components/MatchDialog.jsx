@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 import axios from 'axios';
-import { determineWinner } from './tournamentUtils.js';
+import { determineWinner, normalizeId, isValidObjectId } from './tournamentUtils.js';
 
 const MatchDialog = ({
   open,
@@ -29,7 +29,9 @@ const MatchDialog = ({
   role,
 }) => {
   const [matchScores, setMatchScores] = useState([]);
+  const [matchTiebreak, setMatchTiebreak] = useState({ player1: 0, player2: 0 });
   const [errors, setErrors] = useState([]);
+  const [tiebreakError, setTiebreakError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -44,7 +46,12 @@ const MatchDialog = ({
             }))
           : Array(tournament?.format?.sets || 1).fill({ player1: 0, player2: 0, tiebreak1: 0, tiebreak2: 0 });
       setMatchScores(initialSets);
+      setMatchTiebreak({
+        player1: selectedMatch.match.result.matchTiebreak1 || 0,
+        player2: selectedMatch.match.result.matchTiebreak2 || 0,
+      });
       setErrors([]);
+      setTiebreakError('');
     }
   }, [selectedMatch, open, tournament?.format?.sets]);
 
@@ -69,6 +76,19 @@ const MatchDialog = ({
     return `Set ${index + 1}: Puntaje inválido (debe ser 6-4, 7-5 o 6-6 con tiebreak)`;
   };
 
+  const validateMatchTiebreak = () => {
+    if (matchTiebreak.player1 === 0 && matchTiebreak.player2 === 0) {
+      return 'El tiebreak del partido no puede tener puntajes de 0 para ambos equipos';
+    }
+    if (matchTiebreak.player1 === matchTiebreak.player2) {
+      return 'El tiebreak del partido debe tener un ganador claro';
+    }
+    if (Math.abs(matchTiebreak.player1 - matchTiebreak.player2) < 2) {
+      return 'El tiebreak del partido debe ganarse por al menos 2 puntos de diferencia';
+    }
+    return null;
+  };
+
   const handleScoreChange = useCallback((index, field, value) => {
     const parsedValue = parseInt(value);
     if (isNaN(parsedValue) || parsedValue < 0) return;
@@ -83,6 +103,16 @@ const MatchDialog = ({
       return newErrors;
     });
   }, [matchScores]);
+
+  const handleTiebreakChange = useCallback((field, value) => {
+    const parsedValue = parseInt(value);
+    if (isNaN(parsedValue) || parsedValue < 0) return;
+    setMatchTiebreak((prev) => ({
+      ...prev,
+      [field]: parsedValue,
+    }));
+    setTiebreakError(validateMatchTiebreak());
+  }, []);
 
   const incrementScore = useCallback((index, field) => {
     setMatchScores((prev) => {
@@ -110,7 +140,21 @@ const MatchDialog = ({
     });
   }, [matchScores]);
 
-  const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+  const incrementTiebreak = useCallback((field) => {
+    setMatchTiebreak((prev) => ({
+      ...prev,
+      [field]: prev[field] + 1,
+    }));
+    setTiebreakError(validateMatchTiebreak());
+  }, []);
+
+  const decrementTiebreak = useCallback((field) => {
+    setMatchTiebreak((prev) => ({
+      ...prev,
+      [field]: Math.max(0, prev[field] - 1),
+    }));
+    setTiebreakError(validateMatchTiebreak());
+  }, []);
 
   const submitMatchResult = async (retries = 3) => {
     setIsLoading(true);
@@ -132,22 +176,10 @@ const MatchDialog = ({
         return;
       }
 
-      const player1Id = typeof selectedMatch.match.player1?.player1 === 'object'
-        ? selectedMatch.match.player1.player1?._id?.toString() || selectedMatch.match.player1.player1?.$oid
-        : selectedMatch.match.player1?.player1?.toString();
-      const player1Id2 = selectedMatch.match.player1?.player2
-        ? typeof selectedMatch.match.player1.player2 === 'object'
-          ? selectedMatch.match.player1.player2?._id?.toString() || selectedMatch.match.player1.player2?.$oid
-          : selectedMatch.match.player1?.player2?.toString()
-        : null;
-      const player2Id = typeof selectedMatch.match.player2?.player1 === 'object'
-        ? selectedMatch.match.player2.player1?._id?.toString() || selectedMatch.match.player2.player1?.$oid
-        : selectedMatch.match.player2?.player1?.toString();
-      const player2Id2 = selectedMatch.match.player2?.player2
-        ? typeof selectedMatch.match.player2.player2 === 'object'
-          ? selectedMatch.match.player2.player2?._id?.toString() || selectedMatch.match.player2.player2?.$oid
-          : selectedMatch.match.player2?.player2?.toString()
-        : null;
+      const player1Id = normalizeId(selectedMatch.match.player1?.player1);
+      const player1Id2 = selectedMatch.match.player1?.player2 ? normalizeId(selectedMatch.match.player1.player2) : null;
+      const player2Id = normalizeId(selectedMatch.match.player2?.player1);
+      const player2Id2 = selectedMatch.match.player2?.player2 ? normalizeId(selectedMatch.match.player2.player2) : null;
 
       if (
         !player1Id || !player2Id || !isValidObjectId(player1Id) || !isValidObjectId(player2Id) ||
@@ -161,7 +193,29 @@ const MatchDialog = ({
       const player1Pair = { player1: player1Id, player2: player1Id2 };
       const player2Pair = { player1: player2Id, player2: player2Id2 };
 
-      const winnerPair = determineWinner(matchScores, player1Pair, player2Pair, tournament?.format?.sets);
+      let matchTiebreak1, matchTiebreak2;
+      if (tournament.format.sets === 2) {
+        let setsWonByPlayer1 = 0;
+        let setsWonByPlayer2 = 0;
+        validSets.forEach((set) => {
+          if (set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)) {
+            setsWonByPlayer1 += 1;
+          } else if (set.player2 > set.player1 || (set.player1 === set.player2 && set.tiebreak2 > set.tiebreak1)) {
+            setsWonByPlayer2 += 1;
+          }
+        });
+        if (setsWonByPlayer1 === 1 && setsWonByPlayer2 === 1) {
+          const tiebreakError = validateMatchTiebreak();
+          if (tiebreakError) {
+            setTiebreakError(tiebreakError);
+            return;
+          }
+          matchTiebreak1 = matchTiebreak.player1;
+          matchTiebreak2 = matchTiebreak.player2;
+        }
+      }
+
+      const winnerPair = determineWinner(matchScores, player1Pair, player2Pair, tournament?.format?.sets, matchTiebreak);
       if (!winnerPair) {
         addNotification('No se pudo determinar un ganador', 'error');
         return;
@@ -182,6 +236,8 @@ const MatchDialog = ({
         winner: winnerPair,
         runnerUp: runnerUpPair,
         isKnockout: roundIndex !== null,
+        matchTiebreak1: matchTiebreak1 || undefined,
+        matchTiebreak2: matchTiebreak2 || undefined,
       };
 
       const response = await axios.put(
@@ -206,6 +262,19 @@ const MatchDialog = ({
       setIsLoading(false);
     }
   };
+
+  const isMatchTied = tournament?.format?.sets === 2 &&
+    matchScores.length === 2 &&
+    matchScores[0].player1 !== 0 &&
+    matchScores[0].player2 !== 0 &&
+    matchScores[1].player1 !== 0 &&
+    matchScores[1].player2 !== 0 &&
+    (
+      (matchScores[0].player1 > matchScores[0].player2 && matchScores[1].player2 > matchScores[1].player1) ||
+      (matchScores[0].player2 > matchScores[0].player1 && matchScores[1].player1 > matchScores[1].player2) ||
+      (matchScores[0].player1 === matchScores[0].player2 && matchScores[0].tiebreak1 > matchScores[0].tiebreak2 && matchScores[1].player2 > matchScores[1].player1) ||
+      (matchScores[0].player1 === matchScores[0].player2 && matchScores[0].tiebreak2 > matchScores[0].tiebreak1 && matchScores[1].player1 > matchScores[1].player2)
+    );
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="match-dialog-title">
@@ -386,6 +455,77 @@ const MatchDialog = ({
                 </Card>
               )
             ))}
+            {isMatchTied && (
+              <Card sx={{ bgcolor: '#fff', p: 2, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', mt: 2 }}>
+                <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'medium', mb: 2 }}>
+                  Tiebreak del Partido
+                </Typography>
+                {tiebreakError && <Alert severity="error" sx={{ mb: 2 }}>{tiebreakError}</Alert>}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
+                      {selectedMatch.match.player1?.player1
+                        ? getPlayerName(tournament, selectedMatch.match.player1.player1, selectedMatch.match.player1.player2)
+                        : 'Jugador no definido'}
+                    </Typography>
+                    <IconButton
+                      onClick={() => decrementTiebreak('player1')}
+                      size="small"
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      aria-label="Decrementar tiebreak del partido para el equipo 1"
+                    >
+                      <Remove />
+                    </IconButton>
+                    <TextField
+                      type="number"
+                      value={matchTiebreak.player1}
+                      onChange={(e) => handleTiebreakChange('player1', e.target.value)}
+                      inputProps={{ min: 0, 'aria-label': 'Tiebreak del partido para el equipo 1' }}
+                      sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                    />
+                    <IconButton
+                      onClick={() => incrementTiebreak('player1')}
+                      size="small"
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      aria-label="Incrementar tiebreak del partido para el equipo 1"
+                    >
+                      <Add />
+                    </IconButton>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
+                      {selectedMatch.match.player2?.name ||
+                      (selectedMatch.match.player2?.player1
+                        ? getPlayerName(tournament, selectedMatch.match.player2.player1, selectedMatch.match.player2.player2)
+                        : 'Jugador no definido')}
+                    </Typography>
+                    <IconButton
+                      onClick={() => decrementTiebreak('player2')}
+                      size="small"
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      aria-label="Decrementar tiebreak del partido para el equipo 2"
+                    >
+                      <Remove />
+                    </IconButton>
+                    <TextField
+                      type="number"
+                      value={matchTiebreak.player2}
+                      onChange={(e) => handleTiebreakChange('player2', e.target.value)}
+                      inputProps={{ min: 0, 'aria-label': 'Tiebreak del partido para el equipo 2' }}
+                      sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                    />
+                    <IconButton
+                      onClick={() => incrementTiebreak('player2')}
+                      size="small"
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      aria-label="Incrementar tiebreak del partido para el equipo 2"
+                    >
+                      <Add />
+                    </IconButton>
+                  </Box>
+                </Box>
+              </Card>
+            )}
           </Box>
         )}
       </DialogContent>

@@ -63,14 +63,15 @@ export const getRoundName = (numTeams, totalRounds) => {
 };
 
 /**
- * Determines the winner of a match based on set scores.
+ * Determines the winner of a match based on set scores and optional match tiebreak.
  * @param {Array} sets - Array of set scores [{player1, player2, tiebreak1, tiebreak2}].
  * @param {Object} player1Pair - First player/pair {player1, player2}.
  * @param {Object} player2Pair - Second player/pair {player1, player2}.
  * @param {number} totalSets - Total sets in the match (e.g., 1 or 2).
+ * @param {Object} [matchTiebreak] - Match tiebreak scores {player1, player2}.
  * @returns {Object|null} The winning pair or null if no winner.
  */
-export const determineWinner = (sets, player1Pair, player2Pair, totalSets) => {
+export const determineWinner = (sets, player1Pair, player2Pair, totalSets, matchTiebreak) => {
   if (!sets || !Array.isArray(sets) || sets.length === 0 || !player1Pair || !player2Pair) {
     return null;
   }
@@ -92,15 +93,16 @@ export const determineWinner = (sets, player1Pair, player2Pair, totalSets) => {
     }
   });
 
-  // Handle special case for 2-set matches with a final tiebreak
+  // Handle two-set matches
   if (totalSets === 2 && sets.length === 2) {
-    const finalSet = sets[1];
-    if (finalSet.player1 === 6 && finalSet.player2 === 6 && finalSet.tiebreak1 !== undefined && finalSet.tiebreak2 !== undefined) {
-      if (finalSet.tiebreak1 > finalSet.tiebreak2) {
+    // If sets are tied at 1-1, check match tiebreak
+    if (setsWonByPlayer1 === 1 && setsWonByPlayer2 === 1 && matchTiebreak) {
+      if (matchTiebreak.player1 > matchTiebreak.player2) {
         return player1Pair;
-      } else if (finalSet.tiebreak2 > finalSet.tiebreak1) {
+      } else if (matchTiebreak.player2 > matchTiebreak.player1) {
         return player2Pair;
       }
+      return null;
     }
     if (setsWonByPlayer1 === setsWonByPlayer2) {
       return null;
