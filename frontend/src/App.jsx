@@ -99,10 +99,22 @@ const App = () => {
       if (!Array.isArray(response.data)) {
         throw new Error('Unexpected response format: Data is not an array');
       }
-      const validTournaments = response.data.filter(t => t._id && typeof t._id === 'string' && t.name && t.participants);
+      const validTournaments = response.data.filter(t => {
+        const isValid = t._id && typeof t._id === 'string' && t.name && t.participants;
+        if (!isValid) {
+          console.warn('Invalid tournament entry:', t);
+        }
+        return isValid;
+      });
       if (validTournaments.length !== response.data.length) {
         console.warn('Some tournaments have invalid data:', response.data);
         addNotification('Algunos torneos tienen datos inválidos y fueron omitidos', 'warning');
+      }
+      // Ensure selectedTournamentId is still valid
+      if (selectedTournamentId && !validTournaments.some(t => t._id === selectedTournamentId)) {
+        setSelectedTournamentId(null);
+        setView('activos');
+        addNotification('El torneo seleccionado ya no está disponible', 'warning');
       }
       setTournaments(validTournaments);
     } catch (error) {
@@ -125,6 +137,8 @@ const App = () => {
         setTimeout(() => fetchTournaments(retries - 1), 5000);
       } else {
         setTournaments([]);
+        setSelectedTournamentId(null);
+        setView('activos');
         if (error.code === 'ERR_NETWORK') {
           setError('No se pudo conectar al servidor. Es posible que el servidor esté inactivo o haya un problema de red.');
         }

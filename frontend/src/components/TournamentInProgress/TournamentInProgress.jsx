@@ -3,14 +3,14 @@ import { Box, Typography, Button, Tabs, Tab, CircularProgress } from '@mui/mater
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import { ErrorBoundary } from 'react-error-boundary';
-import useTournament from '../../hooks/useTournament';
+import useTournament from '../hooks/useTournament';
 import TournamentDetails from './TournamentDetails';
 import TournamentGroups from './TournamentGroups';
 import TournamentStandings from './TournamentStandings';
 import TournamentBracket from './TournamentBracket';
 import MatchDialog from './MatchDialog';
-import { useAuth } from '../../contexts/AuthContext';
-import { useNotification } from '../../contexts/NotificationContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
@@ -19,6 +19,23 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const swiperRef = useRef(null);
   const { user, role } = useAuth();
   const { addNotification } = useNotification();
+
+  // Validate tournamentId early
+  if (!tournamentId || typeof tournamentId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(tournamentId)) {
+    return (
+      <Box sx={{ p: 2, bgcolor: '#ffebee', borderRadius: 2, textAlign: 'center' }}>
+        <Typography color="error" variant="h6">
+          Error: ID de torneo inválido
+        </Typography>
+        <Typography color="error">
+          El ID del torneo proporcionado no es válido. Por favor, selecciona otro torneo.
+        </Typography>
+        <Button onClick={() => window.location.reload()} variant="outlined" sx={{ mt: 2 }}>
+          Recargar Página
+        </Button>
+      </Box>
+    );
+  }
 
   const {
     tournament,
