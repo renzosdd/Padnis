@@ -23,8 +23,8 @@ const TournamentDetails = ({ tournament }) => {
   const filteredParticipants = useMemo(() => {
     if (!tournament?.participants || !Array.isArray(tournament.participants)) return [];
     return tournament.participants.filter((participant) => {
-      const player1Name = getPlayerName(participant.player1, tournament);
-      const player2Name = participant.player2 ? getPlayerName(participant.player2, tournament) : '';
+      const player1Name = getPlayerName(tournament, participant.player1);
+      const player2Name = participant.player2 ? getPlayerName(tournament, participant.player2) : '';
       const searchLower = search.toLowerCase();
       return (
         player1Name.toLowerCase().includes(searchLower) ||
@@ -112,8 +112,8 @@ const TournamentDetails = ({ tournament }) => {
                 sx={{ bgcolor: index % 2 === 0 ? '#fff' : '#f5f5f5' }}
               >
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                  {getPlayerName(participant.player1, tournament)}
-                  {participant.player2 && ` / ${getPlayerName(participant.player2, tournament)}`}
+                  {getPlayerName(tournament, participant.player1)}
+                  {participant.player2 && ` / ${getPlayerName(tournament, participant.player2)}`}
                 </TableCell>
               </TableRow>
             ))}
