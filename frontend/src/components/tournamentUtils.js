@@ -3,6 +3,24 @@
  */
 
 /**
+ * Normalizes an ID from various formats (object, string, MongoDB ObjectID) to a string.
+ * @param {Object|string} id - The ID to normalize.
+ * @returns {string} The normalized ID string.
+ */
+export const normalizeId = (id) => {
+  if (typeof id === 'object' && id?.$oid) return id.$oid;
+  if (typeof id === 'object' && id?._id) return id._id.toString();
+  return id?.toString() || '';
+};
+
+/**
+ * Validates if a string is a valid MongoDB ObjectID.
+ * @param {string} id - The ID to validate.
+ * @returns {boolean} True if the ID is a valid ObjectID, false otherwise.
+ */
+export const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+
+/**
  * Generates a display name for a player or pair based on tournament format.
  * @param {Object} tournament - The tournament object.
  * @param {Object|string} player1 - The first player (object or ID).
