@@ -3,12 +3,14 @@ import { Box, Typography, Button, Tabs, Tab, CircularProgress } from '@mui/mater
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import { ErrorBoundary } from 'react-error-boundary';
-import useTournament from '../hooks/useTournament';
+import useTournament from '../../hooks/useTournament';
 import TournamentDetails from './TournamentDetails';
 import TournamentGroups from './TournamentGroups';
 import TournamentStandings from './TournamentStandings';
 import TournamentBracket from './TournamentBracket';
 import MatchDialog from './MatchDialog';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNotification } from '../../contexts/NotificationContext';
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
@@ -32,9 +34,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   } = useTournament(tournamentId, addNotification, onFinishTournament);
 
   const handleTabChange = useCallback((event, newValue) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Tab changed to:', newValue);
-    }
     setTabValue(newValue);
     if (swiperRef.current && swiperRef.current.swiper) {
       swiperRef.current.swiper.slideTo(newValue);
@@ -42,9 +41,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   }, []);
 
   const handleSlideChange = useCallback(swiper => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Slide changed to:', swiper.activeIndex);
-    }
     setTabValue(swiper.activeIndex);
   }, []);
 

@@ -207,10 +207,7 @@ const MatchDialog = ({
         isKnockout: roundIndex !== null,
       };
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Submitting match result payload:', JSON.stringify(payload, null, 2));
-      }
-
+      console.log('Submitting match result payload:');
       const response = await axios.put(
         `https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`,
         payload,
