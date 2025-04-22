@@ -64,7 +64,7 @@ const App = () => {
   const [error, setError] = useState(null);
   const players = useSelector((state) => state.players.list);
   const dispatch = useDispatch();
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const fetchPlayers = async () => {
     try {
@@ -109,7 +109,6 @@ const App = () => {
       if (validTournaments.length === 0) {
         console.log('No tournaments found for query:', { status: 'En curso', draft: false, user: user ? user._id : 'none' });
       }
-      // Ensure selectedTournamentId is still valid
       if (selectedTournamentId && !validTournaments.some((t) => t._id === selectedTournamentId)) {
         setSelectedTournamentId(null);
         setView('activos');
@@ -182,41 +181,54 @@ const App = () => {
     fetchData();
   }, [user, role, fetchTournaments]);
 
-  const updatePlayer = (updatedPlayer) => {
+  const updatePlayer = useCallback((updatedPlayer) => {
     dispatch(setPlayers(players.map((p) => (p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p))));
-  };
+  }, [players, dispatch]);
 
-  const createTournament = async () => {
+  const createTournament = useCallback(async () => {
     await fetchTournaments();
-  };
+  }, [fetchTournaments]);
 
-  const handlePlayerAdded = () => fetchPlayers();
+  const handlePlayerAdded = useCallback(() => {
+    fetchPlayers();
+  }, []);
 
-  const handleFinishTournament = (finishedTournament) => {
+  const handleFinishTournament = useCallback((finishedTournament) => {
     setTournaments((prev) => prev.filter((t) => t._id !== finishedTournament._id));
     setSelectedTournamentId(null);
     setView('activos');
-  };
+  }, []);
 
-  const handleTournamentClick = (event) => setTournamentAnchor(event.currentTarget);
-  const handleSettingsClick = (event) => setSettingsAnchor(event.currentTarget);
-  const handleUserClick = (event) => setUserAnchor(event.currentTarget);
-  const handleClose = () => {
+  const handleTournamentClick = useCallback((event) => {
+    setTournamentAnchor(event.currentTarget);
+  }, []);
+
+  const handleSettingsClick = useCallback((event) => {
+    setSettingsAnchor(event.currentTarget);
+  }, []);
+
+  const handleUserClick = useCallback((event) => {
+    setUserAnchor(event.currentTarget);
+  }, []);
+
+  const handleClose = useCallback(() => {
     setTournamentAnchor(null);
     setSettingsAnchor(null);
     setUserAnchor(null);
-  };
+  }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     logout();
     setSelectedTournamentId(null);
     setView('activos');
-  };
+  }, [logout]);
 
-  const handleLoginSuccess = () => setAuthDialogOpen(false);
+  const handleLoginSuccess = useCallback(() => {
+    setAuthDialogOpen(false);
+  }, []);
 
-  const handleTournamentSelect = (tournamentId) => {
+  const handleTournamentSelect = useCallback((tournamentId) => {
     if (tournamentId && typeof tournamentId === 'string') {
       setSelectedTournamentId(tournamentId);
       setView('activos');
@@ -224,12 +236,12 @@ const App = () => {
       console.warn('Invalid tournamentId:', tournamentId);
       addNotification('No se pudo seleccionar el torneo', 'error');
     }
-  };
+  }, [addNotification]);
 
   if (error) {
     return (
       <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', textAlign: 'center' }}>
-        <Typography variant="h5" color="error" gutterBottom>
+        <Typography variant={isMobile ? 'h6' : 'h5'} color="error" gutterBottom>
           Error: {error}
         </Typography>
         <Button
@@ -287,19 +299,19 @@ const App = () => {
                     sx={{ mx: 1 }}
                     aria-label="Ver jugadores"
                   >
-                    {!isSmallScreen && 'Jugadores'}
+                    {!isMobile && 'Jugadores'}
                   </Button>
                 )}
                 <Button
                   color="inherit"
                   startIcon={<EmojiEvents />}
                   onClick={handleTournamentClick}
-                  endIcon={!isSmallScreen && <ExpandMore />}
+                  endIcon={!isMobile && <ExpandMore />}
                   sx={{ mx: 1 }}
                   aria-label="Menú de torneos"
                   aria-haspopup="true"
                 >
-                  {!isSmallScreen && 'Torneos'}
+                  {!isMobile && 'Torneos'}
                 </Button>
                 <Menu anchorEl={tournamentAnchor} open={Boolean(tournamentAnchor)} onClose={handleClose}>
                   {(role === 'admin' || role === 'coach') && (
@@ -337,12 +349,12 @@ const App = () => {
                     color="inherit"
                     startIcon={<Settings />}
                     onClick={handleSettingsClick}
-                    endIcon={!isSmallScreen && <ExpandMore />}
+                    endIcon={!isMobile && <ExpandMore />}
                     sx={{ mx: 1 }}
                     aria-label="Menú de configuraciones"
                     aria-haspopup="true"
                   >
-                    {!isSmallScreen && 'Settings'}
+                    {!isMobile && 'Settings'}
                   </Button>
                 )}
                 <Menu anchorEl={settingsAnchor} open={Boolean(settingsAnchor)} onClose={handleClose}>
@@ -381,7 +393,7 @@ const App = () => {
                 sx={{ mx: 1 }}
                 aria-label="Ver torneos activos"
               >
-                {!isSmallScreen && 'Torneos Activos'}
+                {!isMobile && 'Torneos Activos'}
               </Button>
             )}
             <Box sx={{ flexGrow: 1 }} />
@@ -440,7 +452,9 @@ const App = () => {
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography sx={{ mb: 2, fontSize: isMobile ? '1rem' : '1.25rem' }}>
                         No hay torneos activos actualmente.{' '}
-                        {(role === 'admin' || role === 'coach') ? 'Crea uno nuevo arriba.' : 'Intenta recargar o contacta al administrador.'}
+                        {(role === 'admin' || role === 'coach')
+                          ? 'Crea uno nuevo seleccionando "Crear Torneo" en el menú.'
+                          : 'Intenta recargar la página o contacta al administrador.'}
                       </Typography>
                       <Button
                         variant="contained"
@@ -525,7 +539,7 @@ const App = () => {
                 {tournaments.length === 0 ? (
                   <Box sx={{ textAlign: 'center' }}>
                     <Typography sx={{ mb: 2, fontSize: isMobile ? '1rem' : '1.25rem' }}>
-                      No hay torneos activos actualmente. Intenta recargar la página o contacta al administrador.
+                      No hay torneos activos actualmente. Inicia sesión para crear uno o contacta al administrador.
                     </Typography>
                     <Button
                       variant="contained"
