@@ -16,6 +16,18 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRoundName } from './tournamentUtils.js';
 
+// Custom CSS for dynamic slide heights
+const swiperStyles = `
+  .swiper {
+    width: 100%;
+  }
+  .swiper-slide {
+    height: auto !important;
+    display: flex;
+    flex-direction: column;
+  }
+`;
+
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
@@ -129,9 +141,10 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
 
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => fetchTournament()}>
+      <style>{swiperStyles}</style>
       <Box
         sx={{
-          p: { xs: 1, sm: 2 }, // Reduced padding for tighter layout
+          p: { xs: 1, sm: 2 },
           bgcolor: '#f0f4f8',
           width: '100%',
           display: 'flex',
@@ -141,7 +154,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
         <Box
           sx={{
             bgcolor: '#fff',
-            p: { xs: 1, sm: 2 }, // Reduced padding
+            p: { xs: 1, sm: 2 },
             borderRadius: 2,
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             maxWidth: '100%',
@@ -154,19 +167,18 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             variant="h5"
             gutterBottom
             sx={{
-              fontSize: { xs: '1.25rem', sm: '1.5rem' }, // Responsive font size
+              fontSize: { xs: '1.25rem', sm: '1.5rem' },
               color: '#1976d2',
               fontWeight: 700,
               textAlign: 'center',
             }}
           >
-            {tournament.name} - {tournament.sport} ({tournament.format?.mode || 'No definido'}) en{' '}
-            {tournament.club?.name || 'No definido'}
+            {tournament.name} - {tournament.sport} ({tournament.format?.mode || 'No definido'})
           </Typography>
           <Tabs
             value={tabValue}
             onChange={handleTabChange}
-            sx={{ mb: 1 }} // Reduced margin
+            sx={{ mb: 1 }}
             variant="scrollable"
             scrollButtons="auto"
             aria-label="Pestañas de navegación del torneo"
@@ -186,35 +198,36 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
               pagination={{ clickable: true }}
               spaceBetween={10}
               slidesPerView={1}
+              autoHeight={true}
               onSlideChange={handleSlideChange}
               initialSlide={tabValue}
               style={{ width: '100%' }}
               ref={swiperRef}
               aria-label="Carrusel de vistas del torneo"
             >
-              <SwiperSlide style={{ height: 'auto' }}>
+              <SwiperSlide>
                 <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                   <TournamentDetails tournament={tournament} />
                 </Box>
               </SwiperSlide>
-              <SwiperSlide style={{ height: 'auto' }}>
+              <SwiperSlide>
                 <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                   <TournamentGroups
                     tournament={tournament}
                     role={role}
                     openMatchDialog={openMatchDialog}
-                    generateKnockoutPhase={generateKnockoutPhase}
+                    generateKnockoutPhase AMERICAN_english="generateKnockoutPhase"
                     getPlayerName={getPlayerName}
                   />
                 </Box>
               </SwiperSlide>
-              <SwiperSlide style={{ height: 'auto' }}>
+              <SwiperSlide>
                 <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                   <TournamentStandings tournament={tournament} standings={standings} getPlayerName={getPlayerName} />
                 </Box>
               </SwiperSlide>
               {tournament.rounds && tournament.rounds.length > 0 && (
-                <SwiperSlide style={{ height: 'auto' }}>
+                <SwiperSlide>
                   <Box sx={{ p: { xs: 1, sm: 2 }, overflowY: 'auto' }}>
                     <TournamentBracket
                       tournament={tournament}
@@ -231,7 +244,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
           </Box>
 
           {(role === 'admin' || role === 'coach') && (
-            <Box sx={{ mt: 1, textAlign: 'center' }}> {/* Reduced margin for tighter layout */}
+            <Box sx={{ mt: 1, textAlign: 'center' }}>
               <Button
                 variant="contained"
                 color="success"
