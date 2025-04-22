@@ -20,15 +20,18 @@ const TournamentDetails = ({ tournament }) => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Filter participants based on search (match individual player names for doubles)
-  const filteredParticipants = tournament.participants.filter((participant) => {
-    const player1Name = getPlayerName(participant.player1, tournament);
-    const player2Name = participant.player2 ? getPlayerName(participant.player2, tournament) : '';
-    const searchLower = search.toLowerCase();
-    return (
-      player1Name.toLowerCase().includes(searchLower) ||
-      (player2Name && player2Name.toLowerCase().includes(searchLower))
-    );
-  });
+  const filteredParticipants = useMemo(() => {
+    if (!tournament?.participants || !Array.isArray(tournament.participants)) return [];
+    return tournament.participants.filter((participant) => {
+      const player1Name = getPlayerName(participant.player1, tournament);
+      const player2Name = participant.player2 ? getPlayerName(participant.player2, tournament) : '';
+      const searchLower = search.toLowerCase();
+      return (
+        player1Name.toLowerCase().includes(searchLower) ||
+        (player2Name && player2Name.toLowerCase().includes(searchLower))
+      );
+    });
+  }, [tournament, search]);
 
   // Pagination logic
   const paginatedParticipants = filteredParticipants.slice(
@@ -57,7 +60,7 @@ const TournamentDetails = ({ tournament }) => {
       </Typography>
       <Box sx={{ mb: 2 }}>
         <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Nombre:</strong> {tournament.name}
+          <strong>Nombre:</strong> {tournament.name || 'No definido'}
         </Typography>
         <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
           <strong>Club:</strong> {tournament.club?.name || 'No definido'}
@@ -66,10 +69,10 @@ const TournamentDetails = ({ tournament }) => {
           <strong>Categoría:</strong> {tournament.category || 'No definida'}
         </Typography>
         <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Tipo:</strong> {tournament.type}
+          <strong>Tipo:</strong> {tournament.type || 'No definido'}
         </Typography>
         <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Deporte:</strong> {tournament.sport}
+          <strong>Deporte:</strong> {tournament.sport || 'No definido'}
         </Typography>
         <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
           <strong>Modalidad:</strong> {tournament.format?.mode || 'No definido'}

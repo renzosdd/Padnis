@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRoundName } from './tournamentUtils.js';
 
-// Custom CSS for dynamic slide heights
+// Custom CSS to ensure dynamic slide heights
 const swiperStyles = `
   .swiper {
     width: 100%;
@@ -78,7 +78,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     setTabValue(swiper.activeIndex);
   }, []);
 
-  // Open match dialog for updating results
+  // Open match dialog for updating or editing results
   const openMatchDialog = useCallback(
     (match, groupIndex, matchIndex, roundIndex = null) => {
       if (role !== 'admin' && role !== 'coach') {
@@ -216,7 +216,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                     tournament={tournament}
                     role={role}
                     openMatchDialog={openMatchDialog}
-                    generateKnockoutPhase AMERICAN_english="generateKnockoutPhase"
+                    generateKnockoutPhase={generateKnockoutPhase}
                     getPlayerName={getPlayerName}
                   />
                 </Box>
