@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRoundName } from './tournamentUtils.js';
 
-// Custom CSS to ensure dynamic slide heights
+// Custom CSS for dynamic slide heights
 const swiperStyles = `
   .swiper {
     width: 100%;
@@ -78,7 +78,7 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     setTabValue(swiper.activeIndex);
   }, []);
 
-  // Open match dialog for updating or editing results
+  // Open match dialog for detailed editing
   const openMatchDialog = useCallback(
     (match, groupIndex, matchIndex, roundIndex = null) => {
       if (role !== 'admin' && role !== 'coach') {

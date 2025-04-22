@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -37,7 +37,7 @@ const MatchDialog = ({
   useEffect(() => {
     if (selectedMatch && open) {
       const initialSets =
-        selectedMatch.match.result.sets && selectedMatch.match.result.sets.length > 0
+        selectedMatch.match.result?.sets && selectedMatch.match.result.sets.length > 0
           ? selectedMatch.match.result.sets.map((set) => ({
               player1: set.player1 || 0,
               player2: set.player2 || 0,
@@ -47,8 +47,8 @@ const MatchDialog = ({
           : Array(tournament?.format?.sets || 1).fill({ player1: 0, player2: 0, tiebreak1: 0, tiebreak2: 0 });
       setMatchScores(initialSets);
       setMatchTiebreak({
-        player1: selectedMatch.match.result.matchTiebreak1 || 0,
-        player2: selectedMatch.match.result.matchTiebreak2 || 0,
+        player1: selectedMatch.match.result?.matchTiebreak1 || 0,
+        player2: selectedMatch.match.result?.matchTiebreak2 || 0,
       });
       setErrors([]);
       setTiebreakError('');
@@ -58,7 +58,7 @@ const MatchDialog = ({
   const validateSet = (set, index) => {
     const { player1, player2, tiebreak1, tiebreak2 } = set;
     if (player1 === 0 && player2 === 0) {
-      return `Set ${index + 1}: Los puntajes no pueden ser ambos 0`;
+      return `Set ${index + 1}: Ingresa puntajes válidos`;
     }
     if (player1 === 6 && player2 <= 4) return null;
     if (player2 === 6 && player1 <= 4) return null;
@@ -66,25 +66,25 @@ const MatchDialog = ({
     if (player2 === 7 && player1 === 5) return null;
     if (player1 === 6 && player2 === 6) {
       if (!tiebreak1 || !tiebreak2 || tiebreak1 === tiebreak2) {
-        return `Set ${index + 1}: Ingresa puntajes de tiebreak válidos (diferencia mínima de 2)`;
+        return `Set ${index + 1}: Ingresa tiebreak válido (diferencia de 2)`;
       }
       if (Math.abs(tiebreak1 - tiebreak2) < 2 || (tiebreak1 < 7 && tiebreak2 < 7)) {
-        return `Set ${index + 1}: El tiebreak debe ganarse por 2 puntos, mínimo 7`;
+        return `Set ${index + 1}: Tiebreak debe ser ≥7 con 2 puntos de diferencia`;
       }
       return null;
     }
-    return `Set ${index + 1}: Puntaje inválido (debe ser 6-4, 7-5 o 6-6 con tiebreak)`;
+    return `Set ${index + 1}: Puntaje inválido (6-4, 7-5, o 6-6 con tiebreak)`;
   };
 
   const validateMatchTiebreak = () => {
     if (matchTiebreak.player1 === 0 && matchTiebreak.player2 === 0) {
-      return 'El tiebreak del partido no puede tener puntajes de 0 para ambos equipos';
+      return 'Ingresa puntajes de tiebreak válidos';
     }
     if (matchTiebreak.player1 === matchTiebreak.player2) {
-      return 'El tiebreak del partido debe tener un ganador claro';
+      return 'El tiebreak debe tener un ganador';
     }
     if (Math.abs(matchTiebreak.player1 - matchTiebreak.player2) < 2) {
-      return 'El tiebreak del partido debe ganarse por al menos 2 puntos de diferencia';
+      return 'El tiebreak debe ganarse por 2 puntos';
     }
     return null;
   };
@@ -157,6 +157,11 @@ const MatchDialog = ({
   }, []);
 
   const submitMatchResult = async (retries = 3) => {
+    if (role !== 'admin' && role !== 'coach') {
+      addNotification('Solo admin o coach pueden actualizar partidos', 'error');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const validSets = matchScores.filter((set) => set.player1 > 0 || set.player2 > 0);
@@ -167,6 +172,7 @@ const MatchDialog = ({
       const validationErrors = validSets.map((set, index) => validateSet(set, index)).filter((error) => error);
       if (validationErrors.length > 0) {
         setErrors(validationErrors);
+        addNotification('Corrige los errores en los sets antes de guardar', 'error');
         return;
       }
 
@@ -182,7 +188,10 @@ const MatchDialog = ({
       const player2Id2 = selectedMatch.match.player2?.player2 ? normalizeId(selectedMatch.match.player2.player2) : null;
 
       if (
-        !player1Id || !player2Id || !isValidObjectId(player1Id) || !isValidObjectId(player2Id) ||
+        !player1Id ||
+        !player2Id ||
+        !isValidObjectId(player1Id) ||
+        !isValidObjectId(player2Id) ||
         (tournament.format.mode === 'Dobles' && player1Id2 && !isValidObjectId(player1Id2)) ||
         (tournament.format.mode === 'Dobles' && player2Id2 && !isValidObjectId(player2Id2))
       ) {
@@ -208,6 +217,7 @@ const MatchDialog = ({
           const tiebreakError = validateMatchTiebreak();
           if (tiebreakError) {
             setTiebreakError(tiebreakError);
+            addNotification(tiebreakError, 'error');
             return;
           }
           matchTiebreak1 = matchTiebreak.player1;
@@ -217,7 +227,7 @@ const MatchDialog = ({
 
       const winnerPair = determineWinner(matchScores, player1Pair, player2Pair, tournament?.format?.sets, matchTiebreak);
       if (!winnerPair) {
-        addNotification('No se pudo determinar un ganador', 'error');
+        addNotification('No se pudo determinar un ganador válido', 'error');
         return;
       }
 
@@ -234,13 +244,13 @@ const MatchDialog = ({
           tiebreak2: set.tiebreak2 > 0 ? set.tiebreak2 : undefined,
         })),
         winner: winnerPair,
-        runnerUp: runnerUpPair,
+        runnerUp: runnerUpPair || null,
         isKnockout: roundIndex !== null,
         matchTiebreak1: matchTiebreak1 || undefined,
         matchTiebreak2: matchTiebreak2 || undefined,
       };
 
-      const response = await axios.put(
+      await axios.put(
         `https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`,
         payload,
         {
@@ -252,12 +262,12 @@ const MatchDialog = ({
       await fetchTournament();
       addNotification('Resultado de partido actualizado', 'success');
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
-      const statusCode = error.response?.status || 'desconocido';
-      addNotification(`Error al actualizar el resultado (código ${statusCode}): ${errorMessage}.`, 'error');
+      const errorMessage = error.response?.data?.message || error.message || 'Error al guardar resultado';
       if (retries > 0 && error.code === 'ERR_NETWORK') {
         setTimeout(() => submitMatchResult(retries - 1), 5000);
+        return;
       }
+      addNotification(`Error: ${errorMessage}`, 'error');
     } finally {
       setIsLoading(false);
     }
@@ -281,7 +291,7 @@ const MatchDialog = ({
       <DialogTitle id="match-dialog-title" sx={{ bgcolor: '#1976d2', color: '#fff', fontSize: { xs: '1rem', sm: '1.25rem' }, p: 2 }}>
         Actualizar Resultado del Partido
       </DialogTitle>
-      <DialogContent sx={{ bgcolor: '#f5f5f5', p: { xs: 2, sm: 3 } }}>
+      <DialogContent sx={{ bgcolor: '#f0f4f8', p: { xs: 2, sm: 3 } }}>
         {selectedMatch && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box
@@ -296,24 +306,24 @@ const MatchDialog = ({
               }}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ bgcolor: '#1976d2', width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 } }}>
+                <Avatar sx={{ bgcolor: '#1976d2', width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   {selectedMatch.match.player1?.player1 ? getPlayerName(tournament, selectedMatch.match.player1.player1).charAt(0) : '?'}
                 </Avatar>
-                <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'bold' }}>
+                <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, fontWeight: 'bold' }}>
                   {selectedMatch.match.player1?.player1
                     ? getPlayerName(tournament, selectedMatch.match.player1.player1, selectedMatch.match.player1.player2)
                     : 'Jugador no definido'}
                 </Typography>
               </Box>
-              <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>vs</Typography>
+              <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>vs</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'bold' }}>
+                <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, fontWeight: 'bold' }}>
                   {selectedMatch.match.player2?.name ||
                   (selectedMatch.match.player2?.player1
                     ? getPlayerName(tournament, selectedMatch.match.player2.player1, selectedMatch.match.player2.player2)
                     : 'Jugador no definido')}
                 </Typography>
-                <Avatar sx={{ bgcolor: '#42a5f5', width: { xs: 32, sm: 40 }, height: { xs: 32, sm: 40 } }}>
+                <Avatar sx={{ bgcolor: '#424242', width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   {selectedMatch.match.player2?.name
                     ? 'BYE'
                     : selectedMatch.match.player2?.player1
@@ -331,10 +341,8 @@ const MatchDialog = ({
                   {errors[index] && <Alert severity="error" sx={{ mb: 2 }}>{errors[index]}</Alert>}
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
-                        {selectedMatch.match.player1?.player1
-                          ? getPlayerName(tournament, selectedMatch.match.player1.player1, selectedMatch.match.player1.player2)
-                          : 'Jugador no definido'}
+                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                        Equipo 1
                       </Typography>
                       <IconButton
                         onClick={() => decrementScore(index, 'player1')}
@@ -349,7 +357,7 @@ const MatchDialog = ({
                         value={set.player1}
                         onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
                         inputProps={{ min: 0, 'aria-label': `Puntaje del equipo 1 en el set ${index + 1}` }}
-                        sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                        sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                       />
                       <IconButton
                         onClick={() => incrementScore(index, 'player1')}
@@ -361,11 +369,8 @@ const MatchDialog = ({
                       </IconButton>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
-                        {selectedMatch.match.player2?.name ||
-                        (selectedMatch.match.player2?.player1
-                          ? getPlayerName(tournament, selectedMatch.match.player2.player1, selectedMatch.match.player2.player2)
-                          : 'Jugador no definido')}
+                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                        Equipo 2
                       </Typography>
                       <IconButton
                         onClick={() => decrementScore(index, 'player2')}
@@ -380,7 +385,7 @@ const MatchDialog = ({
                         value={set.player2}
                         onChange={(e) => handleScoreChange(index, 'player2', e.target.value)}
                         inputProps={{ min: 0, 'aria-label': `Puntaje del equipo 2 en el set ${index + 1}` }}
-                        sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                        sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                       />
                       <IconButton
                         onClick={() => incrementScore(index, 'player2')}
@@ -394,7 +399,7 @@ const MatchDialog = ({
                     {set.player1 === 6 && set.player2 === 6 && (
                       <>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
+                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
                             Tiebreak Equipo 1
                           </Typography>
                           <IconButton
@@ -410,7 +415,7 @@ const MatchDialog = ({
                             value={set.tiebreak1}
                             onChange={(e) => handleScoreChange(index, 'tiebreak1', e.target.value)}
                             inputProps={{ min: 0, 'aria-label': `Tiebreak del equipo 1 en el set ${index + 1}` }}
-                            sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                            sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                           />
                           <IconButton
                             onClick={() => incrementScore(index, 'tiebreak1')}
@@ -422,7 +427,7 @@ const MatchDialog = ({
                           </IconButton>
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
+                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
                             Tiebreak Equipo 2
                           </Typography>
                           <IconButton
@@ -438,7 +443,7 @@ const MatchDialog = ({
                             value={set.tiebreak2}
                             onChange={(e) => handleScoreChange(index, 'tiebreak2', e.target.value)}
                             inputProps={{ min: 0, 'aria-label': `Tiebreak del equipo 2 en el set ${index + 1}` }}
-                            sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                            sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                           />
                           <IconButton
                             onClick={() => incrementScore(index, 'tiebreak2')}
@@ -463,10 +468,8 @@ const MatchDialog = ({
                 {tiebreakError && <Alert severity="error" sx={{ mb: 2 }}>{tiebreakError}</Alert>}
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
-                      {selectedMatch.match.player1?.player1
-                        ? getPlayerName(tournament, selectedMatch.match.player1.player1, selectedMatch.match.player1.player2)
-                        : 'Jugador no definido'}
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                      Equipo 1
                     </Typography>
                     <IconButton
                       onClick={() => decrementTiebreak('player1')}
@@ -481,7 +484,7 @@ const MatchDialog = ({
                       value={matchTiebreak.player1}
                       onChange={(e) => handleTiebreakChange('player1', e.target.value)}
                       inputProps={{ min: 0, 'aria-label': 'Tiebreak del partido para el equipo 1' }}
-                      sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                      sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                     />
                     <IconButton
                       onClick={() => incrementTiebreak('player1')}
@@ -493,11 +496,8 @@ const MatchDialog = ({
                     </IconButton>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '120px', sm: '150px' } }}>
-                      {selectedMatch.match.player2?.name ||
-                      (selectedMatch.match.player2?.player1
-                        ? getPlayerName(tournament, selectedMatch.match.player2.player1, selectedMatch.match.player2.player2)
-                        : 'Jugador no definido')}
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                      Equipo 2
                     </Typography>
                     <IconButton
                       onClick={() => decrementTiebreak('player2')}
@@ -512,7 +512,7 @@ const MatchDialog = ({
                       value={matchTiebreak.player2}
                       onChange={(e) => handleTiebreakChange('player2', e.target.value)}
                       inputProps={{ min: 0, 'aria-label': 'Tiebreak del partido para el equipo 2' }}
-                      sx={{ width: { xs: '60px', sm: '80px' }, '& input': { textAlign: 'center', fontSize: { xs: '0.875rem', sm: '1rem' } } }}
+                      sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                     />
                     <IconButton
                       onClick={() => incrementTiebreak('player2')}
@@ -529,7 +529,7 @@ const MatchDialog = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ p: { xs: 1, sm: 2 }, bgcolor: '#f5f5f5' }}>
+      <DialogActions sx={{ p: { xs: 1, sm: 2 }, bgcolor: '#f0f4f8' }}>
         <Button
           onClick={onClose}
           disabled={isLoading}

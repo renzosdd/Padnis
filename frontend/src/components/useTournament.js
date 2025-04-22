@@ -68,7 +68,8 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
    * @param {Object} tournamentData - The tournament data.
    */
   const updateStandings = (tournamentData) => {
-    if (!tournamentData.groups || !Array.isArray(tournamentData.groups)) {
+    if (!tournamentData?.groups || !Array.isArray(tournamentData.groups)) {
+      console.warn('Invalid or missing groups data:', tournamentData?.groups);
       setStandings([]);
       return;
     }
@@ -77,6 +78,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
       const standings = (group.players && Array.isArray(group.players) ? group.players : []).map((p) => {
         const player1Id = normalizeId(p.player1);
         if (!player1Id || !isValidObjectId(player1Id)) {
+          console.warn('Invalid player ID:', p.player1);
           return null;
         }
         return {
@@ -93,6 +95,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
           if (match.result?.winner) {
             const winnerId = normalizeId(match.result.winner?.player1);
             if (!winnerId || !isValidObjectId(winnerId)) {
+              console.warn('Invalid winner ID:', match.result.winner?.player1);
               return;
             }
             const winner = standings.find((s) => s.playerId === winnerId);
@@ -104,6 +107,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
                 const p1Id = normalizeId(match.player1?.player1);
                 const p2Id = normalizeId(match.player2?.player1);
                 if (!p1Id || !p2Id || !isValidObjectId(p1Id) || !isValidObjectId(p2Id)) {
+                  console.warn('Invalid player IDs in match:', { p1Id, p2Id });
                   return;
                 }
                 const p1 = standings.find((s) => s.playerId === p1Id);
@@ -129,12 +133,15 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
         });
       }
 
-      return {
+      const groupStandings = {
         groupName: group.name || `Grupo ${groupIndex + 1}`,
-        standings: standings.sort((a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon),
+        standings: standings.sort((a, b) => (b.wins || 0) - (a.wins || 0) || (b.setsWon || 0) - (a.setsWon || 0) || (b.gamesWon || 0) - (a.gamesWon || 0)),
       };
+      console.log('Group standings:', groupStandings);
+      return groupStandings;
     });
 
+    console.log('Updated standings:', newStandings);
     setStandings(newStandings);
   };
 
@@ -148,7 +155,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
 
     try {
       const allMatchesCompleted = tournament.groups.every((group) =>
-        group.matches.every((match) => match.result.winner !== null)
+        group.matches.every((match) => match.result?.winner !== null)
       );
       if (!allMatchesCompleted) {
         addNotification('Completa todos los partidos de los grupos antes de generar la fase eliminatoria.', 'error');
@@ -191,7 +198,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
       }
 
       const updatePayload = {
-        rounds: [...tournament.rounds, { round: tournament.rounds.length + 1, matches }],
+        rounds: [...(tournament.rounds || []), { round: (tournament.rounds?.length || 0) + 1, matches }],
       };
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, updatePayload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -222,15 +229,15 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
 
     try {
       const currentRound = tournament.rounds[tournament.rounds.length - 1];
-      if (!currentRound.matches.every((m) => m.result.winner || m.player2?.name === 'BYE')) {
+      if (!currentRound.matches.every((m) => m.result?.winner || m.player2?.name === 'BYE')) {
         addNotification('Completa todos los partidos de la ronda actual antes de avanzar.', 'error');
         return;
       }
 
       const winners = currentRound.matches
-        .filter((m) => m.result.winner || m.player2?.name === 'BYE')
+        .filter((m) => m.result?.winner || m.player2?.name === 'BYE')
         .map((m) => {
-          const winnerPair = m.result.winner;
+          const winnerPair = m.result?.winner || (m.player2?.name === 'BYE' ? m.player1 : null);
           if (
             !winnerPair ||
             !winnerPair.player1 ||
@@ -311,9 +318,9 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
     try {
       const allMatchesCompleted =
         tournament.type === 'RoundRobin' && !tournament.rounds.length
-          ? tournament.groups.every((group) => group.matches.every((match) => match.result.winner !== null))
+          ? tournament.groups.every((group) => group.matches.every((match) => match.result?.winner !== null))
           : tournament.rounds.every((round) =>
-              round.matches.every((match) => match.result.winner !== null || match.player2?.name === 'BYE')
+              round.matches.every((match) => match.result?.winner !== null || match.player2?.name === 'BYE')
             );
       if (!allMatchesCompleted) {
         addNotification('Completa todos los partidos antes de finalizar el torneo.', 'error');
@@ -328,7 +335,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
           return;
         }
         const finalMatch = finalRound.matches[0];
-        if (!finalMatch.result.winner) {
+        if (!finalMatch.result?.winner) {
           addNotification('La ronda final no tiene un ganador definido.', 'error');
           return;
         }
@@ -367,7 +374,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
       } else if (tournament.type === 'RoundRobin') {
         const allStandings = standings.flatMap((group) => group.standings);
         const sortedStandings = allStandings.sort(
-          (a, b) => b.wins - a.wins || b.setsWon - a.setsWon || b.gamesWon - a.gamesWon
+          (a, b) => (b.wins || 0) - (a.wins || 0) || (b.setsWon || 0) - (a.setsWon || 0) || (b.gamesWon || 0) - (a.gamesWon || 0)
         );
         const winnerParticipant = tournament.participants.find((p) => normalizeId(p.player1) === sortedStandings[0]?.playerId);
         const runnerUpParticipant = sortedStandings[1]

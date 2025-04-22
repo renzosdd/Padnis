@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Typography, Card, CardContent, Avatar } from '@mui/material';
 
 const StandingCard = ({ player, participant, tournament, index }) => {

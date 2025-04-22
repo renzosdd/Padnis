@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -41,7 +41,7 @@ const TournamentDetails = ({ tournament }) => {
 
   const handleSearchChange = (event) => {
     setSearch(event.target.value);
-    setPage(0); // Reset to first page on search
+    setPage(0);
   };
 
   const handleChangePage = (event, newPage) => {
