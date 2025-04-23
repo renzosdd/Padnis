@@ -1,14 +1,14 @@
-import validator from 'validator';
-
 // Normalizes MongoDB ObjectId by converting to string and removing quotes
 export const normalizeId = (id) => {
   if (!id) return null;
   return id.toString().replace(/"/g, '');
 };
 
-// Validates if a string is a valid MongoDB ObjectId
+// Validates if a string is a valid MongoDB ObjectId (24-character hexadecimal)
 export const isValidObjectId = (id) => {
-  return id && validator.isMongoId(id.toString());
+  if (!id) return false;
+  const idStr = id.toString();
+  return /^[0-9a-fA-F]{24}$/.test(idStr);
 };
 
 // Gets player name from tournament participants
