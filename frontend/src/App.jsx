@@ -109,13 +109,9 @@ const App = () => {
       if (validTournaments.length === 0) {
         console.log('No tournaments found for query:', { status: 'En curso', draft: false, user: user ? user._id : 'none' });
       }
-      if (selectedTournamentId && !validTournaments.some((t) => t._id === selectedTournamentId)) {
-        setSelectedTournamentId(null);
-        setView('activos');
-        addNotification('El torneo seleccionado ya no está disponible', 'warning');
-      }
       setTournaments(validTournaments);
       setError(null);
+      console.log('Tournaments fetched:', validTournaments.length);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const errorDetails = {
@@ -124,6 +120,7 @@ const App = () => {
         status: error.response?.status,
         responseData: error.response?.data,
         request: error.config,
+        retriesLeft: retries,
       };
       console.error('Error fetching tournaments:', errorDetails);
       let userMessage = `Error al cargar torneos (código ${error.code || 'desconocido'}): ${errorMessage}`;
@@ -136,14 +133,10 @@ const App = () => {
         setTimeout(() => fetchTournaments(retries - 1, backoff * 2), backoff);
       } else {
         setTournaments([]);
-        setSelectedTournamentId(null);
-        setView('activos');
-        if (error.code === 'ERR_NETWORK') {
-          setError('No se pudo conectar al servidor. Es posible que el servidor esté inactivo o haya un problema de red.');
-        }
+        setError('No se pudo conectar al servidor. Es posible que el servidor esté inactivo o haya un problema de red.');
       }
     }
-  }, [user, selectedTournamentId, addNotification]);
+  }, [addNotification]);
 
   const fetchUsers = async () => {
     try {
@@ -164,12 +157,14 @@ const App = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        await fetchTournaments();
         if (user) {
           await Promise.all([
+            fetchTournaments(),
             role !== 'player' ? fetchPlayers() : Promise.resolve(),
-            role === 'admin' || role === 'coach' ? fetchUsers() : Promise.resolve(),
+            (role === 'admin' || role === 'coach') ? fetchUsers() : Promise.resolve(),
           ]);
+        } else {
+          await fetchTournaments(); // Fetch public tournaments for unauthenticated users
         }
       } catch (err) {
         setError(err.message);
@@ -179,7 +174,7 @@ const App = () => {
       }
     };
     fetchData();
-  }, [user, role, fetchTournaments]);
+  }, [user, role]); // Removed fetchTournaments from dependencies
 
   const updatePlayer = useCallback((updatedPlayer) => {
     dispatch(setPlayers(players.map((p) => (p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p))));

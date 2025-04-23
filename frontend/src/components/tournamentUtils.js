@@ -18,7 +18,7 @@ export const getPlayerName = (tournament, player1Id, player2Id = null) => {
   }
 
   const participant = tournament.participants.find(
-    (p) => normalizeId(p.player1) === normalizeId(player1Id)
+    (p) => normalizeId(p.player1?._id || p.player1) === normalizeId(player1Id)
   );
 
   if (!participant) {

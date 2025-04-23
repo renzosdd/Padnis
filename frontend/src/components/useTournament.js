@@ -45,9 +45,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
       setError(errorMessage);
       addNotification(`No se pudo cargar el torneo: ${errorMessage}. Intenta de nuevo más tarde.`, 'error');
     } finally {
-      if (retries === 0 || error?.code !== 'ERR_NETWORK') {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }, [tournamentId, addNotification]);
 
@@ -60,42 +58,52 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
 
     const newStandings = tournamentData.groups.map((group, groupIndex) => {
       const standings = (group.players && Array.isArray(group.players) ? group.players : []).map((p) => {
-        const player1Id = normalizeId(p.player1);
+        const player1Id = normalizeId(p.player1?._id || p.player1?.player1?._id || p.player1);
         if (!player1Id || !isValidObjectId(player1Id)) {
-          console.warn('Invalid player ID:', p.player1);
+          console.warn('Invalid player1 ID:', p.player1);
           return null;
         }
         return {
           playerId: player1Id,
-          player2Id: p.player2 ? normalizeId(p.player2) : null,
+          player2Id: p.player2 ? normalizeId(p.player2?._id || p.player2?.player1?._id || p.player2) : null,
           wins: 0,
           setsWon: 0,
           gamesWon: 0,
         };
-      }).filter((p) => p !== null);
+      }).filter(p => p !== null);
 
       if (group.matches && Array.isArray(group.matches)) {
         group.matches.forEach((match) => {
           if (match.result?.winner) {
-            const winnerId = normalizeId(match.result.winner?.player1);
+            const winnerId = normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1);
             if (!winnerId || !isValidObjectId(winnerId)) {
-              console.warn('Invalid winner ID:', match.result.winner?.player1);
+              console.warn('Invalid winner ID:', match.result.winner);
               return;
             }
-            const winner = standings.find((s) => s.playerId === winnerId);
+            const winner = standings.find(s => s.playerId === winnerId);
             if (winner) {
               winner.wins += 1;
             }
             if (match.result.sets && Array.isArray(match.result.sets)) {
               match.result.sets.forEach((set) => {
-                const p1Id = normalizeId(match.player1?.player1);
-                const p2Id = normalizeId(match.player2?.player1);
+                const p1Id = normalizeId(
+                  match.player1?.player1?._id ||
+                  match.player1?._id ||
+                  match.player1?.player1 ||
+                  (typeof match.player1 === 'object' && match.player1?.player1?._id)
+                );
+                const p2Id = normalizeId(
+                  match.player2?.player1?._id ||
+                  match.player2?._id ||
+                  match.player2?.player1 ||
+                  (typeof match.player2 === 'object' && match.player2?.player1?._id)
+                );
                 if (!p1Id || !p2Id || !isValidObjectId(p1Id) || !isValidObjectId(p2Id)) {
-                  console.warn('Invalid player IDs in match:', { p1Id, p2Id });
+                  console.warn('Invalid player IDs in match:', { p1Id, p2Id, match });
                   return;
                 }
-                const p1 = standings.find((s) => s.playerId === p1Id);
-                const p2 = standings.find((s) => s.playerId === p2Id);
+                const p1 = standings.find(s => s.playerId === p1Id);
+                const p2 = standings.find(s => s.playerId === p2Id);
                 if (p1 && p2) {
                   p1.gamesWon += set.player1 || 0;
                   p2.gamesWon += set.player2 || 0;
@@ -144,10 +152,10 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
       const topPlayers = standings.flatMap((group) => {
         if (!group.standings || !Array.isArray(group.standings)) return [];
         return group.standings.slice(0, tournament.playersPerGroupToAdvance || 2).map((s) => {
-          const participant = tournament.participants.find((p) => normalizeId(p.player1) === s.playerId);
+          const participant = tournament.participants.find((p) => normalizeId(p.player1?._id || p.player1) === s.playerId);
           if (!participant) return null;
-          const player1Id = normalizeId(participant.player1);
-          const player2Id = tournament.format.mode === 'Dobles' && participant.player2 ? normalizeId(participant.player2) : null;
+          const player1Id = normalizeId(participant.player1?._id || participant.player1);
+          const player2Id = tournament.format.mode === 'Dobles' && participant.player2 ? normalizeId(participant.player2?._id || participant.player2) : null;
           if (!player1Id || !isValidObjectId(player1Id) || (player2Id && !isValidObjectId(player2Id))) return null;
           return { player1: player1Id, player2: player2Id, seed: false };
         }).filter((p) => p !== null);
@@ -218,6 +226,7 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
             !isValidObjectId(winnerPair.player1) ||
             (tournament.format.mode === 'Dobles' && winnerPair.player2 && !isValidObjectId(winnerPair.player2))
           ) {
+            console.warn('Invalid winner pair:', winnerPair);
             addNotification('Pareja ganadora inválida en un partido.', 'error');
             return null;
           }
@@ -246,17 +255,23 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
         round: round.round,
         matches: round.matches.map((match) => ({
           player1: {
-            player1: normalizeId(match.player1.player1),
-            player2: match.player1.player2 ? normalizeId(match.player1.player2) : null,
+            player1: normalizeId(match.player1?.player1?._id || match.player1?.player1 || match.player1?._id),
+            player2: match.player1?.player2 ? normalizeId(match.player1?.player2?._id || match.player1?.player2) : null,
           },
-          player2: match.player2.name === 'BYE' ? { name: 'BYE' } : {
-            player1: normalizeId(match.player2.player1),
-            player2: match.player2.player2 ? normalizeId(match.player2.player2) : null,
+          player2: match.player2?.name === 'BYE' ? { name: 'BYE' } : {
+            player1: normalizeId(match.player2?.player1?._id || match.player2?.player1 || match.player2?._id),
+            player2: match.player2?.player2 ? normalizeId(match.player2?.player2?._id || match.player2?.player2) : null,
           },
           result: {
             sets: match.result.sets,
-            winner: match.result.winner,
-            runnerUp: match.result.runnerUp,
+            winner: match.result.winner ? {
+              player1: normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1),
+              player2: match.result.winner?.player2 ? normalizeId(match.result.winner?.player2?._id || match.result.winner?.player2) : null,
+            } : null,
+            runnerUp: match.result.runnerUp ? {
+              player1: normalizeId(match.result.runnerUp?.player1?._id || match.result.runnerUp?.player1),
+              player2: match.result.runnerUp?.player2 ? normalizeId(match.result.runnerUp?.player2?._id || match.result.runnerUp?.player2) : null,
+            } : null,
             matchTiebreak1: match.result.matchTiebreak1,
             matchTiebreak2: match.result.matchTiebreak2,
           },
@@ -337,27 +352,33 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
             }
           }
         }
-        winnerPair = finalMatch.result.winner;
-        runnerUpPair = finalMatch.result.runnerUp;
+        winnerPair = {
+          player1: normalizeId(finalMatch.result.winner?.player1?._id || finalMatch.result.winner?.player1),
+          player2: finalMatch.result.winner?.player2 ? normalizeId(finalMatch.result.winner?.player2?._id || finalMatch.result.winner?.player2) : null,
+        };
+        runnerUpPair = finalMatch.result.runnerUp ? {
+          player1: normalizeId(finalMatch.result.runnerUp?.player1?._id || finalMatch.result.runnerUp?.player1),
+          player2: finalMatch.result.runnerUp?.player2 ? normalizeId(finalMatch.result.runnerUp?.player2?._id || finalMatch.result.runnerUp?.player2) : null,
+        } : null;
       } else if (tournament.type === 'RoundRobin') {
         const allStandings = standings.flatMap((group) => group.standings);
         const sortedStandings = allStandings.sort(
           (a, b) => (b.wins || 0) - (a.wins || 0) || (b.setsWon || 0) - (a.setsWon || 0) || (b.gamesWon || 0) - (a.gamesWon || 0)
         );
-        const winnerParticipant = tournament.participants.find((p) => normalizeId(p.player1) === sortedStandings[0]?.playerId);
+        const winnerParticipant = tournament.participants.find((p) => normalizeId(p.player1?._id || p.player1) === sortedStandings[0]?.playerId);
         const runnerUpParticipant = sortedStandings[1]
-          ? tournament.participants.find((p) => normalizeId(p.player1) === sortedStandings[1]?.playerId)
+          ? tournament.participants.find((p) => normalizeId(p.player1?._id || p.player1) === sortedStandings[1]?.playerId)
           : null;
         winnerPair = winnerParticipant
           ? {
-              player1: normalizeId(winnerParticipant.player1),
-              player2: winnerParticipant.player2 ? normalizeId(winnerParticipant.player2) : null,
+              player1: normalizeId(winnerParticipant.player1?._id || winnerParticipant.player1),
+              player2: winnerParticipant.player2 ? normalizeId(winnerParticipant.player2?._id || winnerParticipant.player2) : null,
             }
           : null;
         runnerUpPair = runnerUpParticipant
           ? {
-              player1: normalizeId(runnerUpParticipant.player1),
-              player2: runnerUpParticipant.player2 ? normalizeId(runnerUpParticipant.player2) : null,
+              player1: normalizeId(runnerUpParticipant.player1?._id || runnerUpParticipant.player1),
+              player2: runnerUpParticipant.player2 ? normalizeId(runnerUpParticipant.player2?._id || runnerUpParticipant.player2) : null,
             }
           : null;
       }
