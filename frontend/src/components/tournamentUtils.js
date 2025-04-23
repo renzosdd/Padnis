@@ -1,6 +1,13 @@
 // Normalizes MongoDB ObjectId by converting to string and removing quotes
 export const normalizeId = (id) => {
-  if (!id) return null;
+  if (!id) {
+    console.warn('normalizeId received null or undefined ID');
+    return null;
+  }
+  if (typeof id === 'object') {
+    console.warn('normalizeId received an object instead of a string:', id);
+    return null;
+  }
   return id.toString().replace(/"/g, '');
 };
 
@@ -14,24 +21,34 @@ export const isValidObjectId = (id) => {
 // Gets player name from tournament participants
 export const getPlayerName = (tournament, player1Id, player2Id = null) => {
   if (!tournament || !tournament.participants || !player1Id) {
-    console.warn('Invalid arguments for getPlayerName:', { tournamentExists: !!tournament, participantsExists: !!tournament?.participants, player1Id });
-    return 'Desconocido';
+    console.warn('Invalid arguments for getPlayerName:', {
+      tournamentExists: !!tournament,
+      participantsExists: !!tournament?.participants,
+      player1Id,
+      player2Id,
+    });
+    return 'Jugador no disponible';
   }
 
   const normalizedPlayer1Id = normalizeId(player1Id);
+  if (!normalizedPlayer1Id) {
+    console.warn('Failed to normalize player1Id:', player1Id);
+    return 'Jugador no disponible';
+  }
+
   const participant = tournament.participants.find((p) => {
-    const participantId = normalizeId(p.player1?._id || p.player1?.player1?._id || p.player1);
-    return participantId === normalizedPlayer1Id;
+    const participantPlayer1Id = normalizeId(p.player1?._id || p.player1);
+    return participantPlayer1Id === normalizedPlayer1Id;
   });
 
   if (!participant) {
     console.warn('Participant not found for player1Id:', normalizedPlayer1Id, 'Participants:', tournament.participants);
-    return 'Desconocido';
+    return 'Jugador no disponible';
   }
 
-  const player1Name = participant.player1?.name || 'Desconocido';
+  const player1Name = participant.player1?.name || `${participant.player1?.firstName || ''} ${participant.player1?.lastName || ''}`.trim() || 'Jugador no disponible';
   if (tournament.format?.mode === 'Dobles' && participant.player2) {
-    const player2Name = participant.player2?.name || 'Desconocido';
+    const player2Name = participant.player2?.name || `${participant.player2?.firstName || ''} ${participant.player2?.lastName || ''}`.trim() || 'Jugador no disponible';
     return `${player1Name} / ${player2Name}`;
   }
 

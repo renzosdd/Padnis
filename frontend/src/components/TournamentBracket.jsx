@@ -7,7 +7,6 @@ import {
   CardContent,
   Avatar,
   Button,
-  IconButton,
   TextField,
   Select,
   MenuItem,
@@ -18,19 +17,16 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
-import { Add, Remove } from '@mui/icons-material';
 import HourglassEmpty from '@mui/icons-material/HourglassEmpty';
 import CheckCircle from '@mui/icons-material/CheckCircle';
-import Edit from '@mui/icons-material/Edit';
 import axios from 'axios';
 import { getPlayerName, normalizeId, isValidObjectId, determineWinner } from './tournamentUtils.js';
 
-const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, openMatchDialog, advanceEliminationRound, fetchTournament, addNotification }) => {
+const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, advanceEliminationRound, fetchTournament, addNotification }) => {
   const [confirmAdvanceOpen, setConfirmAdvanceOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [matchResults, setMatchResults] = useState({});
   const [errors, setErrors] = useState({});
-  const [unsavedCount, setUnsavedCount] = useState(0);
   const canEdit = role === 'admin' || role === 'coach';
 
   const rounds = useMemo(() => {
@@ -44,15 +40,24 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
     rounds.forEach((round) => {
       round.matches.forEach((match) => {
         results[match._id] = {
-          sets: match.result?.sets || Array(tournament.format.sets || 1).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }),
-          winner: match.result?.winner ? normalizeId(match.result.winner.player1) : '',
-          matchTiebreak: match.result?.matchTiebreak1 ? { player1: match.result.matchTiebreak1, player2: match.result.matchTiebreak2 } : null,
+          sets: match.result?.sets?.length > 0
+            ? match.result.sets.map(set => ({
+                player1: set.player1?.toString() || '',
+                player2: set.player2?.toString() || '',
+                tiebreak1: set.tiebreak1?.toString() || '',
+                tiebreak2: set.tiebreak2?.toString() || '',
+              }))
+            : Array(tournament.format.sets || 1).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }),
+          winner: match.result?.winner ? normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1) : '',
+          matchTiebreak: match.result?.matchTiebreak1 ? {
+            player1: match.result.matchTiebreak1.toString(),
+            player2: match.result.matchTiebreak2.toString(),
+          } : null,
           saved: !!match.result?.winner,
         };
       });
     });
     setMatchResults(results);
-    setUnsavedCount(Object.values(results).filter(r => !r.saved).length);
   }, [rounds, tournament]);
 
   useEffect(() => {
@@ -141,8 +146,8 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
     // Validate winner
     if (result.winner) {
       const match = rounds.flatMap(r => r.matches).find(m => m._id === matchId);
-      const p1Id = normalizeId(match.player1?.player1);
-      const p2Id = normalizeId(match.player2?.player1);
+      const p1Id = normalizeId(match.player1?.player1?._id || match.player1?.player1);
+      const p2Id = normalizeId(match.player2?.player1?._id || match.player2?.player1);
       const isPlayer1Winner = result.winner === p1Id;
       let setsWonByPlayer1 = 0;
       let setsWonByPlayer2 = 0;
@@ -168,7 +173,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
   const saveMatchResult = useCallback(async (matchId) => {
     if (!canEdit) return;
     const result = matchResults[matchId];
-    if (!result || result.saved) return;
+    if (!result) return;
 
     const validationErrors = validateResult(matchId, result);
     if (validationErrors) {
@@ -177,13 +182,24 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
       return;
     }
 
+    // Ensure all sets have valid scores before saving
+    const validSets = result.sets.filter(set => parseInt(set.player1, 10) > 0 || parseInt(set.player2, 10) > 0);
+    if (validSets.length !== tournament.format.sets) {
+      setErrors(prev => ({ ...prev, [matchId]: { general: `Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos` } }));
+      addNotification(`Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos`, 'error');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const match = rounds.flatMap(r => r.matches).find(m => m._id === matchId);
-      const player1Pair = { player1: normalizeId(match.player1?.player1), player2: match.player1?.player2 ? normalizeId(match.player1.player2) : null };
+      const player1Pair = {
+        player1: normalizeId(match.player1?.player1?._id || match.player1?.player1),
+        player2: match.player1?.player2 ? normalizeId(match.player1?.player2?._id || match.player1?.player2) : null,
+      };
       const player2Pair = match.player2?.name === 'BYE' ? { name: 'BYE' } : {
-        player1: normalizeId(match.player2?.player1),
-        player2: match.player2?.player2 ? normalizeId(match.player2.player2) : null,
+        player1: normalizeId(match.player2?.player1?._id || match.player2?.player1),
+        player2: match.player2?.player2 ? normalizeId(match.player2?.player2?._id || match.player2?.player2) : null,
       };
 
       const winnerPair = result.winner ? (result.winner === player1Pair.player1 ? player1Pair : player2Pair) : null;
@@ -216,7 +232,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
         [matchId]: { ...prev[matchId], saved: true },
       }));
       setErrors(prev => ({ ...prev, [matchId]: null }));
-      setUnsavedCount(prev => prev - 1);
       addNotification('Resultado guardado con éxito', 'success');
       await fetchTournament();
     } catch (error) {
@@ -227,17 +242,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
       setIsLoading(false);
     }
   }, [canEdit, matchResults, tournament, addNotification, fetchTournament]);
-
-  // Save all unsaved match results
-  const saveAllResults = useCallback(async () => {
-    if (!canEdit || unsavedCount === 0) return;
-    setIsLoading(true);
-    const unsavedMatchIds = Object.keys(matchResults).filter(id => !matchResults[id].saved);
-    for (const matchId of unsavedMatchIds) {
-      await saveMatchResult(matchId);
-    }
-    setIsLoading(false);
-  }, [canEdit, matchResults, unsavedCount, saveMatchResult]);
 
   // Handle input changes
   const handleInputChange = (matchId, field, value, setIndex = null) => {
@@ -257,50 +261,15 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
         const player = field.split('-')[1];
         result.matchTiebreak = { ...result.matchTiebreak, [player]: value };
       }
-      if (!result.saved) {
-        setUnsavedCount(prev => prev + (prev[matchId]?.saved ? 1 : 0));
-      }
       return { ...prev, [matchId]: result };
     });
   };
 
-  // Increment/decrement scores
-  const incrementScore = (matchId, field, setIndex) => {
-    setMatchResults(prev => {
-      const result = { ...prev[matchId] };
-      if (field.startsWith('set')) {
-        const index = parseInt(field.split('-')[1], 10);
-        result.sets = [...result.sets];
-        result.sets[index] = { ...result.sets[index], [setIndex === 0 ? 'player1' : 'player2']: (parseInt(result.sets[index][setIndex === 0 ? 'player1' : 'player2'], 10) || 0) + 1 };
-      } else if (field.startsWith('tiebreak')) {
-        const [type, index, player] = field.split('-');
-        result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = { ...result.sets[index], [player === '1' ? 'tiebreak1' : 'tiebreak2']: (parseInt(result.sets[index][player === '1' ? 'tiebreak1' : 'tiebreak2'], 10) || 0) + 1 };
-      } else if (field.startsWith('matchTiebreak')) {
-        const player = field.split('-')[1];
-        result.matchTiebreak = { ...result.matchTiebreak, [player]: (parseInt(result.matchTiebreak?.[player], 10) || 0) + 1 };
-      }
-      return { ...prev, [matchId]: result };
-    });
-  };
-
-  const decrementScore = (matchId, field, setIndex) => {
-    setMatchResults(prev => {
-      const result = { ...prev[matchId] };
-      if (field.startsWith('set')) {
-        const index = parseInt(field.split('-')[1], 10);
-        result.sets = [...result.sets];
-        result.sets[index] = { ...result.sets[index], [setIndex === 0 ? 'player1' : 'player2']: Math.max(0, (parseInt(result.sets[index][setIndex === 0 ? 'player1' : 'player2'], 10) || 0) - 1) };
-      } else if (field.startsWith('tiebreak')) {
-        const [type, index, player] = field.split('-');
-        result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = { ...result.sets[index], [player === '1' ? 'tiebreak1' : 'tiebreak2']: Math.max(0, (parseInt(result.sets[index][player === '1' ? 'tiebreak1' : 'tiebreak2'], 10) || 0) - 1) };
-      } else if (field.startsWith('matchTiebreak')) {
-        const player = field.split('-')[1];
-        result.matchTiebreak = { ...result.matchTiebreak, [player]: Math.max(0, (parseInt(result.matchTiebreak?.[player], 10) || 0) - 1) };
-      }
-      return { ...prev, [matchId]: result };
-    });
+  const toggleEditMode = (matchId) => {
+    setMatchResults(prev => ({
+      ...prev,
+      [matchId]: { ...prev[matchId], saved: !prev[matchId].saved },
+    }));
   };
 
   const handleConfirmAdvance = async () => {
@@ -339,7 +308,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
           <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 1, color: '#1976d2' }}>
             {getRoundName(round.round, rounds.length)}
           </Typography>
-          <Grid container spacing={1} sx={{ overflowX: 'auto' }}>
+          <Grid container spacing={1} sx={{ overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
             {round.matches && Array.isArray(round.matches) && round.matches.length > 0 ? (
               round.matches.map((match, matchIndex) => {
                 const matchResult = matchResults[match._id] || {};
@@ -354,43 +323,148 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
                     return acc + (p1Score > p2Score || (p1Score === p2Score && tb1 > tb2) ? 1 : p2Score > p1Score || (p1Score === p2Score && tb2 > tb1) ? -1 : 0);
                   }, 0) === 0;
                 return (
-                  <Grid item xs={12} key={match._id}>
+                  <Grid item xs={12} key={match._id} sx={{ scrollSnapAlign: 'start' }}>
                     <Card
                       sx={{
-                        display: 'flex',
-                        flexDirection: 'column',
                         p: 1,
-                        height: { xs: 100, sm: 120 },
+                        height: { xs: 80, sm: 100 },
                         bgcolor: '#fff',
-                        border: '1px solid #e0e0e0',
+                        border: matchResult.saved ? '2px solid #388e3c' : '1px solid #e0e0e0',
                         borderRadius: 2,
                         width: '100%',
                       }}
                       aria-label={`Partido ${matchIndex + 1} de ${getRoundName(round.round, rounds.length)}`}
                     >
-                      <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 0.5 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                            <Avatar sx={{ bgcolor: '#1976d2', width: 24, height: 24, fontSize: '0.75rem' }}>
-                              {getPlayerName(tournament, match.player1?.player1)?.[0]}
-                            </Avatar>
-                            <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: '100px', sm: '140px' } }}>
-                              {getPlayerName(tournament, match.player1?.player1)}
-                              {match.player1?.player2 && ` / ${getPlayerName(tournament, match.player1?.player2)}`}
+                      <CardContent sx={{ p: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                          <Avatar sx={{ bgcolor: '#1976d2', width: 20, height: 20, fontSize: '0.625rem' }}>
+                            {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1)?.[0] || '?'}
+                          </Avatar>
+                          <Typography
+                            sx={{
+                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: { xs: '100px', sm: '140px' },
+                              flex: 1,
+                            }}
+                          >
+                            {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1) || 'Jugador no disponible'}
+                            {match.player1?.player2 && ` / ${getPlayerName(tournament, match.player1?.player2?._id || match.player1?.player2) || 'Jugador no disponible'}`}
+                          </Typography>
+                          {canEdit && isEditable && matchResult.saved ? (
+                            <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                              {matchResult.sets.map((set, idx) => (
+                                <span key={idx}>
+                                  {set.player1}-{set.player2}
+                                  {set.player1 === 6 && set.player2 === 6 && ` (${set.tiebreak1}-${set.tiebreak2})`}
+                                  {idx < matchResult.sets.length - 1 && ', '}
+                                </span>
+                              ))}
+                              {isTied && matchResult.matchTiebreak && `, TB ${matchResult.matchTiebreak.player1}-${matchResult.matchTiebreak.player2}`}
                             </Typography>
-                          </Box>
-                          <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>vs</Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                            <Avatar sx={{ bgcolor: '#424242', width: 24, height: 24, fontSize: '0.75rem' }}>
-                              {match.player2?.name ? 'BYE' : getPlayerName(tournament, match.player2?.player1)?.[0]}
-                            </Avatar>
-                            <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: { xs: '100px', sm: '140px' } }}>
-                              {match.player2?.name || getPlayerName(tournament, match.player2?.player1)}
-                              {match.player2?.player2 && !match.player2.name && ` / ${getPlayerName(tournament, match.player2?.player2)}`}
-                            </Typography>
-                          </Box>
+                          ) : (
+                            canEdit && isEditable && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                {matchResult.sets?.map((set, idx) => (
+                                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <TextField
+                                      size="small"
+                                      type="number"
+                                      value={set.player1}
+                                      onChange={(e) => handleInputChange(match._id, `set${idx}-0`, e.target.value, 0)}
+                                      onBlur={() => saveMatchResult(match._id)}
+                                      sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
+                                      error={!!matchErrors[`set${idx}`]}
+                                      aria-label={`Puntuación del equipo 1 para el set ${idx + 1}`}
+                                    />
+                                    <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                                    <TextField
+                                      size="small"
+                                      type="number"
+                                      value={set.player2}
+                                      onChange={(e) => handleInputChange(match._id, `set${idx}-1`, e.target.value, 1)}
+                                      onBlur={() => saveMatchResult(match._id)}
+                                      sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
+                                      error={!!matchErrors[`set${idx}`]}
+                                      aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
+                                    />
+                                    {parseInt(set.player1, 10) === 6 && parseInt(set.player2, 10) === 6 && (
+                                      <>
+                                        <TextField
+                                          size="small"
+                                          type="number"
+                                          value={set.tiebreak1}
+                                          onChange={(e) => handleInputChange(match._id, `tiebreak${idx}-1`, e.target.value, 1)}
+                                          onBlur={() => saveMatchResult(match._id)}
+                                          sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
+                                          error={!!matchErrors[`set${idx}`]}
+                                          aria-label={`Tiebreak del equipo 1 para el set ${idx + 1}`}
+                                        />
+                                        <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                                        <TextField
+                                          size="small"
+                                          type="number"
+                                          value={set.tiebreak2}
+                                          onChange={(e) => handleInputChange(match._id, `tiebreak${idx}-2`, e.target.value, 2)}
+                                          onBlur={() => saveMatchResult(match._id)}
+                                          sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
+                                          error={!!matchErrors[`set${idx}`]}
+                                          aria-label={`Tiebreak del equipo 2 para el set ${idx + 1}`}
+                                        />
+                                      </>
+                                    )}
+                                  </Box>
+                                ))}
+                              </Box>
+                            )
+                          )}
                         </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 'auto', flexWrap: 'wrap', minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                          <Avatar sx={{ bgcolor: '#424242', width: 20, height: 20, fontSize: '0.625rem' }}>
+                            {match.player2?.name ? 'BYE' : getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1)?.[0] || '?'}
+                          </Avatar>
+                          <Typography
+                            sx={{
+                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: { xs: '100px', sm: '140px' },
+                              flex: 1,
+                            }}
+                          >
+                            {match.player2?.name || (getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1) || 'Jugador no disponible')}
+                            {match.player2?.player2 && !match.player2.name && ` / ${getPlayerName(tournament, match.player2?.player2?._id || match.player2?.player2) || 'Jugador no disponible'}`}
+                          </Typography>
+                          {canEdit && isEditable && !matchResult.saved && isTied && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={matchResult.matchTiebreak?.player1 || ''}
+                                onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player1', e.target.value)}
+                                onBlur={() => saveMatchResult(match._id)}
+                                sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
+                                error={!!matchErrors.matchTiebreak}
+                                aria-label="Puntuación de tiebreak del partido para el equipo 1"
+                              />
+                              <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={matchResult.matchTiebreak?.player2 || ''}
+                                onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player2', e.target.value)}
+                                onBlur={() => saveMatchResult(match._id)}
+                                sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
+                                error={!!matchErrors.matchTiebreak}
+                                aria-label="Puntuación de tiebreak del partido para el equipo 2"
+                              />
+                            </Box>
+                          )}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
                           {matchResult.saved ? (
                             <CheckCircle sx={{ color: '#388e3c', fontSize: '1rem' }} aria-label="Partido completado" />
                           ) : (
@@ -398,206 +472,41 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
                           )}
                           {canEdit && isEditable && (
                             <>
-                              {matchResult.sets?.map((set, index) => (
-                                <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                    <IconButton
-                                      onClick={() => decrementScore(match._id, `set${index}-0`, 0)}
-                                      size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                      aria-label={`Decrementar puntaje del equipo 1 en el set ${index + 1}`}
-                                    >
-                                      <Remove fontSize="small" />
-                                    </IconButton>
-                                    <TextField
-                                      size="small"
-                                      type="number"
-                                      value={set.player1}
-                                      onChange={(e) => handleInputChange(match._id, `set${index}-0`, e.target.value, 0)}
-                                      onBlur={() => saveMatchResult(match._id)}
-                                      sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
-                                      error={!!matchErrors[`set${index}`]}
-                                      aria-label={`Puntuación del equipo 1 para el set ${index + 1}`}
-                                    />
-                                    <IconButton
-                                      onClick={() => incrementScore(match._id, `set${index}-0`, 0)}
-                                      size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                      aria-label={`Incrementar puntaje del equipo 1 en el set ${index + 1}`}
-                                    >
-                                      <Add fontSize="small" />
-                                    </IconButton>
-                                  </Box>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                    <IconButton
-                                      onClick={() => decrementScore(match._id, `set${index}-1`, 1)}
-                                      size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                      aria-label={`Decrementar puntaje del equipo 2 en el set ${index + 1}`}
-                                    >
-                                      <Remove fontSize="small" />
-                                    </IconButton>
-                                    <TextField
-                                      size="small"
-                                      type="number"
-                                      value={set.player2}
-                                      onChange={(e) => handleInputChange(match._id, `set${index}-1`, e.target.value, 1)}
-                                      onBlur={() => saveMatchResult(match._id)}
-                                      sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
-                                      error={!!matchErrors[`set${index}`]}
-                                      aria-label={`Puntuación del equipo 2 para el set ${index + 1}`}
-                                    />
-                                    <IconButton
-                                      onClick={() => incrementScore(match._id, `set${index}-1`, 1)}
-                                      size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                      aria-label={`Incrementar puntaje del equipo 2 en el set ${index + 1}`}
-                                    >
-                                      <Add fontSize="small" />
-                                    </IconButton>
-                                  </Box>
-                                  {parseInt(set.player1, 10) === 6 && parseInt(set.player2, 10) === 6 && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <IconButton
-                                          onClick={() => decrementScore(match._id, `tiebreak${index}-1`, 1)}
-                                          size="small"
-                                          sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                          aria-label={`Decrementar tiebreak del equipo 1 en el set ${index + 1}`}
-                                        >
-                                          <Remove fontSize="small" />
-                                        </IconButton>
-                                        <TextField
-                                          size="small"
-                                          type="number"
-                                          value={set.tiebreak1}
-                                          onChange={(e) => handleInputChange(match._id, `tiebreak${index}-1`, e.target.value, 1)}
-                                          onBlur={() => saveMatchResult(match._id)}
-                                          sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
-                                          error={!!matchErrors[`set${index}`]}
-                                          aria-label={`Tiebreak del equipo 1 para el set ${index + 1}`}
-                                        />
-                                        <IconButton
-                                          onClick={() => incrementScore(match._id, `tiebreak${index}-1`, 1)}
-                                          size="small"
-                                          sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                          aria-label={`Incrementar tiebreak del equipo 1 en el set ${index + 1}`}
-                                        >
-                                          <Add fontSize="small" />
-                                        </IconButton>
-                                      </Box>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <IconButton
-                                          onClick={() => decrementScore(match._id, `tiebreak${index}-2`, 2)}
-                                          size="small"
-                                          sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                          aria-label={`Decrementar tiebreak del equipo 2 en el set ${index + 1}`}
-                                        >
-                                          <Remove fontSize="small" />
-                                        </IconButton>
-                                        <TextField
-                                          size="small"
-                                          type="number"
-                                          value={set.tiebreak2}
-                                          onChange={(e) => handleInputChange(match._id, `tiebreak${index}-2`, e.target.value, 2)}
-                                          onBlur={() => saveMatchResult(match._id)}
-                                          sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
-                                          error={!!matchErrors[`set${index}`]}
-                                          aria-label={`Tiebreak del equipo 2 para el set ${index + 1}`}
-                                        />
-                                        <IconButton
-                                          onClick={() => incrementScore(match._id, `tiebreak${index}-2`, 2)}
-                                          size="small"
-                                          sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                          aria-label={`Incrementar tiebreak del equipo 2 en el set ${index + 1}`}
-                                        >
-                                          <Add fontSize="small" />
-                                        </IconButton>
-                                      </Box>
-                                    </Box>
-                                  )}
-                                </Box>
-                              ))}
-                              {isTied && (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                  <IconButton
-                                    onClick={() => decrementScore(match._id, 'matchTiebreak-player1', 0)}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                    aria-label="Decrementar tiebreak del partido para el equipo 1"
-                                  >
-                                    <Remove fontSize="small" />
-                                  </IconButton>
-                                  <TextField
-                                    size="small"
-                                    type="number"
-                                    value={matchResult.matchTiebreak?.player1 || ''}
-                                    onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player1', e.target.value)}
-                                    onBlur={() => saveMatchResult(match._id)}
-                                    sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
-                                    error={!!matchErrors.matchTiebreak}
-                                    aria-label="Puntuación de tiebreak del partido para el equipo 1"
-                                  />
-                                  <IconButton
-                                    onClick={() => incrementScore(match._id, 'matchTiebreak-player1', 0)}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                    aria-label="Incrementar tiebreak del partido para el equipo 1"
-                                  >
-                                    <Add fontSize="small" />
-                                  </IconButton>
-                                  <IconButton
-                                    onClick={() => decrementScore(match._id, 'matchTiebreak-player2', 1)}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                    aria-label="Decrementar tiebreak del partido para el equipo 2"
-                                  >
-                                    <Remove fontSize="small" />
-                                  </IconButton>
-                                  <TextField
-                                    size="small"
-                                    type="number"
-                                    value={matchResult.matchTiebreak?.player2 || ''}
-                                    onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player2', e.target.value)}
-                                    onBlur={() => saveMatchResult(match._id)}
-                                    sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
-                                    error={!!matchErrors.matchTiebreak}
-                                    aria-label="Puntuación de tiebreak del partido para el equipo 2"
-                                  />
-                                  <IconButton
-                                    onClick={() => incrementScore(match._id, 'matchTiebreak-player2', 1)}
-                                    size="small"
-                                    sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
-                                    aria-label="Incrementar tiebreak del partido para el equipo 2"
-                                  >
-                                    <Add fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              )}
                               <Select
                                 size="small"
                                 value={matchResult.winner || ''}
                                 onChange={(e) => handleInputChange(match._id, 'winner', e.target.value)}
                                 onBlur={() => saveMatchResult(match._id)}
-                                sx={{ width: { xs: 80, sm: 100 }, minWidth: 0, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                                sx={{ width: { xs: 80, sm: 100 }, minWidth: 0, fontSize: '0.75rem' }}
                                 error={!!matchErrors.winner}
                                 aria-label="Seleccionar ganador"
                               >
                                 <MenuItem value="">Ninguno</MenuItem>
-                                <MenuItem value={normalizeId(match.player1?.player1)}>{getPlayerName(tournament, match.player1?.player1)}</MenuItem>
-                                <MenuItem value={normalizeId(match.player2?.player1)}>{match.player2?.name || getPlayerName(tournament, match.player2?.player1)}</MenuItem>
+                                <MenuItem value={normalizeId(match.player1?.player1?._id || match.player1?.player1)}>
+                                  {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1)}
+                                </MenuItem>
+                                <MenuItem value={normalizeId(match.player2?.player1?._id || match.player2?.player1)}>
+                                  {match.player2?.name || getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1)}
+                                </MenuItem>
                               </Select>
-                              <IconButton
-                                onClick={() => openMatchDialog(match, null, matchIndex, roundIndex)}
-                                sx={{ ml: 0.5, p: 0.75 }}
-                                aria-label="Editar detalles del partido"
+                              <Button
+                                variant="contained"
+                                onClick={() => toggleEditMode(match._id)}
+                                sx={{
+                                  bgcolor: matchResult.saved ? '#388e3c' : '#1976d2',
+                                  ':hover': { bgcolor: matchResult.saved ? '#2e7d32' : '#1565c0' },
+                                  fontSize: '0.75rem',
+                                  minHeight: 32,
+                                  px: 1,
+                                }}
+                                aria-label={matchResult.saved ? 'Editar resultado' : 'Enviar resultado'}
                               >
-                                <Edit fontSize="small" />
-                              </IconButton>
+                                {matchResult.saved ? 'Editar' : 'Enviar Resultado'}
+                              </Button>
                             </>
                           )}
                           {matchErrors.general && (
-                            <Alert severity="error" sx={{ fontSize: '0.75rem', mt: 1, width: '100%' }}>{matchErrors.general}</Alert>
+                            <Alert severity="error" sx={{ fontSize: '0.75rem', width: '100%' }}>{matchErrors.general}</Alert>
                           )}
                         </Box>
                       </CardContent>
@@ -612,25 +521,14 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, open
             )}
           </Grid>
           {canEdit && roundIndex === rounds.length - 1 && round.matches.length > 1 && (
-            <>
-              <Button
-                variant="contained"
-                onClick={() => setConfirmAdvanceOpen(true)}
-                sx={{ mt: 1, bgcolor: '#1976d2', fontSize: { xs: '0.75rem', sm: '0.875rem' }, mr: 1, minHeight: 40 }}
-                aria-label="Avanzar a la siguiente ronda"
-              >
-                Avanzar Ronda
-              </Button>
-              <Button
-                variant="contained"
-                onClick={saveAllResults}
-                disabled={unsavedCount === 0}
-                sx={{ mt: 1, bgcolor: '#388e3c', fontSize: { xs: '0.75rem', sm: '0.875rem' }, minHeight: 40 }}
-                aria-label="Guardar todos los resultados"
-              >
-                Guardar Todos ({unsavedCount})
-              </Button>
-            </>
+            <Button
+              variant="contained"
+              onClick={() => setConfirmAdvanceOpen(true)}
+              sx={{ mt: 1, bgcolor: '#1976d2', fontSize: { xs: '0.75rem', sm: '0.875rem' }, minHeight: 40 }}
+              aria-label="Avanzar a la siguiente ronda"
+            >
+              Avanzar Ronda
+            </Button>
           )}
         </Box>
       ))}

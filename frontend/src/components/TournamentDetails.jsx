@@ -26,8 +26,8 @@ const TournamentDetails = ({ tournament }) => {
       return [];
     }
     return tournament.participants.filter((participant) => {
-      const player1Id = normalizeId(participant.player1?._id || participant.player1?.player1?._id || participant.player1);
-      const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2?.player1?._id || participant.player2) : null;
+      const player1Id = normalizeId(participant.player1?._id || participant.player1);
+      const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2) : null;
       const player1Name = getPlayerName(tournament, player1Id);
       const player2Name = player2Id ? getPlayerName(tournament, player2Id) : '';
       const searchLower = search.toLowerCase();
@@ -119,17 +119,9 @@ const TournamentDetails = ({ tournament }) => {
               </TableRow>
             ) : (
               paginatedParticipants.map((participant, index) => {
-                const player1Id = normalizeId(participant.player1?._id || participant.player1?.player1?._id || participant.player1);
-                const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2?.player1?._id || participant.player2) : null;
-                const player1Name = getPlayerName(tournament, player1Id);
-                const player2Name = player2Id ? getPlayerName(tournament, player2Id) : null;
-                const displayName = player2Name
-                  ? player1Name === 'Desconocido' && player2Name === 'Desconocido'
-                    ? 'Jugador no disponible'
-                    : `${player1Name} / ${player2Name}`
-                  : player1Name === 'Desconocido'
-                  ? 'Jugador no disponible'
-                  : player1Name;
+                const player1Id = normalizeId(participant.player1?._id || participant.player1);
+                const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2) : null;
+                const displayName = getPlayerName(tournament, player1Id, player2Id);
 
                 return (
                   <TableRow
