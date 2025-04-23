@@ -1,179 +1,613 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { ThemeProvider } from '@mui/material/styles';
-import { Snackbar, Alert, CssBaseline } from '@mui/material';
-import theme from './theme.js';
-import Login from './Login.jsx';
-import Register from './Register.jsx';
-import Dashboard from './Dashboard.jsx';
-import TournamentInProgress from './TournamentInProgress.jsx';
-import CreateTournament from './CreateTournament.jsx';
-import TournamentHistory from './TournamentHistory.jsx';
-import NavigationBar from './NavigationBar.jsx';
+import { useSelector, useDispatch } from 'react-redux';
+import { setPlayers } from './store';
+import {
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
+  AppBar,
+  Toolbar,
+  Typography,
+  Box,
+  Menu,
+  MenuItem,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  useMediaQuery,
+  CircularProgress,
+} from '@mui/material';
+import { People, EmojiEvents, Settings, ExpandMore } from '@mui/icons-material';
+import ErrorBoundary from './components/ErrorBoundary';
+import PlayerForm from './components/PlayerForm';
+import TournamentForm from './components/TournamentForm';
+import TournamentHistory from './components/TournamentHistory';
+import TournamentInProgress from './components/TournamentInProgress';
+import LoginForm from './components/LoginForm';
+import RegisterForm from './components/RegisterForm';
+import ManageBLACK from './components/ManageRoles';
+import ClubManagement from './components/ClubManagement';
+import { useAuth } from './contexts/AuthContext';
+import { useNotification } from './contexts/NotificationContext';
+
+const BACKEND_URL = 'https://padnis.onrender.com';
+
+const theme = createTheme({
+  palette: {
+    primary: { main: '#1976d2' },
+    secondary: { main: '#424242' },
+    accent: { main: '#c0ca33' },
+    background: { default: '#f5f5f5', paper: '#fff' },
+  },
+  typography: { fontFamily: 'Roboto, sans-serif' },
+  shape: { borderRadius: 8 },
+  components: {
+    MuiButton: { styleOverrides: { root: { minWidth: 48, minHeight: 48 } } },
+  },
+});
 
 const App = () => {
-  const [user, setUser] = useState(null);
   const [tournaments, setTournaments] = useState([]);
-  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
+  const [users, setUsers] = useState([]);
+  const [view, setView] = useState('activos');
+  const [authView, setAuthView] = useState('login');
+  const [tournamentAnchor, setTournamentAnchor] = useState(null);
+  const [settingsAnchor, setSettingsAnchor] = useState(null);
+  const [userAnchor, setUserAnchor] = useState(null);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null);
+  const { user, role, logout } = useAuth();
+  const { addNotification } = useNotification();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const players = useSelector((state) => state.players.list);
+  const dispatch = useDispatch();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const addNotification = (message, severity = 'info') => {
-    setNotification({ open: true, message, severity });
-  };
-
-  const handleCloseNotification = () => {
-    setNotification({ ...notification, open: false });
-  };
-
-  const fetchTournaments = async () => {
+  const fetchPlayers = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        setTournaments([]);
-        return;
-      }
-      console.log('Fetching tournaments from: https://padnis.onrender.com/api/tournaments?status=En%20curso with token:', token ? 'present' : 'not present');
-      const response = await axios.get('https://padnis.onrender.com/api/tournaments?status=En%20curso', {
+      if (!token) throw new Error('No token available');
+      const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
+        timeout: 60000,
       });
-      console.log('API response (App.jsx):', response.data);
-      setTournaments(response.data);
-      console.log('Tournaments fetched:', response.data.length);
+      const normalizedPlayers = response.data.map((player) => ({ ...player, _id: String(player._id) }));
+      dispatch(setPlayers(normalizedPlayers));
     } catch (error) {
-      console.error('Error fetching tournaments:', error);
-      addNotification('Error al cargar los torneos', 'error');
-      setTournaments([]);
+      addNotification('No se pudieron cargar los jugadores: ' + (error.response?.data?.message || error.message), 'error');
+      dispatch(setPlayers([]));
     }
   };
 
-  const fetchUser = async () => {
+  const fetchTournaments = useCallback(async (retries = 3, backoff = 5000) => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        setUser(null);
-        return;
-      }
-      const response = await axios.get('https://padnis.onrender.com/api/users/me', {
-        headers: { Authorization: `Bearer ${token}` },
+      const url = `${BACKEND_URL}/api/tournaments?status=En%20curso`;
+      console.log('Fetching tournaments from:', url, 'with token:', token ? 'present' : 'missing');
+      const response = await axios.get(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        timeout: 60000,
       });
-      setUser(response.data);
+      console.log('API response (App.jsx):', response.data);
+      if (!Array.isArray(response.data)) {
+        throw new Error('Unexpected response format: Data is not an array');
+      }
+      const validTournaments = response.data.filter((t) => {
+        const isValid = t._id && typeof t._id === 'string' && t.name && t.participants;
+        if (!isValid) {
+          console.warn('Invalid tournament entry:', t);
+        }
+        return isValid;
+      });
+      if (validTournaments.length !== response.data.length) {
+        console.warn('Some tournaments have invalid data:', response.data);
+        addNotification('Algunos torneos tienen datos inválidos y fueron omitidos', 'warning');
+      }
+      if (validTournaments.length === 0) {
+        console.log('No tournaments found for query:', { status: 'En curso', draft: false, user: user ? user._id : 'none' });
+      }
+      // Additional logging to verify participants structure
+      validTournaments.forEach((t) => {
+        console.log(`Tournament ${t._id} participants:`, t.participants);
+      });
+      if (selectedTournamentId && !validTournaments.some((t) => t._id === selectedTournamentId)) {
+        setSelectedTournamentId(null);
+        setView('activos');
+        addNotification('El torneo seleccionado ya no está disponible', 'warning');
+      }
+      setTournaments(validTournaments);
+      setError(null);
     } catch (error) {
-      console.error('Error fetching user:', error);
-      setUser(null);
-      localStorage.removeItem('token');
+      const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
+      const errorDetails = {
+        message: errorMessage,
+        code: error.code,
+        status: error.response?.status,
+        responseData: error.response?.data,
+        request: error.config,
+      };
+      console.error('Error fetching tournaments:', errorDetails);
+      let userMessage = `Error al cargar torneos (código ${error.code || 'desconocido'}): ${errorMessage}`;
+      if (error.code === 'ERR_NETWORK') {
+        userMessage += '. El servidor podría estar inactivo. Por favor, intenta recargar la página o verifica el estado del servidor.';
+      }
+      addNotification(userMessage, 'error');
+      if (retries > 0 && error.code === 'ERR_NETWORK') {
+        console.log(`Retrying fetch tournaments (${retries} retries left)...`);
+        setTimeout(() => fetchTournaments(retries - 1, backoff * 2), backoff);
+      } else {
+        setTournaments([]);
+        setSelectedTournamentId(null);
+        setView('activos');
+        if (error.code === 'ERR_NETWORK') {
+          setError('No se pudo conectar al servidor. Es posible que el servidor esté inactivo o haya un problema de red.');
+        }
+      }
+    }
+  }, [user, selectedTournamentId, addNotification]);
+
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('No token available');
+      const response = await axios.get(`${BACKEND_URL}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 60000,
+      });
+      setUsers(response.data);
+    } catch (error) {
+      addNotification('No se pudieron cargar los usuarios: ' + (error.response?.data?.message || error.message), 'error');
+      setUsers([]);
     }
   };
 
   useEffect(() => {
-    fetchUser();
-    fetchTournaments();
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        await fetchTournaments();
+        if (user) {
+          await Promise.all([
+            role !== 'player' ? fetchPlayers() : Promise.resolve(),
+            role === 'admin' || role === 'coach' ? fetchUsers() : Promise.resolve(),
+          ]);
+        }
+      } catch (err) {
+        setError(err.message);
+        addNotification('Error al cargar datos iniciales: ' + err.message, 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [user, role, fetchTournaments]);
+
+  const updatePlayer = useCallback((updatedPlayer) => {
+    dispatch(setPlayers(players.map((p) => (p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p))));
+  }, [players, dispatch]);
+
+  const createTournament = useCallback(async () => {
+    await fetchTournaments();
+  }, [fetchTournaments]);
+
+  const handlePlayerAdded = useCallback(() => {
+    fetchPlayers();
   }, []);
 
-  const handleLogin = async (credentials) => {
-    try {
-      const response = await axios.post('https://padnis.onrender.com/api/users/login', credentials);
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
-      await fetchTournaments();
-      addNotification('Inicio de sesión exitoso', 'success');
-    } catch (error) {
-      addNotification('Error al iniciar sesión', 'error');
-      throw error;
-    }
-  };
+  const handleFinishTournament = useCallback((finishedTournament) => {
+    setTournaments((prev) => prev.filter((t) => t._id !== finishedTournament._id));
+    setSelectedTournamentId(null);
+    setView('activos');
+  }, []);
 
-  const handleRegister = async (userData) => {
-    try {
-      await axios.post('https://padnis.onrender.com/api/users/register', userData);
-      addNotification('Registro exitoso, por favor inicia sesión', 'success');
-    } catch (error) {
-      addNotification('Error al registrarse', 'error');
-      throw error;
-    }
-  };
+  const handleTournamentClick = useCallback((event) => {
+    setTournamentAnchor(event.currentTarget);
+  }, []);
 
-  const handleLogout = () => {
+  const handleSettingsClick = useCallback((event) => {
+    setSettingsAnchor(event.currentTarget);
+  }, []);
+
+  const handleUserClick = useCallback((event) => {
+    setUserAnchor(event.currentTarget);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setTournamentAnchor(null);
+    setSettingsAnchor(null);
+    setUserAnchor(null);
+  }, []);
+
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
-    setUser(null);
-    setTournaments([]);
-    addNotification('Sesión cerrada', 'info');
-  };
+    logout();
+    setSelectedTournamentId(null);
+    setView('activos');
+  }, [logout]);
+
+  const handleLoginSuccess = useCallback(() => {
+    setAuthDialogOpen(false);
+  }, []);
+
+  const handleTournamentSelect = useCallback((tournamentId) => {
+    if (tournamentId && typeof tournamentId === 'string') {
+      setSelectedTournamentId(tournamentId);
+      setView('activos');
+    } else {
+      console.warn('Invalid tournamentId:', tournamentId);
+      addNotification('No se pudo seleccionar el torneo', 'error');
+    }
+  }, [addNotification]);
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', textAlign: 'center' }}>
+        <Typography variant={isMobile ? 'h6' : 'h5'} color="error" gutterBottom>
+          Error: {error}
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            setError(null);
+            fetchTournaments();
+          }}
+          sx={{ mt: 2, mr: 2 }}
+          aria-label="Reintentar cargar datos"
+        >
+          Reintentar
+        </Button>
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={() => window.location.reload()}
+          sx={{ mt: 2 }}
+          aria-label="Recargar página"
+        >
+          Recargar Página
+        </Button>
+      </Box>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress aria-label="Cargando aplicación" />
+      </Box>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <NavigationBar user={user} onLogout={handleLogout} />
-        <Routes>
-          <Route
-            path="/login"
-            element={user ? <Navigate to="/" /> : <Login onLogin={handleLogin} />}
-          />
-          <Route
-            path="/register"
-            element={user ? <Navigate to="/" /> : <Register onRegister={handleRegister} />}
-          />
-          <Route
-            path="/"
-            element={
-              user ? (
-                <Dashboard
-                  tournaments={tournaments}
-                  role={user.role}
-                  fetchTournaments={fetchTournaments}
+      <ErrorBoundary>
+        <AppBar position="fixed">
+          <Toolbar>
+            <Typography variant="h6" sx={{ mr: 2 }} aria-label="Padnis">
+              Padnis
+            </Typography>
+            {user ? (
+              <>
+                {role !== 'player' && (
+                  <Button
+                    color="inherit"
+                    startIcon={<People />}
+                    onClick={() => {
+                      setView('jugadores');
+                      setSelectedTournamentId(null);
+                    }}
+                    sx={{ mx: 1 }}
+                    aria-label="Ver jugadores"
+                  >
+                    {!isMobile && 'Jugadores'}
+                  </Button>
+                )}
+                <Button
+                  color="inherit"
+                  startIcon={<EmojiEvents />}
+                  onClick={handleTournamentClick}
+                  endIcon={!isMobile && <ExpandMore />}
+                  sx={{ mx: 1 }}
+                  aria-label="Menú de torneos"
+                  aria-haspopup="true"
+                >
+                  {!isMobile && 'Torneos'}
+                </Button>
+                <Menu anchorEl={tournamentAnchor} open={Boolean(tournamentAnchor)} onClose={handleClose}>
+                  {(role === 'admin' || role === 'coach') && (
+                    <MenuItem
+                      onClick={() => {
+                        setView('crear');
+                        setSelectedTournamentId(null);
+                        handleClose();
+                      }}
+                    >
+                      Crear Torneo
+                    </MenuItem>
+                  )}
+                  <MenuItem
+                    onClick={() => {
+                      setView('activos');
+                      setSelectedTournamentId(null);
+                      handleClose();
+                    }}
+                  >
+                    Torneos Activos
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      setView('historial');
+                      setSelectedTournamentId(null);
+                      handleClose();
+                    }}
+                  >
+                    Historial
+                  </MenuItem>
+                </Menu>
+                {role === 'admin' && (
+                  <Button
+                    color="inherit"
+                    startIcon={<Settings />}
+                    onClick={handleSettingsClick}
+                    endIcon={!isMobile && <ExpandMore />}
+                    sx={{ mx: 1 }}
+                    aria-label="Menú de configuraciones"
+                    aria-haspopup="true"
+                  >
+                    {!isMobile && 'Settings'}
+                  </Button>
+                )}
+                <Menu anchorEl={settingsAnchor} open={Boolean(settingsAnchor)} onClose={handleClose}>
+                  {role === 'admin' && (
+                    <>
+                      <MenuItem
+                        onClick={() => {
+                          setView('roles');
+                          setSelectedTournamentId(null);
+                          handleClose();
+                        }}
+                      >
+                        Gestionar Roles
+                      </MenuItem>
+                      <MenuItem
+                        onClick={() => {
+                          setView('clubs');
+                          setSelectedTournamentId(null);
+                          handleClose();
+                        }}
+                      >
+                        Gestionar Clubes
+                      </MenuItem>
+                    </>
+                  )}
+                </Menu>
+              </>
+            ) : (
+              <Button
+                color="inherit"
+                startIcon={<EmojiEvents />}
+                onClick={() => {
+                  setView('activos');
+                  setSelectedTournamentId(null);
+                }}
+                sx={{ mx: 1 }}
+                aria-label="Ver torneos activos"
+              >
+                {!isMobile && 'Torneos Activos'}
+              </Button>
+            )}
+            <Box sx={{ flexGrow: 1 }} />
+            {user ? (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Button
+                  color="inherit"
+                  onClick={handleUserClick}
+                  endIcon={<ExpandMore />}
+                  sx={{ mx: 1 }}
+                  aria-label={`Menú de usuario ${user}`}
+                  aria-haspopup="true"
+                >
+                  <Typography sx={{ color: '#f5f5f5', mr: 1 }}>{user}</Typography>
+                </Button>
+                <Menu anchorEl={userAnchor} open={Boolean(userAnchor)} onClose={handleClose}>
+                  <MenuItem
+                    onClick={() => {
+                      setView('perfil');
+                      setSelectedTournamentId(null);
+                      handleClose();
+                    }}
+                  >
+                    <People sx={{ mr: 1 }} /> Perfil
+                  </MenuItem>
+                  <MenuItem onClick={handleLogout}>Cerrar Sesión</MenuItem>
+                </Menu>
+              </Box>
+            ) : (
+              <Button
+                variant="contained"
+                sx={{ bgcolor: 'accent.main', color: 'secondary.main' }}
+                onClick={() => setAuthDialogOpen(true)}
+                aria-label="Iniciar sesión"
+              >
+                Iniciar Sesión
+              </Button>
+            )}
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ mt: 8, p: isMobile ? 2 : 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          {user ? (
+            <>
+              {view === 'jugadores' && (
+                <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />
+              )}
+              {view === 'crear' && (role === 'admin' || role === 'coach') && (
+                <TournamentForm players={players} onCreateTournament={createTournament} />
+              )}
+              {view === 'activos' && !selectedTournamentId && (
+                <Box>
+                  <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ color: '#1976d2' }}>
+                    Torneos Activos
+                  </Typography>
+                  {tournaments.length === 0 ? (
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography sx={{ mb: 2, fontSize: isMobile ? '1rem' : '1.25rem' }}>
+                        No hay torneos activos actualmente.{' '}
+                        {(role === 'admin' || role === 'coach')
+                          ? 'Crea uno nuevo seleccionando "Crear Torneo" en el menú.'
+                          : 'Intenta recargar la página o contacta al administrador.'}
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => fetchTournaments()}
+                        sx={{ bgcolor: '#1976d2' }}
+                        aria-label="Reintentar cargar torneos"
+                      >
+                        Reintentar
+                      </Button>
+                    </Box>
+                  ) : (
+                    tournaments.map((tournament) => (
+                      <Box
+                        key={tournament._id}
+                        sx={{
+                          mb: 2,
+                          p: isMobile ? 1 : 2,
+                          border: '1px solid #e0e0e0',
+                          borderRadius: 2,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          bgcolor: 'background.paper',
+                        }}
+                      >
+                        <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
+                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                          {tournament.type} - {tournament.sport} ({tournament.format.mode})
+                        </Typography>
+                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                          Club: {tournament.club?.name || 'No definido'}
+                        </Typography>
+                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                          Categoría: {tournament.category || 'No definida'}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          onClick={() => handleTournamentSelect(tournament._id)}
+                          sx={{ mt: 1, fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                          aria-label={`Ver detalles de ${tournament.name}`}
+                        >
+                          Ver Detalles
+                        </Button>
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              )}
+              {view === 'activos' && selectedTournamentId && (
+                <TournamentInProgress
+                  tournamentId={selectedTournamentId}
+                  onFinishTournament={handleFinishTournament}
+                  role={role}
                   addNotification={addNotification}
                 />
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-          <Route
-            path="/tournaments/:id"
-            element={
-              user ? (
-                <TournamentInProgress role={user.role} addNotification={addNotification} />
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-          <Route
-            path="/create-tournament"
-            element={
-              user && (user.role === 'admin' || user.role === 'coach') ? (
-                <CreateTournament fetchTournaments={fetchTournaments} addNotification={addNotification} />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-          <Route
-            path="/history"
-            element={
-              user ? (
-                <TournamentHistory role={user.role} addNotification={addNotification} />
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-        </Routes>
-      </Router>
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={6000}
-        onClose={handleCloseNotification}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={handleCloseNotification}
-          severity={notification.severity}
-          sx={{ width: '100%' }}
+              )}
+              {view === 'historial' && <TournamentHistory tournaments={tournaments} />}
+              {view === 'roles' && role === 'admin' && <ManageRoles />}
+              {view === 'clubs' && role === 'admin' && <ClubManagement />}
+              {view === 'perfil' && (
+                <Box
+                  sx={{
+                    p: isMobile ? 1 : 2,
+                    border: '1px solid #e0e0e0',
+                    borderRadius: 2,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ color: '#1976d2' }}>
+                    Perfil
+                  </Typography>
+                  <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                    Modifica tus datos personales y preferencias (a desarrollar)
+                  </Typography>
+                </Box>
+              )}
+            </>
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+              <Box sx={{ p: isMobile ? 2 : 3, maxWidth: 600, width: '100%' }}>
+                <Typography variant={isMobile ? 'h6' : 'h5'} gutterBottom sx={{ color: '#1976d2' }}>
+                  Torneos Activos
+                </Typography>
+                {tournaments.length === 0 ? (
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography sx={{ mb: 2, fontSize: isMobile ? '1rem' : '1.25rem' }}>
+                      No hay torneos activos actualmente. Inicia sesión para crear uno o contacta al administrador.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => fetchTournaments()}
+                      sx={{ bgcolor: '#1976d2' }}
+                      aria-label="Reintentar cargar torneos"
+                    >
+                      Reintentar
+                    </Button>
+                  </Box>
+                ) : (
+                  tournaments.map((tournament) => (
+                    <Box
+                      key={tournament._id}
+                      sx={{
+                        mb: 2,
+                        p: isMobile ? 1 : 2,
+                        border: '1px solid #e0e0e0',
+                        borderRadius: 2,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        bgcolor: 'background.paper',
+                      }}
+                    >
+                      <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        {tournament.type} - {tournament.sport} ({tournament.format.mode})
+                      </Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        Club: {tournament.club?.name || 'No definido'}
+                      </Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        Categoría: {tournament.category || 'No definida'}
+                      </Typography>
+                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                        Estado: {tournament.status}
+                      </Typography>
+                    </Box>
+                  ))
+                )}
+              </Box>
+            </Box>
+          )}
+        </Box>
+        <Dialog
+          open={authDialogOpen}
+          onClose={() => setAuthDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          sx={{ '& .MuiDialog-paper': { borderTop: `4px solid ${theme.palette.primary.main}` } }}
+          aria-labelledby="auth-dialog-title"
         >
-          {notification.message}
-        </Alert>
-      </Snackbar>
+          <DialogTitle id="auth-dialog-title">{authView === 'login' ? 'Iniciar Sesión' : 'Registrarse'}</DialogTitle>
+          <DialogContent>
+            {authView === 'login' ? (
+              <LoginForm onSwitchToRegister={() => setAuthView('register')} onLoginSuccess={handleLoginSuccess} />
+            ) : (
+              <RegisterForm onSwitchToLogin={() => setAuthView('login')} />
+            )}
+          </DialogContent>
+        </Dialog>
+      </ErrorBoundary>
     </ThemeProvider>
   );
 };
