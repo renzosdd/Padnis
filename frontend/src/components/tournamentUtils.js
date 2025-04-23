@@ -14,14 +14,18 @@ export const isValidObjectId = (id) => {
 // Gets player name from tournament participants
 export const getPlayerName = (tournament, player1Id, player2Id = null) => {
   if (!tournament || !tournament.participants || !player1Id) {
+    console.warn('Invalid arguments for getPlayerName:', { tournamentExists: !!tournament, participantsExists: !!tournament?.participants, player1Id });
     return 'Desconocido';
   }
 
-  const participant = tournament.participants.find(
-    (p) => normalizeId(p.player1?._id || p.player1) === normalizeId(player1Id)
-  );
+  const normalizedPlayer1Id = normalizeId(player1Id);
+  const participant = tournament.participants.find((p) => {
+    const participantId = normalizeId(p.player1?._id || p.player1?.player1?._id || p.player1);
+    return participantId === normalizedPlayer1Id;
+  });
 
   if (!participant) {
+    console.warn('Participant not found for player1Id:', normalizedPlayer1Id, 'Participants:', tournament.participants);
     return 'Desconocido';
   }
 

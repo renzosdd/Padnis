@@ -12,7 +12,7 @@ import {
   TextField,
   Paper,
 } from '@mui/material';
-import { getPlayerName } from './tournamentUtils.js';
+import { getPlayerName, normalizeId } from './tournamentUtils.js';
 
 const TournamentDetails = ({ tournament }) => {
   const [search, setSearch] = useState('');
@@ -21,10 +21,15 @@ const TournamentDetails = ({ tournament }) => {
 
   // Filter participants based on search (match individual player names for doubles)
   const filteredParticipants = useMemo(() => {
-    if (!tournament?.participants || !Array.isArray(tournament.participants)) return [];
+    if (!tournament?.participants || !Array.isArray(tournament.participants)) {
+      console.warn('Invalid or missing participants:', tournament?.participants);
+      return [];
+    }
     return tournament.participants.filter((participant) => {
-      const player1Name = getPlayerName(tournament, participant.player1);
-      const player2Name = participant.player2 ? getPlayerName(tournament, participant.player2) : '';
+      const player1Id = normalizeId(participant.player1?._id || participant.player1?.player1?._id || participant.player1);
+      const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2?.player1?._id || participant.player2) : null;
+      const player1Name = getPlayerName(tournament, player1Id);
+      const player2Name = player2Id ? getPlayerName(tournament, player2Id) : '';
       const searchLower = search.toLowerCase();
       return (
         player1Name.toLowerCase().includes(searchLower) ||
@@ -106,17 +111,38 @@ const TournamentDetails = ({ tournament }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedParticipants.map((participant, index) => (
-              <TableRow
-                key={participant.player1?._id || index}
-                sx={{ bgcolor: index % 2 === 0 ? '#fff' : '#f5f5f5' }}
-              >
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                  {getPlayerName(tournament, participant.player1)}
-                  {participant.player2 && ` / ${getPlayerName(tournament, participant.player2)}`}
+            {paginatedParticipants.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={1} sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' }}>
+                  No hay participantes disponibles
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              paginatedParticipants.map((participant, index) => {
+                const player1Id = normalizeId(participant.player1?._id || participant.player1?.player1?._id || participant.player1);
+                const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2?.player1?._id || participant.player2) : null;
+                const player1Name = getPlayerName(tournament, player1Id);
+                const player2Name = player2Id ? getPlayerName(tournament, player2Id) : null;
+                const displayName = player2Name
+                  ? player1Name === 'Desconocido' && player2Name === 'Desconocido'
+                    ? 'Jugador no disponible'
+                    : `${player1Name} / ${player2Name}`
+                  : player1Name === 'Desconocido'
+                  ? 'Jugador no disponible'
+                  : player1Name;
+
+                return (
+                  <TableRow
+                    key={player1Id || index}
+                    sx={{ bgcolor: index % 2 === 0 ? '#fff' : '#f5f5f5' }}
+                  >
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {displayName}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </TableContainer>

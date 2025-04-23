@@ -11,7 +11,6 @@ import TournamentDetails from './TournamentDetails';
 import TournamentGroups from './TournamentGroups';
 import TournamentStandings from './TournamentStandings';
 import TournamentBracket from './TournamentBracket';
-import MatchDialog from './MatchDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { getRoundName } from './tournamentUtils.js';
@@ -30,8 +29,6 @@ const swiperStyles = `
 
 const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
   const [tabValue, setTabValue] = useState(0);
-  const [matchDialogOpen, setMatchDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState(null);
   const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
   const swiperRef = useRef(null);
   const { user, role } = useAuth();
@@ -69,24 +66,15 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
     setTabValue(newValue);
     if (swiperRef.current && swiperRef.current.swiper) {
       swiperRef.current.swiper.slideTo(newValue);
+    } else {
+      console.warn('Swiper instance not available, directly updating tab value:', newValue);
+      setTabValue(newValue); // Fallback to ensure tab updates
     }
   }, []);
 
   const handleSlideChange = useCallback((swiper) => {
     setTabValue(swiper.activeIndex);
   }, []);
-
-  const openMatchDialog = useCallback(
-    (match, groupIndex, matchIndex, roundIndex = null) => {
-      if (role !== 'admin' && role !== 'coach') {
-        addNotification('Solo admin o coach pueden actualizar partidos', 'error');
-        return;
-      }
-      setSelectedMatch({ match, groupIndex, matchIndex, roundIndex, matchId: match._id });
-      setMatchDialogOpen(true);
-    },
-    [role, addNotification]
-  );
 
   const handleConfirmFinish = () => {
     setConfirmFinishOpen(true);
@@ -217,7 +205,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                   <TournamentGroups
                     tournament={tournament}
                     role={role}
-                    openMatchDialog={openMatchDialog}
                     generateKnockoutPhase={generateKnockoutPhase}
                     getPlayerName={getPlayerName}
                     fetchTournament={fetchTournament}
@@ -238,7 +225,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
                       role={role}
                       getPlayerName={getPlayerName}
                       getRoundName={getRoundName}
-                      openMatchDialog={openMatchDialog}
                       advanceEliminationRound={advanceEliminationRound}
                       fetchTournament={fetchTournament}
                       addNotification={addNotification}
@@ -270,17 +256,6 @@ const TournamentInProgress = ({ tournamentId, onFinishTournament }) => {
             </Box>
           )}
         </Box>
-
-        <MatchDialog
-          open={matchDialogOpen}
-          onClose={() => setMatchDialogOpen(false)}
-          selectedMatch={selectedMatch}
-          tournament={tournament}
-          getPlayerName={getPlayerName}
-          addNotification={addNotification}
-          fetchTournament={fetchTournament}
-          role={role}
-        />
 
         <Dialog open={confirmFinishOpen} onClose={() => setConfirmFinishOpen(false)} aria-labelledby="confirm-finish-dialog-title">
           <DialogTitle id="confirm-finish-dialog-title">Confirmar Finalización</DialogTitle>
