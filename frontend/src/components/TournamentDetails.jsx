@@ -54,8 +54,8 @@ const TournamentDetails = ({ tournament }) => {
   };
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 } }}>
-      <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, color: '#1976d2', mb: 2 }}>
+    <Box sx={{ p: { xs: 0.5, sm: 2 }, maxWidth: '100%', overflowX: 'auto' }}>
+      <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, color: '#1976d2', mb: 1 }}>
         Detalles del Torneo
       </Typography>
       <Box sx={{ mb: 2 }}>
@@ -92,15 +92,15 @@ const TournamentDetails = ({ tournament }) => {
         value={search}
         onChange={handleSearchChange}
         fullWidth
-        sx={{ mb: 2 }}
+        sx={{ mb: 1 }}
         size="small"
         aria-label="Buscar participante por nombre"
       />
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
         <Table aria-label="Tabla de participantes">
           <TableHead>
             <TableRow sx={{ bgcolor: '#1976d2' }}>
-              <TableCell sx={{ color: '#fff', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+              <TableCell sx={{ color: '#fff', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 200 }}>
                 Nombre(s)
               </TableCell>
             </TableRow>

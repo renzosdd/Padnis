@@ -110,13 +110,11 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
     const totalSets = tournament.format.sets || 1;
     const sets = result.sets || [];
 
-    // Validate set scores
     sets.forEach((set, index) => {
       const error = validateSet(set, index);
       if (error) errors[`set${index}`] = error;
     });
 
-    // Validate match tiebreak for two-set matches
     if (totalSets === 2) {
       let setsWonByPlayer1 = 0;
       let setsWonByPlayer2 = 0;
@@ -134,7 +132,6 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
       }
     }
 
-    // Validate winner
     if (result.winner) {
       const match = tournament.groups.flatMap(g => g.matches).find(m => m._id === matchId);
       const p1Id = normalizeId(match.player1?.player1);
@@ -321,17 +318,17 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
   }
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 } }}>
+    <Box sx={{ p: { xs: 0.5, sm: 2 }, maxWidth: '100%', overflowX: 'auto' }}>
       {tournament.groups && Array.isArray(tournament.groups) && tournament.groups.length > 0 ? (
         tournament.groups.map((group, groupIndex) => (
-          <Box key={group.name || groupIndex} sx={{ mb: 3 }}>
+          <Box key={group.name || groupIndex} sx={{ mb: 2 }}>
             <Typography
               variant="h6"
-              sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 2, color: '#1976d2' }}
+              sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 1, color: '#1976d2' }}
             >
               {group.name || `Grupo ${groupIndex + 1}`}
             </Typography>
-            <Grid container spacing={2}>
+            <Grid container spacing={1} sx={{ overflowX: 'auto' }}>
               {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
                 group.matches.map((match, matchIndex) => {
                   const matchResult = matchResults[match._id] || {};
@@ -351,36 +348,53 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                           display: 'flex',
                           flexDirection: 'column',
                           p: 1,
-                          height: '120px',
+                          height: { xs: 100, sm: 120 },
                           bgcolor: '#fff',
                           border: '1px solid #e0e0e0',
                           borderRadius: 2,
+                          width: '100%',
                         }}
                         aria-label={`Partido ${matchIndex + 1} del ${group.name}`}
                       >
-                        <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 1 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', p: 0.5 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                               <Avatar sx={{ bgcolor: '#1976d2', width: 24, height: 24, fontSize: '0.75rem' }}>
                                 {getPlayerName(tournament, match.player1?.player1)?.[0]}
                               </Avatar>
-                              <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, maxWidth: '150px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              <Typography
+                                sx={{
+                                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  maxWidth: { xs: '100px', sm: '140px' },
+                                }}
+                              >
                                 {getPlayerName(tournament, match.player1?.player1)}
                                 {match.player1?.player2 && ` / ${getPlayerName(tournament, match.player1?.player2)}`}
                               </Typography>
                             </Box>
-                            <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>vs</Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>vs</Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                               <Avatar sx={{ bgcolor: '#424242', width: 24, height: 24, fontSize: '0.75rem' }}>
                                 {match.player2?.name ? 'BYE' : getPlayerName(tournament, match.player2?.player1)?.[0]}
                               </Avatar>
-                              <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, maxWidth: '150px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              <Typography
+                                sx={{
+                                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  maxWidth: { xs: '100px', sm: '140px' },
+                                }}
+                              >
                                 {match.player2?.name || getPlayerName(tournament, match.player2?.player1)}
                                 {match.player2?.player2 && !match.player2.name && ` / ${getPlayerName(tournament, match.player2?.player2)}`}
                               </Typography>
                             </Box>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 'auto', flexWrap: 'wrap' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 'auto', flexWrap: 'wrap', minWidth: 0 }}>
                             {matchResult.saved ? (
                               <CheckCircle sx={{ color: '#388e3c', fontSize: '1rem' }} aria-label="Partido completado" />
                             ) : (
@@ -389,15 +403,15 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                             {canEdit && !hasKnockout && (
                               <>
                                 {matchResult.sets?.map((set, index) => (
-                                  <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                                       <IconButton
                                         onClick={() => decrementScore(match._id, `set${index}-0`, 0)}
                                         size="small"
-                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                         aria-label={`Decrementar puntaje del equipo 1 en el set ${index + 1}`}
                                       >
-                                        <Remove />
+                                        <Remove fontSize="small" />
                                       </IconButton>
                                       <TextField
                                         size="small"
@@ -405,27 +419,27 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                         value={set.player1}
                                         onChange={(e) => handleInputChange(match._id, `set${index}-0`, e.target.value, 0)}
                                         onBlur={() => saveMatchResult(match._id)}
-                                        sx={{ width: 40 }}
+                                        sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
                                         error={!!matchErrors[`set${index}`]}
                                         aria-label={`Puntuación del equipo 1 para el set ${index + 1}`}
                                       />
                                       <IconButton
                                         onClick={() => incrementScore(match._id, `set${index}-0`, 0)}
                                         size="small"
-                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                         aria-label={`Incrementar puntaje del equipo 1 en el set ${index + 1}`}
                                       >
-                                        <Add />
+                                        <Add fontSize="small" />
                                       </IconButton>
                                     </Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                                       <IconButton
                                         onClick={() => decrementScore(match._id, `set${index}-1`, 1)}
                                         size="small"
-                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                         aria-label={`Decrementar puntaje del equipo 2 en el set ${index + 1}`}
                                       >
-                                        <Remove />
+                                        <Remove fontSize="small" />
                                       </IconButton>
                                       <TextField
                                         size="small"
@@ -433,29 +447,29 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                         value={set.player2}
                                         onChange={(e) => handleInputChange(match._id, `set${index}-1`, e.target.value, 1)}
                                         onBlur={() => saveMatchResult(match._id)}
-                                        sx={{ width: 40 }}
+                                        sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
                                         error={!!matchErrors[`set${index}`]}
                                         aria-label={`Puntuación del equipo 2 para el set ${index + 1}`}
                                       />
                                       <IconButton
                                         onClick={() => incrementScore(match._id, `set${index}-1`, 1)}
                                         size="small"
-                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                         aria-label={`Incrementar puntaje del equipo 2 en el set ${index + 1}`}
                                       >
-                                        <Add />
+                                        <Add fontSize="small" />
                                       </IconButton>
                                     </Box>
                                     {parseInt(set.player1, 10) === 6 && parseInt(set.player2, 10) === 6 && (
-                                      <Box sx={{ display: 'flex', alignItems: 'none', gap: 0.5 }}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                           <IconButton
                                             onClick={() => decrementScore(match._id, `tiebreak${index}-1`, 1)}
                                             size="small"
-                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
-                                            aria-label={`Decrementar tiebreak del equipo 1 en el set ${index + 1}`}
+                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
+                                            aria-label={`Decrementar tie historic del equipo 1 en el set ${index + 1}`}
                                           >
-                                            <Remove />
+                                            <Remove fontSize="small" />
                                           </IconButton>
                                           <TextField
                                             size="small"
@@ -463,27 +477,27 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                             value={set.tiebreak1}
                                             onChange={(e) => handleInputChange(match._id, `tiebreak${index}-1`, e.target.value, 1)}
                                             onBlur={() => saveMatchResult(match._id)}
-                                            sx={{ width: 40 }}
+                                            sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
                                             error={!!matchErrors[`set${index}`]}
                                             aria-label={`Tiebreak del equipo 1 para el set ${index + 1}`}
                                           />
                                           <IconButton
                                             onClick={() => incrementScore(match._id, `tiebreak${index}-1`, 1)}
                                             size="small"
-                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                             aria-label={`Incrementar tiebreak del equipo 1 en el set ${index + 1}`}
                                           >
-                                            <Add />
+                                            <Add fontSize="small" />
                                           </IconButton>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                           <IconButton
                                             onClick={() => decrementScore(match._id, `tiebreak${index}-2`, 2)}
                                             size="small"
-                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                             aria-label={`Decrementar tiebreak del equipo 2 en el set ${index + 1}`}
                                           >
-                                            <Remove />
+                                            <Remove fontSize="small" />
                                           </IconButton>
                                           <TextField
                                             size="small"
@@ -491,17 +505,17 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                             value={set.tiebreak2}
                                             onChange={(e) => handleInputChange(match._id, `tiebreak${index}-2`, e.target.value, 2)}
                                             onBlur={() => saveMatchResult(match._id)}
-                                            sx={{ width: 40 }}
+                                            sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
                                             error={!!matchErrors[`set${index}`]}
                                             aria-label={`Tiebreak del equipo 2 para el set ${index + 1}`}
                                           />
                                           <IconButton
                                             onClick={() => incrementScore(match._id, `tiebreak${index}-2`, 2)}
                                             size="small"
-                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                             aria-label={`Incrementar tiebreak del equipo 2 en el set ${index + 1}`}
                                           >
-                                            <Add />
+                                            <Add fontSize="small" />
                                           </IconButton>
                                         </Box>
                                       </Box>
@@ -509,14 +523,14 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                   </Box>
                                 ))}
                                 {isTied && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
                                     <IconButton
                                       onClick={() => decrementScore(match._id, 'matchTiebreak-player1', 0)}
                                       size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                       aria-label="Decrementar tiebreak del partido para el equipo 1"
                                     >
-                                      <Remove />
+                                      <Remove fontSize="small" />
                                     </IconButton>
                                     <TextField
                                       size="small"
@@ -524,25 +538,25 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                       value={matchResult.matchTiebreak?.player1 || ''}
                                       onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player1', e.target.value)}
                                       onBlur={() => saveMatchResult(match._id)}
-                                      sx={{ width: 40 }}
+                                      sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
                                       error={!!matchErrors.matchTiebreak}
                                       aria-label="Puntuación de tiebreak del partido para el equipo 1"
                                     />
                                     <IconButton
                                       onClick={() => incrementScore(match._id, 'matchTiebreak-player1', 0)}
                                       size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                       aria-label="Incrementar tiebreak del partido para el equipo 1"
                                     >
-                                      <Add />
+                                      <Add fontSize="small" />
                                     </IconButton>
                                     <IconButton
                                       onClick={() => decrementScore(match._id, 'matchTiebreak-player2', 1)}
                                       size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                       aria-label="Decrementar tiebreak del partido para el equipo 2"
                                     >
-                                      <Remove />
+                                      <Remove fontSize="small" />
                                     </IconButton>
                                     <TextField
                                       size="small"
@@ -550,17 +564,17 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                       value={matchResult.matchTiebreak?.player2 || ''}
                                       onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player2', e.target.value)}
                                       onBlur={() => saveMatchResult(match._id)}
-                                      sx={{ width: 40 }}
+                                      sx={{ width: 36, minWidth: 0, '& input': { fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' } }}
                                       error={!!matchErrors.matchTiebreak}
                                       aria-label="Puntuación de tiebreak del partido para el equipo 2"
                                     />
                                     <IconButton
                                       onClick={() => incrementScore(match._id, 'matchTiebreak-player2', 1)}
                                       size="small"
-                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' } }}
+                                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                                       aria-label="Incrementar tiebreak del partido para el equipo 2"
                                     >
-                                      <Add />
+                                      <Add fontSize="small" />
                                     </IconButton>
                                   </Box>
                                 )}
@@ -569,7 +583,7 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                   value={matchResult.winner || ''}
                                   onChange={(e) => handleInputChange(match._id, 'winner', e.target.value)}
                                   onBlur={() => saveMatchResult(match._id)}
-                                  sx={{ width: 100 }}
+                                  sx={{ width: { xs: 80, sm: 100 }, minWidth: 0, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
                                   error={!!matchErrors.winner}
                                   aria-label="Seleccionar ganador"
                                 >
@@ -579,7 +593,7 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                                 </Select>
                                 <IconButton
                                   onClick={() => openMatchDialog(match, groupIndex, matchIndex)}
-                                  sx={{ ml: 1 }}
+                                  sx={{ ml: 0.5, p: 0.75 }}
                                   aria-label="Editar detalles del partido"
                                 >
                                   <Edit fontSize="small" />
@@ -587,7 +601,7 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                               </>
                             )}
                             {matchErrors.general && (
-                              <Alert severity="error" sx={{ fontSize: '0.75rem', mt: 1 }}>{matchErrors.general}</Alert>
+                              <Alert severity="error" sx={{ fontSize: '0.75rem', mt: 1, width: '100%' }}>{matchErrors.general}</Alert>
                             )}
                           </Box>
                         </CardContent>
@@ -606,7 +620,7 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                 <Button
                   variant="contained"
                   onClick={() => setConfirmKnockoutOpen(true)}
-                  sx={{ mt: 2, bgcolor: '#1976d2', fontSize: { xs: '0.75rem', sm: '0.875rem' }, mr: 1 }}
+                  sx={{ mt: 1, bgcolor: '#1976d2', fontSize: { xs: '0.75rem', sm: '0.875rem' }, mr: 1, minHeight: 40 }}
                   aria-label="Generar fase eliminatoria"
                 >
                   Generar Fase Eliminatoria
@@ -615,7 +629,7 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
                   variant="contained"
                   onClick={saveAllResults}
                   disabled={unsavedCount === 0}
-                  sx={{ mt: 2, bgcolor: '#388e3c', fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                  sx={{ mt: 1, bgcolor: '#388e3c', fontSize: { xs: '0.75rem', sm: '0.875rem' }, minHeight: 40 }}
                   aria-label="Guardar todos los resultados"
                 >
                   Guardar Todos ({unsavedCount})
@@ -632,7 +646,9 @@ const TournamentGroups = ({ tournament, role, openMatchDialog, generateKnockoutP
       <Dialog open={confirmKnockoutOpen} onClose={() => setConfirmKnockoutOpen(false)} aria-labelledby="confirm-knockout-dialog-title">
         <DialogTitle id="confirm-knockout-dialog-title">Confirmar Fase Eliminatoria</DialogTitle>
         <DialogContent>
-          <Typography>¿Estás seguro de que quieres generar la fase eliminatoria? Esto puede modificar la estructura del torneo.</Typography>
+          <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+            ¿Estás seguro de que quieres generar la fase eliminatoria? Esto puede modificar la estructura del torneo.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmKnockoutOpen(false)} aria-label="Cancelar generación de fase eliminatoria">Cancelar</Button>

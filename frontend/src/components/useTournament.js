@@ -2,24 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getPlayerName, normalizeId, isValidObjectId } from './tournamentUtils.js';
 
-/**
- * Custom hook for managing tournament data and actions.
- * @param {string} tournamentId - The ID of the tournament.
- * @param {Function} addNotification - Function to display notifications.
- * @param {Function} onFinishTournament - Callback for when the tournament finishes.
- * @returns {Object} Tournament data and action handlers.
- */
 const useTournament = (tournamentId, addNotification, onFinishTournament) => {
   const [tournament, setTournament] = useState(null);
   const [standings, setStandings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  /**
-   * Fetches tournament data with retry logic and exponential backoff.
-   * @param {number} [retries=3] - Number of retries for network errors.
-   * @param {number} [backoff=5000] - Initial backoff time in ms.
-   */
   const fetchTournament = useCallback(async (retries = 3, backoff = 5000) => {
     setIsLoading(true);
     setError(null);
@@ -63,10 +51,6 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
     }
   }, [tournamentId, addNotification]);
 
-  /**
-   * Updates standings for RoundRobin tournaments based on group matches.
-   * @param {Object} tournamentData - The tournament data.
-   */
   const updateStandings = (tournamentData) => {
     if (!tournamentData?.groups || !Array.isArray(tournamentData.groups)) {
       console.warn('Invalid or missing groups data:', tournamentData?.groups);
@@ -145,11 +129,6 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
     setStandings(newStandings);
   };
 
-  /**
-   * Generates the knockout phase for RoundRobin tournaments.
-   * @param {number} [retries=3] - Number of retries for network errors.
-   * @param {number} [backoff=5000] - Initial backoff time in ms.
-   */
   const generateKnockoutPhase = useCallback(async (retries = 3, backoff = 5000) => {
     if (tournament?.type !== 'RoundRobin') return;
 
@@ -216,11 +195,6 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
     }
   }, [tournament, standings, tournamentId, addNotification, fetchTournament]);
 
-  /**
-   * Advances the elimination round by creating the next round with winners.
-   * @param {number} [retries=3] - Number of retries for network errors.
-   * @param {number} [backoff=5000] - Initial backoff time in ms.
-   */
   const advanceEliminationRound = useCallback(async (retries = 3, backoff = 5000) => {
     if (!tournament?.rounds?.length) {
       addNotification('No hay rondas para avanzar.', 'error');
@@ -309,11 +283,6 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
     }
   }, [tournament, tournamentId, addNotification, fetchTournament]);
 
-  /**
-   * Finalizes the tournament by setting the winner and runner-up.
-   * @param {number} [retries=3] - Number of retries for network errors.
-   * @param {number} [backoff=5000] - Initial backoff time in ms.
-   */
   const handleFinishTournament = useCallback(async (retries = 3, backoff = 5000) => {
     try {
       const allMatchesCompleted =
@@ -343,7 +312,6 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
           addNotification('No se pueden finalizar partidos sin sets registrados.', 'error');
           return;
         }
-        // Validate match tiebreak for two-set matches
         if (tournament.format.sets === 2) {
           let setsWonByPlayer1 = 0;
           let setsWonByPlayer2 = 0;
@@ -434,7 +402,6 @@ const useTournament = (tournamentId, addNotification, onFinishTournament) => {
     }
   }, [tournament, standings, tournamentId, addNotification, onFinishTournament, fetchTournament, getPlayerName]);
 
-  // Fetch tournament on mount
   useEffect(() => {
     fetchTournament();
   }, [fetchTournament]);

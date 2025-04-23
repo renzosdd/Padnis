@@ -13,6 +13,7 @@ import {
   IconButton,
   CircularProgress,
   Alert,
+  Stack,
 } from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 import axios from 'axios';
@@ -287,43 +288,43 @@ const MatchDialog = ({
     );
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="match-dialog-title">
-      <DialogTitle id="match-dialog-title" sx={{ bgcolor: '#1976d2', color: '#fff', fontSize: { xs: '1rem', sm: '1.25rem' }, p: 2 }}>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" aria-labelledby="match-dialog-title">
+      <DialogTitle id="match-dialog-title" sx={{ bgcolor: '#1976d2', color: '#fff', fontSize: { xs: '1rem', sm: '1.25rem' }, p: 1.5 }}>
         Actualizar Resultado del Partido
       </DialogTitle>
-      <DialogContent sx={{ bgcolor: '#f0f4f8', p: { xs: 2, sm: 3 } }}>
+      <DialogContent sx={{ bgcolor: '#f0f4f8', p: { xs: 1, sm: 2 } }}>
         {selectedMatch && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Stack spacing={2}>
             <Box
               sx={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 bgcolor: '#fff',
-                p: 2,
+                p: 1,
                 borderRadius: 2,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ bgcolor: '#1976d2', width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Avatar sx={{ bgcolor: '#1976d2', width: 24, height: 24, fontSize: '0.75rem' }}>
                   {selectedMatch.match.player1?.player1 ? getPlayerName(tournament, selectedMatch.match.player1.player1).charAt(0) : '?'}
                 </Avatar>
-                <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, fontWeight: 'bold' }}>
+                <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
                   {selectedMatch.match.player1?.player1
                     ? getPlayerName(tournament, selectedMatch.match.player1.player1, selectedMatch.match.player1.player2)
                     : 'Jugador no definido'}
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>vs</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, fontWeight: 'bold' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
                   {selectedMatch.match.player2?.name ||
                   (selectedMatch.match.player2?.player1
                     ? getPlayerName(tournament, selectedMatch.match.player2.player1, selectedMatch.match.player2.player2)
                     : 'Jugador no definido')}
                 </Typography>
-                <Avatar sx={{ bgcolor: '#424242', width: { xs: 24, sm: 32 }, height: { xs: 24, sm: 32 }, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <Avatar sx={{ bgcolor: '#424242', width: 24, height: 24, fontSize: '0.75rem' }}>
                   {selectedMatch.match.player2?.name
                     ? 'BYE'
                     : selectedMatch.match.player2?.player1
@@ -334,199 +335,199 @@ const MatchDialog = ({
             </Box>
             {matchScores.map((set, index) => (
               index < tournament?.format?.sets && (
-                <Card key={index} sx={{ bgcolor: '#fff', p: 2, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                  <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'medium', mb: 2 }}>
+                <Card key={index} sx={{ bgcolor: '#fff', p: 1, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                  <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'medium', mb: 1 }}>
                     Set {index + 1}
                   </Typography>
-                  {errors[index] && <Alert severity="error" sx={{ mb: 2 }}>{errors[index]}</Alert>}
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {errors[index] && <Alert severity="error" sx={{ mb: 1, fontSize: '0.75rem' }}>{errors[index]}</Alert>}
+                  <Stack spacing={1}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '80px', sm: '100px' } }}>
                         Equipo 1
                       </Typography>
                       <IconButton
                         onClick={() => decrementScore(index, 'player1')}
                         size="small"
-                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                         aria-label={`Decrementar puntaje del equipo 1 en el set ${index + 1}`}
                       >
-                        <Remove />
+                        <Remove fontSize="small" />
                       </IconButton>
                       <TextField
                         type="number"
                         value={set.player1}
                         onChange={(e) => handleScoreChange(index, 'player1', e.target.value)}
                         inputProps={{ min: 0, 'aria-label': `Puntaje del equipo 1 en el set ${index + 1}` }}
-                        sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
+                        sx={{ width: 48, minWidth: 0, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                       />
                       <IconButton
                         onClick={() => incrementScore(index, 'player1')}
                         size="small"
-                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                         aria-label={`Incrementar puntaje del equipo 1 en el set ${index + 1}`}
                       >
-                        <Add />
+                        <Add fontSize="small" />
                       </IconButton>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                      <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '80px', sm: '100px' } }}>
                         Equipo 2
                       </Typography>
                       <IconButton
                         onClick={() => decrementScore(index, 'player2')}
                         size="small"
-                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                         aria-label={`Decrementar puntaje del equipo 2 en el set ${index + 1}`}
                       >
-                        <Remove />
+                        <Remove fontSize="small" />
                       </IconButton>
                       <TextField
                         type="number"
                         value={set.player2}
                         onChange={(e) => handleScoreChange(index, 'player2', e.target.value)}
                         inputProps={{ min: 0, 'aria-label': `Puntaje del equipo 2 en el set ${index + 1}` }}
-                        sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
+                        sx={{ width: 48, minWidth: 0, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                       />
                       <IconButton
                         onClick={() => incrementScore(index, 'player2')}
                         size="small"
-                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                        sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                         aria-label={`Incrementar puntaje del equipo 2 en el set ${index + 1}`}
                       >
-                        <Add />
+                        <Add fontSize="small" />
                       </IconButton>
                     </Box>
                     {set.player1 === 6 && set.player2 === 6 && (
                       <>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '80px', sm: '100px' } }}>
                             Tiebreak Equipo 1
                           </Typography>
                           <IconButton
                             onClick={() => decrementScore(index, 'tiebreak1')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                             aria-label={`Decrementar tiebreak del equipo 1 en el set ${index + 1}`}
                           >
-                            <Remove />
+                            <Remove fontSize="small" />
                           </IconButton>
                           <TextField
                             type="number"
                             value={set.tiebreak1}
                             onChange={(e) => handleScoreChange(index, 'tiebreak1', e.target.value)}
                             inputProps={{ min: 0, 'aria-label': `Tiebreak del equipo 1 en el set ${index + 1}` }}
-                            sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
+                            sx={{ width: 48, minWidth: 0, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                           />
                           <IconButton
                             onClick={() => incrementScore(index, 'tiebreak1')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                             aria-label={`Incrementar tiebreak del equipo 1 en el set ${index + 1}`}
                           >
-                            <Add />
+                            <Add fontSize="small" />
                           </IconButton>
                         </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '80px', sm: '100px' } }}>
                             Tiebreak Equipo 2
                           </Typography>
                           <IconButton
                             onClick={() => decrementScore(index, 'tiebreak2')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                             aria-label={`Decrementar tiebreak del equipo 2 en el set ${index + 1}`}
                           >
-                            <Remove />
+                            <Remove fontSize="small" />
                           </IconButton>
                           <TextField
                             type="number"
                             value={set.tiebreak2}
                             onChange={(e) => handleScoreChange(index, 'tiebreak2', e.target.value)}
                             inputProps={{ min: 0, 'aria-label': `Tiebreak del equipo 2 en el set ${index + 1}` }}
-                            sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
+                            sx={{ width: 48, minWidth: 0, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                           />
                           <IconButton
                             onClick={() => incrementScore(index, 'tiebreak2')}
                             size="small"
-                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                            sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                             aria-label={`Incrementar tiebreak del equipo 2 en el set ${index + 1}`}
                           >
-                            <Add />
+                            <Add fontSize="small" />
                           </IconButton>
                         </Box>
                       </>
                     )}
-                  </Box>
+                  </Stack>
                 </Card>
               )
             ))}
             {isMatchTied && (
-              <Card sx={{ bgcolor: '#fff', p: 2, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', mt: 2 }}>
-                <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'medium', mb: 2 }}>
+              <Card sx={{ bgcolor: '#fff', p: 1, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'medium', mb: 1 }}>
                   Tiebreak del Partido
                 </Typography>
-                {tiebreakError && <Alert severity="error" sx={{ mb: 2 }}>{tiebreakError}</Alert>}
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {tiebreakError && <Alert severity="error" sx={{ mb: 1, fontSize: '0.75rem' }}>{tiebreakError}</Alert>}
+                <Stack spacing={1}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '80px', sm: '100px' } }}>
                       Equipo 1
                     </Typography>
                     <IconButton
                       onClick={() => decrementTiebreak('player1')}
                       size="small"
-                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                       aria-label="Decrementar tiebreak del partido para el equipo 1"
                     >
-                      <Remove />
+                      <Remove fontSize="small" />
                     </IconButton>
                     <TextField
                       type="number"
                       value={matchTiebreak.player1}
                       onChange={(e) => handleTiebreakChange('player1', e.target.value)}
                       inputProps={{ min: 0, 'aria-label': 'Tiebreak del partido para el equipo 1' }}
-                      sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
+                      sx={{ width: 48, minWidth: 0, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                     />
                     <IconButton
                       onClick={() => incrementTiebreak('player1')}
                       size="small"
-                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                       aria-label="Incrementar tiebreak del partido para el equipo 1"
                     >
-                      <Add />
+                      <Add fontSize="small" />
                     </IconButton>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '100px', sm: '120px' } }}>
+                    <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, width: { xs: '80px', sm: '100px' } }}>
                       Equipo 2
                     </Typography>
                     <IconButton
                       onClick={() => decrementTiebreak('player2')}
                       size="small"
-                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                       aria-label="Decrementar tiebreak del partido para el equipo 2"
                     >
-                      <Remove />
+                      <Remove fontSize="small" />
                     </IconButton>
                     <TextField
                       type="number"
                       value={matchTiebreak.player2}
                       onChange={(e) => handleTiebreakChange('player2', e.target.value)}
                       inputProps={{ min: 0, 'aria-label': 'Tiebreak del partido para el equipo 2' }}
-                      sx={{ width: 60, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
+                      sx={{ width: 48, minWidth: 0, '& input': { textAlign: 'center', fontSize: { xs: '0.75rem', sm: '0.875rem' } } }}
                     />
                     <IconButton
                       onClick={() => incrementTiebreak('player2')}
                       size="small"
-                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, borderRadius: '50%' }}
+                      sx={{ bgcolor: '#e0e0e0', ':hover': { bgcolor: '#d5d5d5' }, p: 0.75 }}
                       aria-label="Incrementar tiebreak del partido para el equipo 2"
                     >
-                      <Add />
+                      <Add fontSize="small" />
                     </IconButton>
                   </Box>
-                </Box>
+                </Stack>
               </Card>
             )}
-          </Box>
+          </Stack>
         )}
       </DialogContent>
       <DialogActions sx={{ p: { xs: 1, sm: 2 }, bgcolor: '#f0f4f8' }}>
