@@ -40,17 +40,21 @@ export const determineWinner = (sets, player1Pair, player2Pair, totalSets, match
   let setsWonByPlayer2 = 0;
 
   sets.forEach((set) => {
-    if (set.player1 > set.player2 || (set.player1 === set.player2 && set.tiebreak1 > set.tiebreak2)) {
+    const p1Score = parseInt(set.player1, 10);
+    const p2Score = parseInt(set.player2, 10);
+    const tb1 = parseInt(set.tiebreak1, 10);
+    const tb2 = parseInt(set.tiebreak2, 10);
+    if (p1Score > p2Score || (p1Score === p2Score && tb1 > tb2)) {
       setsWonByPlayer1 += 1;
-    } else if (set.player2 > set.player1 || (set.player1 === set.player2 && set.tiebreak2 > set.tiebreak1)) {
+    } else if (p2Score > p1Score || (p1Score === p2Score && tb2 > tb1)) {
       setsWonByPlayer2 += 1;
     }
   });
 
   if (totalSets === 2 && setsWonByPlayer1 === 1 && setsWonByPlayer2 === 1) {
-    if (matchTiebreak && matchTiebreak.player1 > matchTiebreak.player2) {
+    if (matchTiebreak && parseInt(matchTiebreak.player1, 10) > parseInt(matchTiebreak.player2, 10)) {
       return player1Pair;
-    } else if (matchTiebreak && matchTiebreak.player2 > matchTiebreak.player1) {
+    } else if (matchTiebreak && parseInt(matchTiebreak.player2, 10) > parseInt(matchTiebreak.player1, 10)) {
       return player2Pair;
     }
     return null;
@@ -76,6 +80,5 @@ export const getRoundName = (numTeams, totalRounds) => {
     64: 'Treintadosavos de Final',
   };
 
-  const teamsInRound = Math.pow(2, totalRounds);
   return roundNames[numTeams] || `Ronda de ${numTeams}`;
 };
