@@ -31,16 +31,26 @@ const MatchCard = ({
 }) => {
   const [localResult, setLocalResult] = useState(matchResult);
 
+  console.log('MatchCard props:', {
+    matchId: match._id,
+    canEdit,
+    isEditable,
+    matchResultSaved: matchResult.saved,
+    totalSets,
+    sets: localResult.sets,
+  });
+
   const handleLocalInputChange = (field, value, setIndex = null) => {
+    console.log('handleLocalInputChange called:', { field, value, setIndex });
     const newResult = { ...localResult };
     if (field.startsWith('set')) {
       const [type, index] = field.split('-');
       newResult.sets = [...newResult.sets];
-      newResult.sets[parseInt(index, 10)] = { ...newResult.sets[index], [setIndex === 0 ? 'player1' : 'player2']: value };
+      newResult.sets[parseInt(index, 10)] = { ...newResult.sets[parseInt(index, 10)], [setIndex === 0 ? 'player1' : 'player2']: value };
     } else if (field.startsWith('tiebreak')) {
       const [type, index, player] = field.split('-');
       newResult.sets = [...newResult.sets];
-      newResult.sets[parseInt(index, 10)] = { ...newResult.sets[index], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
+      newResult.sets[parseInt(index, 10)] = { ...newResult.sets[parseInt(index, 10)], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
     } else if (field === 'winner') {
       newResult.winner = value;
     } else if (field.startsWith('matchTiebreak')) {
@@ -52,6 +62,7 @@ const MatchCard = ({
   };
 
   const handleSave = () => {
+    console.log('Saving match result:', localResult);
     saveMatchResult(match._id, localResult);
   };
 
@@ -63,7 +74,7 @@ const MatchCard = ({
         border: matchResult.saved ? '2px solid #388e3c' : '1px solid #e0e0e0',
         borderRadius: 2,
         width: '100%',
-        minHeight: { xs: 'auto', sm: 120 }, // Allow card to grow with content on mobile
+        minHeight: { xs: 'auto', sm: 120 },
       }}
       aria-label={`Partido ${match._id}`}
     >
@@ -115,128 +126,136 @@ const MatchCard = ({
             ))}
             {isTied && matchResult.matchTiebreak && `, TB ${matchResult.matchTiebreak.player1}-${matchResult.matchTiebreak.player2}`}
           </Typography>
+        ) : canEdit && isEditable ? (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 1, sm: 2 },
+              mt: 1,
+              alignItems: { xs: 'stretch', sm: 'center' },
+            }}
+          >
+            {Array.from({ length: totalSets }, (_, idx) => (
+              <Box
+                key={idx}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
+                  Set {idx + 1}:
+                </Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={localResult.sets[idx]?.player1 || ''}
+                  onChange={(e) => handleLocalInputChange(`set${idx}-0`, e.target.value, 0)}
+                  sx={{
+                    width: 40,
+                    border: '1px solid red', // Debug: Add border to confirm rendering
+                    '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  }}
+                  error={!!matchErrors[`set${idx}`]}
+                  aria-label={`Puntuación del equipo 1 para el set ${idx + 1}`}
+                />
+                <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={localResult.sets[idx]?.player2 || ''}
+                  onChange={(e) => handleLocalInputChange(`set${idx}-1`, e.target.value, 1)}
+                  sx={{
+                    width: 40,
+                    border: '1px solid red', // Debug: Add border to confirm rendering
+                    '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  }}
+                  error={!!matchErrors[`set${idx}`]}
+                  aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
+                />
+                {parseInt(localResult.sets[idx]?.player1, 10) === 6 && parseInt(localResult.sets[idx]?.player2, 10) === 6 && (
+                  <>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={localResult.sets[idx]?.tiebreak1 || ''}
+                      onChange={(e) => handleLocalInputChange(`tiebreak${idx}-1`, e.target.value, 1)}
+                      sx={{
+                        width: 40,
+                        border: '1px solid red', // Debug: Add border to confirm rendering
+                        '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                      }}
+                      error={!!matchErrors[`set${idx}`]}
+                      aria-label={`Tiebreak del equipo 1 para el set ${idx + 1}`}
+                    />
+                    <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      value={localResult.sets[idx]?.tiebreak2 || ''}
+                      onChange={(e) => handleLocalInputChange(`tiebreak${idx}-2`, e.target.value, 2)}
+                      sx={{
+                        width: 40,
+                        border: '1px solid red', // Debug: Add border to confirm rendering
+                        '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                      }}
+                      error={!!matchErrors[`set${idx}`]}
+                      aria-label={`Tiebreak del equipo 2 para el set ${idx + 1}`}
+                    />
+                  </>
+                )}
+              </Box>
+            ))}
+            {isTied && totalSets === 2 && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  flexWrap: 'wrap',
+                  mt: { xs: 1, sm: 0 },
+                }}
+              >
+                <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
+                  Tiebreak:
+                </Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={localResult.matchTiebreak?.player1 || ''}
+                  onChange={(e) => handleLocalInputChange('matchTiebreak-player1', e.target.value)}
+                  sx={{
+                    width: 40,
+                    border: '1px solid red', // Debug: Add border to confirm rendering
+                    '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  }}
+                  error={!!matchErrors.matchTiebreak}
+                  aria-label="Puntuación de tiebreak del partido para el equipo 1"
+                />
+                <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                <TextField
+                  size="small"
+                  type="number"
+                  value={localResult.matchTiebreak?.player2 || ''}
+                  onChange={(e) => handleLocalInputChange('matchTiebreak-player2', e.target.value)}
+                  sx={{
+                    width: 40,
+                    border: '1px solid red', // Debug: Add border to confirm rendering
+                    '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  }}
+                  error={!!matchErrors.matchTiebreak}
+                  aria-label="Puntuación de tiebreak del partido para el equipo 2"
+                />
+              </Box>
+            )}
+          </Box>
         ) : (
-          canEdit && isEditable && (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', sm: 'row' }, // Vertical on mobile, horizontal on desktop
-                gap: { xs: 1, sm: 2 },
-                mt: 1,
-                alignItems: { xs: 'stretch', sm: 'center' },
-              }}
-            >
-              {Array.from({ length: totalSets }, (_, idx) => (
-                <Box
-                  key={idx}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
-                    Set {idx + 1}:
-                  </Typography>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={localResult.sets[idx]?.player1 || ''}
-                    onChange={(e) => handleLocalInputChange(`set${idx}-0`, e.target.value, 0)}
-                    sx={{
-                      width: 40,
-                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
-                    }}
-                    error={!!matchErrors[`set${idx}`]}
-                    aria-label={`Puntuación del equipo 1 para el set ${idx + 1}`}
-                  />
-                  <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={localResult.sets[idx]?.player2 || ''}
-                    onChange={(e) => handleLocalInputChange(`set${idx}-1`, e.target.value, 1)}
-                    sx={{
-                      width: 40,
-                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
-                    }}
-                    error={!!matchErrors[`set${idx}`]}
-                    aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
-                  />
-                  {parseInt(localResult.sets[idx]?.player1, 10) === 6 && parseInt(localResult.sets[idx]?.player2, 10) === 6 && (
-                    <>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={localResult.sets[idx]?.tiebreak1 || ''}
-                        onChange={(e) => handleLocalInputChange(`tiebreak${idx}-1`, e.target.value, 1)}
-                        sx={{
-                          width: 40,
-                          '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
-                        }}
-                        error={!!matchErrors[`set${idx}`]}
-                        aria-label={`Tiebreak del equipo 1 para el set ${idx + 1}`}
-                      />
-                      <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={localResult.sets[idx]?.tiebreak2 || ''}
-                        onChange={(e) => handleLocalInputChange(`tiebreak${idx}-2`, e.target.value, 2)}
-                        sx={{
-                          width: 40,
-                          '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
-                        }}
-                        error={!!matchErrors[`set${idx}`]}
-                        aria-label={`Tiebreak del equipo 2 para el set ${idx + 1}`}
-                      />
-                    </>
-                  )}
-                </Box>
-              ))}
-              {isTied && totalSets === 2 && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    flexWrap: 'wrap',
-                    mt: { xs: 1, sm: 0 },
-                  }}
-                >
-                  <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
-                    Tiebreak:
-                  </Typography>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={localResult.matchTiebreak?.player1 || ''}
-                    onChange={(e) => handleLocalInputChange('matchTiebreak-player1', e.target.value)}
-                    sx={{
-                      width: 40,
-                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
-                    }}
-                    error={!!matchErrors.matchTiebreak}
-                    aria-label="Puntuación de tiebreak del partido para el equipo 1"
-                  />
-                  <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={localResult.matchTiebreak?.player2 || ''}
-                    onChange={(e) => handleLocalInputChange('matchTiebreak-player2', e.target.value)}
-                    sx={{
-                      width: 40,
-                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
-                    }}
-                    error={!!matchErrors.matchTiebreak}
-                    aria-label="Puntuación de tiebreak del partido para el equipo 2"
-                  />
-                </Box>
-              )}
-            </Box>
-          )
+          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, mt: 1 }}>
+            No editable
+          </Typography>
         )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
           {matchResult.saved ? (
