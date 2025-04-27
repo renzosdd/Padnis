@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Tabs,
@@ -43,32 +42,39 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const TournamentInProgress = ({ role, addNotification }) => {
-  const { id } = useParams();
-  const navigate = useNavigate();
+const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
   const swiperRef = useRef(null);
-  const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(id);
+  const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
 
   const fetchTournamentData = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchTournament();
+      console.log('Fetched tournament data in TournamentInProgress:', data);
       setTournament(data);
+      if (data.status !== 'En curso') {
+        onFinishTournament(data);
+      }
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Error al cargar el torneo');
       addNotification('Error al cargar el torneo', 'error');
     } finally {
       setLoading(false);
     }
-  }, [fetchTournament, addNotification]);
+  }, [fetchTournament, addNotification, onFinishTournament]);
 
   useEffect(() => {
-    fetchTournamentData();
-  }, [fetchTournamentData]);
+    if (tournamentId) {
+      fetchTournamentData();
+    } else {
+      setError('No se proporcionó un ID de torneo válido');
+      setLoading(false);
+    }
+  }, [tournamentId, fetchTournamentData]);
 
   const handleTabChange = (event, newValue) => {
     console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
