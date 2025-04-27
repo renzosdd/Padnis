@@ -47,7 +47,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
-  const [isFetching, setIsFetching] = useState(false); // Safeguard to prevent fetch loop
+  const [isFetching, setIsFetching] = useState(false);
   const swiperRef = useRef(null);
   const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
 
@@ -81,7 +81,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       setError('No se proporcionó un ID de torneo válido');
       setLoading(false);
     }
-  }, [tournamentId, fetchTournamentData]);
+  }, [tournamentId]); // Removed fetchTournamentData from dependencies to prevent loop
 
   const handleTabChange = (event, newValue) => {
     console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
@@ -100,22 +100,24 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   };
 
   const handleGenerateKnockout = useCallback(async () => {
+    if (isFetching) return; // Prevent re-fetch if already fetching
     try {
       await generateKnockoutPhase();
       await fetchTournamentData();
     } catch (err) {
       addNotification('Error al generar la fase de eliminación', 'error');
     }
-  }, [generateKnockoutPhase, addNotification, fetchTournamentData]);
+  }, [generateKnockoutPhase, addNotification, fetchTournamentData, isFetching]);
 
   const handleAdvanceEliminationRound = useCallback(async () => {
+    if (isFetching) return; // Prevent re-fetch if already fetching
     try {
       await advanceEliminationRound();
       await fetchTournamentData();
     } catch (err) {
       addNotification('Error al avanzar la ronda de eliminación', 'error');
     }
-  }, [advanceEliminationRound, addNotification, fetchTournamentData]);
+  }, [advanceEliminationRound, addNotification, fetchTournamentData, isFetching]);
 
   if (loading) {
     return (

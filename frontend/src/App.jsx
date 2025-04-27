@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
 import { setPlayers } from './store';
@@ -66,7 +66,7 @@ const App = () => {
   const dispatch = useDispatch();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const fetchPlayers = async () => {
+  const fetchPlayers = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
@@ -80,7 +80,7 @@ const App = () => {
       addNotification('No se pudieron cargar los jugadores: ' + (error.response?.data?.message || error.message), 'error');
       dispatch(setPlayers([]));
     }
-  };
+  }, [addNotification, dispatch]);
 
   const fetchTournaments = useCallback(async (retries = 3, backoff = 5000) => {
     try {
@@ -112,13 +112,13 @@ const App = () => {
       validTournaments.forEach((t) => {
         console.log(`Tournament ${t._id} participants:`, t.participants);
       });
+      setTournaments(validTournaments);
+      setError(null);
       if (selectedTournamentId && !validTournaments.some((t) => t._id === selectedTournamentId)) {
         setSelectedTournamentId(null);
         setView('activos');
         addNotification('El torneo seleccionado ya no está disponible', 'warning');
       }
-      setTournaments(validTournaments);
-      setError(null);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const errorDetails = {
@@ -146,9 +146,9 @@ const App = () => {
         }
       }
     }
-  }, [user, selectedTournamentId, addNotification]);
+  }, [user, addNotification]); // Removed selectedTournamentId to prevent unnecessary re-renders
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('No token available');
@@ -161,7 +161,7 @@ const App = () => {
       addNotification('No se pudieron cargar los usuarios: ' + (error.response?.data?.message || error.message), 'error');
       setUsers([]);
     }
-  };
+  }, [addNotification]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -182,7 +182,7 @@ const App = () => {
       }
     };
     fetchData();
-  }, [user, role, fetchTournaments]);
+  }, [user, role, fetchTournaments, fetchPlayers, fetchUsers, addNotification]);
 
   const updatePlayer = useCallback((updatedPlayer) => {
     dispatch(setPlayers(players.map((p) => (p.playerId === updatedPlayer.playerId ? { ...updatedPlayer, _id: String(updatedPlayer._id) } : p))));
@@ -194,7 +194,7 @@ const App = () => {
 
   const handlePlayerAdded = useCallback(() => {
     fetchPlayers();
-  }, []);
+  }, [fetchPlayers]);
 
   const handleFinishTournament = useCallback((finishedTournament) => {
     setTournaments((prev) => prev.filter((t) => t._id !== finishedTournament._id));
@@ -240,6 +240,47 @@ const App = () => {
       addNotification('No se pudo seleccionar el torneo', 'error');
     }
   }, [addNotification]);
+
+  const tournamentList = useMemo(() => {
+    return tournaments.map((tournament) => (
+      <Box
+        key={tournament._id}
+        sx={{
+          mb: 2,
+          p: isMobile ? 1 : 2,
+          border: '1px solid #e0e0e0',
+          borderRadius: 2,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          bgcolor: 'background.paper',
+        }}
+      >
+        <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
+        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+          {tournament.type} - {tournament.sport} ({tournament.format.mode})
+        </Typography>
+        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+          Club: {tournament.club?.name || 'No definido'}
+        </Typography>
+        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+          Categoría: {tournament.category || 'No definida'}
+        </Typography>
+        {user ? (
+          <Button
+            variant="outlined"
+            onClick={() => handleTournamentSelect(tournament._id)}
+            sx={{ mt: 1, fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+            aria-label={`Ver detalles de ${tournament.name}`}
+          >
+            Ver Detalles
+          </Button>
+        ) : (
+          <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+            Estado: {tournament.status}
+          </Typography>
+        )}
+      </Box>
+    ));
+  }, [tournaments, user, handleTournamentSelect, isMobile]);
 
   if (error) {
     return (
@@ -470,38 +511,7 @@ const App = () => {
                       </Button>
                     </Box>
                   ) : (
-                    tournaments.map((tournament) => (
-                      <Box
-                        key={tournament._id}
-                        sx={{
-                          mb: 2,
-                          p: isMobile ? 1 : 2,
-                          border: '1px solid #e0e0e0',
-                          borderRadius: 2,
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          bgcolor: 'background.paper',
-                        }}
-                      >
-                        <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
-                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                          {tournament.type} - {tournament.sport} ({tournament.format.mode})
-                        </Typography>
-                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                          Club: {tournament.club?.name || 'No definido'}
-                        </Typography>
-                        <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                          Categoría: {tournament.category || 'No definida'}
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          onClick={() => handleTournamentSelect(tournament._id)}
-                          sx={{ mt: 1, fontSize: isMobile ? '0.75rem' : '0.875rem' }}
-                          aria-label={`Ver detalles de ${tournament.name}`}
-                        >
-                          Ver Detalles
-                        </Button>
-                      </Box>
-                    ))
+                    tournamentList
                   )}
                 </Box>
               )}
@@ -557,33 +567,7 @@ const App = () => {
                     </Button>
                   </Box>
                 ) : (
-                  tournaments.map((tournament) => (
-                    <Box
-                      key={tournament._id}
-                      sx={{
-                        mb: 2,
-                        p: isMobile ? 1 : 2,
-                        border: '1px solid #e0e0e0',
-                        borderRadius: 2,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        bgcolor: 'background.paper',
-                      }}
-                    >
-                      <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
-                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                        {tournament.type} - {tournament.sport} ({tournament.format.mode})
-                      </Typography>
-                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                        Club: {tournament.club?.name || 'No definido'}
-                      </Typography>
-                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                        Categoría: {tournament.category || 'No definida'}
-                      </Typography>
-                      <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
-                        Estado: {tournament.status}
-                      </Typography>
-                    </Box>
-                  ))
+                  tournamentList
                 )}
               </Box>
             </Box>

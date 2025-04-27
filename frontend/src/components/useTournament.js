@@ -13,7 +13,7 @@ const useTournament = (tournamentId) => {
       const tournamentData = response.data;
       console.log('Fetched tournament data in useTournament:', tournamentData);
       // Compute standings if the tournament has groups
-      if (tournamentData.groups && tournamentData.groups.length > 0) {
+      if (tournamentData.groups && Array.isArray(tournamentData.groups)) {
         const computedStandings = computeStandings(tournamentData);
         setStandings(computedStandings);
       }
@@ -32,21 +32,25 @@ const useTournament = (tournamentId) => {
       const groupStandings = {};
 
       // Initialize standings for each participant in the group
-      group.participants.forEach((participant) => {
+      const participants = Array.isArray(group.participants) ? group.participants : [];
+      participants.forEach((participant) => {
         const player1Id = participant.player1?._id || participant.player1;
-        groupStandings[player1Id] = {
-          player1: participant.player1,
-          points: 0,
-          matchesPlayed: 0,
-          wins: 0,
-          losses: 0,
-          setsWon: 0,
-          setsLost: 0,
-        };
+        if (player1Id) {
+          groupStandings[player1Id] = {
+            player1: participant.player1,
+            points: 0,
+            matchesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            setsWon: 0,
+            setsLost: 0,
+          };
+        }
       });
 
       // Process each match to update standings
-      group.matches.forEach((match) => {
+      const matches = Array.isArray(group.matches) ? group.matches : [];
+      matches.forEach((match) => {
         if (!match.result || !match.result.winner) return;
 
         const winnerId = match.result.winner?.player1?._id || match.result.winner?.player1;
@@ -55,18 +59,19 @@ const useTournament = (tournamentId) => {
         if (!winnerId || !runnerUpId) return;
 
         // Update matches played
-        groupStandings[winnerId].matchesPlayed += 1;
-        groupStandings[runnerUpId].matchesPlayed += 1;
+        if (groupStandings[winnerId]) groupStandings[winnerId].matchesPlayed += 1;
+        if (groupStandings[runnerUpId]) groupStandings[runnerUpId].matchesPlayed += 1;
 
         // Update wins and losses
-        groupStandings[winnerId].wins += 1;
-        groupStandings[runnerUpId].losses += 1;
+        if (groupStandings[winnerId]) groupStandings[winnerId].wins += 1;
+        if (groupStandings[runnerUpId]) groupStandings[runnerUpId].losses += 1;
 
         // Update points (e.g., 3 points for a win)
-        groupStandings[winnerId].points += 3;
+        if (groupStandings[winnerId]) groupStandings[winnerId].points += 3;
 
         // Update sets won and lost
-        match.result.sets.forEach((set) => {
+        const sets = Array.isArray(match.result.sets) ? match.result.sets : [];
+        sets.forEach((set) => {
           const p1Score = parseInt(set.player1, 10);
           const p2Score = parseInt(set.player2, 10);
           const tb1 = parseInt(set.tiebreak1, 10);
@@ -75,12 +80,15 @@ const useTournament = (tournamentId) => {
           const player1WinsSet = p1Score > p2Score || (p1Score === p2Score && tb1 > tb2);
           const player2WinsSet = p2Score > p1Score || (p1Score === p2Score && tb2 > tb1);
 
-          if (player1WinsSet) {
-            groupStandings[match.player1?.player1?._id || match.player1?.player1].setsWon += 1;
-            groupStandings[match.player2?.player1?._id || match.player2?.player1].setsLost += 1;
-          } else if (player2WinsSet) {
-            groupStandings[match.player2?.player1?._id || match.player2?.player1].setsWon += 1;
-            groupStandings[match.player1?.player1?._id || match.player1?.player1].setsLost += 1;
+          const player1Id = match.player1?.player1?._id || match.player1?.player1;
+          const player2Id = match.player2?.player1?._id || match.player2?.player1;
+
+          if (player1WinsSet && groupStandings[player1Id] && groupStandings[player2Id]) {
+            groupStandings[player1Id].setsWon += 1;
+            groupStandings[player2Id].setsLost += 1;
+          } else if (player2WinsSet && groupStandings[player1Id] && groupStandings[player2Id]) {
+            groupStandings[player2Id].setsWon += 1;
+            groupStandings[player1Id].setsLost += 1;
           }
         });
       });
@@ -94,7 +102,7 @@ const useTournament = (tournamentId) => {
       });
 
       return {
-        groupName: group.groupName,
+        groupName: group.groupName || `Grupo ${tournament.groups.indexOf(group) + 1}`,
         standings: standingsArray,
       };
     });
