@@ -3,24 +3,16 @@ import {
   Box,
   Typography,
   Grid,
-  Card,
-  CardContent,
-  Avatar,
   Button,
-  TextField,
-  Select,
-  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   CircularProgress,
-  Alert,
 } from '@mui/material';
-import HourglassEmpty from '@mui/icons-material/HourglassEmpty';
-import CheckCircle from '@mui/icons-material/CheckCircle';
 import axios from 'axios';
-import { getPlayerName, normalizeId, determineWinner } from './tournamentUtils.js';
+import { normalizeId } from './tournamentUtils.js';
+import MatchCard from './MatchCard.jsx';
 
 const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, advanceEliminationRound, fetchTournament, addNotification }) => {
   const [confirmAdvanceOpen, setConfirmAdvanceOpen] = useState(false);
@@ -170,9 +162,8 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
   };
 
   // Save single match result
-  const saveMatchResult = useCallback(async (matchId) => {
+  const saveMatchResult = useCallback(async (matchId, result) => {
     if (!canEdit) return;
-    const result = matchResults[matchId];
     if (!result) return;
 
     const validationErrors = validateResult(matchId, result);
@@ -241,7 +232,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     } finally {
       setIsLoading(false);
     }
-  }, [canEdit, matchResults, tournament, addNotification, fetchTournament]);
+  }, [canEdit, tournament, addNotification, fetchTournament]);
 
   // Handle input changes
   const handleInputChange = (matchId, field, value, setIndex = null) => {
@@ -322,195 +313,23 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
                     const tb2 = parseInt(set.tiebreak2, 10);
                     return acc + (p1Score > p2Score || (p1Score === p2Score && tb1 > tb2) ? 1 : p2Score > p1Score || (p1Score === p2Score && tb2 > tb1) ? -1 : 0);
                   }, 0) === 0;
+
                 return (
                   <Grid item xs={12} key={match._id} sx={{ scrollSnapAlign: 'start' }}>
-                    <Card
-                      sx={{
-                        p: 1,
-                        height: { xs: 80, sm: 100 },
-                        bgcolor: '#fff',
-                        border: matchResult.saved ? '2px solid #388e3c' : '1px solid #e0e0e0',
-                        borderRadius: 2,
-                        width: '100%',
-                      }}
-                      aria-label={`Partido ${matchIndex + 1} de ${getRoundName(round.round, rounds.length)}`}
-                    >
-                      <CardContent sx={{ p: 0.5, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                          <Avatar sx={{ bgcolor: '#1976d2', width: 20, height: 20, fontSize: '0.625rem' }}>
-                            {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1)?.[0] || '?'}
-                          </Avatar>
-                          <Typography
-                            sx={{
-                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              maxWidth: { xs: '100px', sm: '140px' },
-                              flex: 1,
-                            }}
-                          >
-                            {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1) || 'Jugador no disponible'}
-                            {match.player1?.player2 && ` / ${getPlayerName(tournament, match.player1?.player2?._id || match.player1?.player2) || 'Jugador no disponible'}`}
-                          </Typography>
-                          {canEdit && isEditable && matchResult.saved ? (
-                            <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                              {matchResult.sets.map((set, idx) => (
-                                <span key={idx}>
-                                  {set.player1}-{set.player2}
-                                  {set.player1 === 6 && set.player2 === 6 && ` (${set.tiebreak1}-${set.tiebreak2})`}
-                                  {idx < matchResult.sets.length - 1 && ', '}
-                                </span>
-                              ))}
-                              {isTied && matchResult.matchTiebreak && `, TB ${matchResult.matchTiebreak.player1}-${matchResult.matchTiebreak.player2}`}
-                            </Typography>
-                          ) : (
-                            canEdit && isEditable && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                                {matchResult.sets?.map((set, idx) => (
-                                  <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <TextField
-                                      size="small"
-                                      type="number"
-                                      value={set.player1}
-                                      onChange={(e) => handleInputChange(match._id, `set${idx}-0`, e.target.value, 0)}
-                                      onBlur={() => saveMatchResult(match._id)}
-                                      sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
-                                      error={!!matchErrors[`set${idx}`]}
-                                      aria-label={`Puntuación del equipo 1 para el set ${idx + 1}`}
-                                    />
-                                    <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
-                                    <TextField
-                                      size="small"
-                                      type="number"
-                                      value={set.player2}
-                                      onChange={(e) => handleInputChange(match._id, `set${idx}-1`, e.target.value, 1)}
-                                      onBlur={() => saveMatchResult(match._id)}
-                                      sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
-                                      error={!!matchErrors[`set${idx}`]}
-                                      aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
-                                    />
-                                    {parseInt(set.player1, 10) === 6 && parseInt(set.player2, 10) === 6 && (
-                                      <>
-                                        <TextField
-                                          size="small"
-                                          type="number"
-                                          value={set.tiebreak1}
-                                          onChange={(e) => handleInputChange(match._id, `tiebreak${idx}-1`, e.target.value, 1)}
-                                          onBlur={() => saveMatchResult(match._id)}
-                                          sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
-                                          error={!!matchErrors[`set${idx}`]}
-                                          aria-label={`Tiebreak del equipo 1 para el set ${idx + 1}`}
-                                        />
-                                        <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
-                                        <TextField
-                                          size="small"
-                                          type="number"
-                                          value={set.tiebreak2}
-                                          onChange={(e) => handleInputChange(match._id, `tiebreak${idx}-2`, e.target.value, 2)}
-                                          onBlur={() => saveMatchResult(match._id)}
-                                          sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
-                                          error={!!matchErrors[`set${idx}`]}
-                                          aria-label={`Tiebreak del equipo 2 para el set ${idx + 1}`}
-                                        />
-                                      </>
-                                    )}
-                                  </Box>
-                                ))}
-                              </Box>
-                            )
-                          )}
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                          <Avatar sx={{ bgcolor: '#424242', width: 20, height: 20, fontSize: '0.625rem' }}>
-                            {match.player2?.name ? 'BYE' : getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1)?.[0] || '?'}
-                          </Avatar>
-                          <Typography
-                            sx={{
-                              fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              maxWidth: { xs: '100px', sm: '140px' },
-                              flex: 1,
-                            }}
-                          >
-                            {match.player2?.name || (getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1) || 'Jugador no disponible')}
-                            {match.player2?.player2 && !match.player2.name && ` / ${getPlayerName(tournament, match.player2?.player2?._id || match.player2?.player2) || 'Jugador no disponible'}`}
-                          </Typography>
-                          {canEdit && isEditable && !matchResult.saved && isTied && (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={matchResult.matchTiebreak?.player1 || ''}
-                                onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player1', e.target.value)}
-                                onBlur={() => saveMatchResult(match._id)}
-                                sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
-                                error={!!matchErrors.matchTiebreak}
-                                aria-label="Puntuación de tiebreak del partido para el equipo 1"
-                              />
-                              <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
-                              <TextField
-                                size="small"
-                                type="number"
-                                value={matchResult.matchTiebreak?.player2 || ''}
-                                onChange={(e) => handleInputChange(match._id, 'matchTiebreak-player2', e.target.value)}
-                                onBlur={() => saveMatchResult(match._id)}
-                                sx={{ width: 32, minWidth: 0, '& input': { fontSize: '0.75rem', textAlign: 'center' } }}
-                                error={!!matchErrors.matchTiebreak}
-                                aria-label="Puntuación de tiebreak del partido para el equipo 2"
-                              />
-                            </Box>
-                          )}
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
-                          {matchResult.saved ? (
-                            <CheckCircle sx={{ color: '#388e3c', fontSize: '1rem' }} aria-label="Partido completado" />
-                          ) : (
-                            <HourglassEmpty sx={{ color: '#757575', fontSize: '1rem' }} aria-label="Partido pendiente" />
-                          )}
-                          {canEdit && isEditable && (
-                            <>
-                              <Select
-                                size="small"
-                                value={matchResult.winner || ''}
-                                onChange={(e) => handleInputChange(match._id, 'winner', e.target.value)}
-                                onBlur={() => saveMatchResult(match._id)}
-                                sx={{ width: { xs: 80, sm: 100 }, minWidth: 0, fontSize: '0.75rem' }}
-                                error={!!matchErrors.winner}
-                                aria-label="Seleccionar ganador"
-                              >
-                                <MenuItem value="">Ninguno</MenuItem>
-                                <MenuItem value={normalizeId(match.player1?.player1?._id || match.player1?.player1)}>
-                                  {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1)}
-                                </MenuItem>
-                                <MenuItem value={normalizeId(match.player2?.player1?._id || match.player2?.player1)}>
-                                  {match.player2?.name || getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1)}
-                                </MenuItem>
-                              </Select>
-                              <Button
-                                variant="contained"
-                                onClick={() => toggleEditMode(match._id)}
-                                sx={{
-                                  bgcolor: matchResult.saved ? '#388e3c' : '#1976d2',
-                                  ':hover': { bgcolor: matchResult.saved ? '#2e7d32' : '#1565c0' },
-                                  fontSize: '0.75rem',
-                                  minHeight: 32,
-                                  px: 1,
-                                }}
-                                aria-label={matchResult.saved ? 'Editar resultado' : 'Enviar resultado'}
-                              >
-                                {matchResult.saved ? 'Editar' : 'Enviar Resultado'}
-                              </Button>
-                            </>
-                          )}
-                          {matchErrors.general && (
-                            <Alert severity="error" sx={{ fontSize: '0.75rem', width: '100%' }}>{matchErrors.general}</Alert>
-                          )}
-                        </Box>
-                      </CardContent>
-                    </Card>
+                    <MatchCard
+                      match={match}
+                      tournament={tournament}
+                      getPlayerName={getPlayerName}
+                      canEdit={canEdit}
+                      saveMatchResult={saveMatchResult}
+                      toggleEditMode={toggleEditMode}
+                      matchResult={matchResult}
+                      matchErrors={matchErrors}
+                      isTied={isTied}
+                      handleInputChange={handleInputChange}
+                      totalSets={tournament.format.sets || 1}
+                      isEditable={isEditable}
+                    />
                   </Grid>
                 );
               })
