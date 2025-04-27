@@ -16,6 +16,7 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
   const canEdit = role === 'admin' || role === 'coach';
 
   const groups = tournament.groups || [];
+  const totalSets = tournament.format?.sets || 1; // Ensure totalSets is defined
 
   const initializeMatchResults = () => {
     const results = {};
@@ -29,7 +30,7 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
                 tiebreak1: set.tiebreak1?.toString() || '',
                 tiebreak2: set.tiebreak2?.toString() || '',
               }))
-            : Array(tournament.format.sets || 1).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }),
+            : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }),
           winner: match.result?.winner ? normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1) : '',
           matchTiebreak: match.result?.matchTiebreak1 ? {
             player1: match.result.matchTiebreak1.toString(),
@@ -95,7 +96,6 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
 
   const validateResult = (matchId, result) => {
     const errors = {};
-    const totalSets = tournament.format.sets || 1;
     const sets = result.sets || [];
 
     sets.forEach((set, index) => {
@@ -157,9 +157,9 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
     }
 
     const validSets = result.sets.filter(set => parseInt(set.player1, 10) > 0 || parseInt(set.player2, 10) > 0);
-    if (validSets.length !== tournament.format.sets) {
-      setErrors(prev => ({ ...prev, [matchId]: { general: `Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos` } }));
-      addNotification(`Ingresa exactamente ${tournament.format.sets} set${tournament.format.sets > 1 ? 's' : ''} válidos`, 'error');
+    if (validSets.length !== totalSets) {
+      setErrors(prev => ({ ...prev, [matchId]: { general: `Ingresa exactamente ${totalSets} set${totalSets > 1 ? 's' : ''} válidos` } }));
+      addNotification(`Ingresa exactamente ${totalSets} set${totalSets > 1 ? 's' : ''} válidos`, 'error');
       return;
     }
 
@@ -292,7 +292,7 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
                       matchErrors={matchErrors}
                       isTied={isTied}
                       handleInputChange={handleInputChange}
-                      totalSets={tournament.format.sets || 1}
+                      totalSets={totalSets}
                     />
                   </Grid>
                 );

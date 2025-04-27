@@ -77,8 +77,8 @@ const MatchCard = ({
               fontSize: { xs: '0.875rem', sm: '1rem' },
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: { xs: 'normal', sm: 'nowrap' }, // Wrap on mobile, nowrap on larger screens
-              maxWidth: { xs: 'none', sm: '160px' }, // Allow full width on mobile
+              whiteSpace: { xs: 'normal', sm: 'nowrap' },
+              maxWidth: { xs: 'none', sm: '200px' },
               flex: 1,
             }}
           >
@@ -96,7 +96,7 @@ const MatchCard = ({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: { xs: 'normal', sm: 'nowrap' },
-              maxWidth: { xs: 'none', sm: '160px' },
+              maxWidth: { xs: 'none', sm: '200px' },
               flex: 1,
             }}
           >
@@ -117,16 +117,37 @@ const MatchCard = ({
           </Typography>
         ) : (
           canEdit && isEditable && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
-              {localResult.sets?.slice(0, totalSets).map((set, idx) => (
-                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                  <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>Set {idx + 1}:</Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' }, // Vertical on mobile, horizontal on desktop
+                gap: { xs: 1, sm: 2 },
+                mt: 1,
+                alignItems: { xs: 'stretch', sm: 'center' },
+              }}
+            >
+              {Array.from({ length: totalSets }, (_, idx) => (
+                <Box
+                  key={idx}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
+                    Set {idx + 1}:
+                  </Typography>
                   <TextField
                     size="small"
                     type="number"
-                    value={set.player1}
+                    value={localResult.sets[idx]?.player1 || ''}
                     onChange={(e) => handleLocalInputChange(`set${idx}-0`, e.target.value, 0)}
-                    sx={{ width: 40, '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' } }}
+                    sx={{
+                      width: 40,
+                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                    }}
                     error={!!matchErrors[`set${idx}`]}
                     aria-label={`Puntuación del equipo 1 para el set ${idx + 1}`}
                   />
@@ -134,20 +155,26 @@ const MatchCard = ({
                   <TextField
                     size="small"
                     type="number"
-                    value={set.player2}
+                    value={localResult.sets[idx]?.player2 || ''}
                     onChange={(e) => handleLocalInputChange(`set${idx}-1`, e.target.value, 1)}
-                    sx={{ width: 40, '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' } }}
+                    sx={{
+                      width: 40,
+                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                    }}
                     error={!!matchErrors[`set${idx}`]}
                     aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
                   />
-                  {parseInt(set.player1, 10) === 6 && parseInt(set.player2, 10) === 6 && (
+                  {parseInt(localResult.sets[idx]?.player1, 10) === 6 && parseInt(localResult.sets[idx]?.player2, 10) === 6 && (
                     <>
                       <TextField
                         size="small"
                         type="number"
-                        value={set.tiebreak1}
+                        value={localResult.sets[idx]?.tiebreak1 || ''}
                         onChange={(e) => handleLocalInputChange(`tiebreak${idx}-1`, e.target.value, 1)}
-                        sx={{ width: 40, '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' } }}
+                        sx={{
+                          width: 40,
+                          '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                        }}
                         error={!!matchErrors[`set${idx}`]}
                         aria-label={`Tiebreak del equipo 1 para el set ${idx + 1}`}
                       />
@@ -155,9 +182,12 @@ const MatchCard = ({
                       <TextField
                         size="small"
                         type="number"
-                        value={set.tiebreak2}
+                        value={localResult.sets[idx]?.tiebreak2 || ''}
                         onChange={(e) => handleLocalInputChange(`tiebreak${idx}-2`, e.target.value, 2)}
-                        sx={{ width: 40, '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' } }}
+                        sx={{
+                          width: 40,
+                          '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                        }}
                         error={!!matchErrors[`set${idx}`]}
                         aria-label={`Tiebreak del equipo 2 para el set ${idx + 1}`}
                       />
@@ -166,14 +196,27 @@ const MatchCard = ({
                 </Box>
               ))}
               {isTied && totalSets === 2 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                  <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>Tiebreak:</Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    flexWrap: 'wrap',
+                    mt: { xs: 1, sm: 0 },
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
+                    Tiebreak:
+                  </Typography>
                   <TextField
                     size="small"
                     type="number"
                     value={localResult.matchTiebreak?.player1 || ''}
                     onChange={(e) => handleLocalInputChange('matchTiebreak-player1', e.target.value)}
-                    sx={{ width: 40, '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' } }}
+                    sx={{
+                      width: 40,
+                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                    }}
                     error={!!matchErrors.matchTiebreak}
                     aria-label="Puntuación de tiebreak del partido para el equipo 1"
                   />
@@ -183,7 +226,10 @@ const MatchCard = ({
                     type="number"
                     value={localResult.matchTiebreak?.player2 || ''}
                     onChange={(e) => handleLocalInputChange('matchTiebreak-player2', e.target.value)}
-                    sx={{ width: 40, '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' } }}
+                    sx={{
+                      width: 40,
+                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                    }}
                     error={!!matchErrors.matchTiebreak}
                     aria-label="Puntuación de tiebreak del partido para el equipo 2"
                   />
