@@ -38,7 +38,8 @@ export const getPlayerName = (tournament, player1Id, player2Id = null) => {
 
   const participant = tournament.participants.find((p) => {
     const participantPlayer1Id = normalizeId(p.player1?._id || p.player1);
-    return participantPlayer1Id === normalizedPlayer1Id;
+    const participantPlayer2Id = p.player2 ? normalizeId(p.player2?._id || p.player2) : null;
+    return participantPlayer1Id === normalizedPlayer1Id || participantPlayer2Id === normalizedPlayer1Id;
   });
 
   if (!participant) {
@@ -46,9 +47,14 @@ export const getPlayerName = (tournament, player1Id, player2Id = null) => {
     return 'Jugador no disponible';
   }
 
-  const player1Name = participant.player1?.name || `${participant.player1?.firstName || ''} ${participant.player1?.lastName || ''}`.trim() || 'Jugador no disponible';
+  const player1Name = participant.player1?.name || 
+    `${participant.player1?.firstName || ''} ${participant.player1?.lastName || ''}`.trim() || 
+    'Jugador no disponible';
+  
   if (tournament.format?.mode === 'Dobles' && participant.player2) {
-    const player2Name = participant.player2?.name || `${participant.player2?.firstName || ''} ${participant.player2?.lastName || ''}`.trim() || 'Jugador no disponible';
+    const player2Name = participant.player2?.name || 
+      `${participant.player2?.firstName || ''} ${participant.player2?.lastName || ''}`.trim() || 
+      'Jugador no disponible';
     return `${player1Name} / ${player2Name}`;
   }
 

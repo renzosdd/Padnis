@@ -20,7 +20,7 @@ import {
 import HourglassEmpty from '@mui/icons-material/HourglassEmpty';
 import CheckCircle from '@mui/icons-material/CheckCircle';
 import axios from 'axios';
-import { getPlayerName, normalizeId, isValidObjectId, determineWinner } from './tournamentUtils.js';
+import { getPlayerName, normalizeId, determineWinner } from './tournamentUtils.js';
 
 const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, advanceEliminationRound, fetchTournament, addNotification }) => {
   const [confirmAdvanceOpen, setConfirmAdvanceOpen] = useState(false);
