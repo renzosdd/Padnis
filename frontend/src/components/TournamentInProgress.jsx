@@ -47,10 +47,16 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
+  const [isFetching, setIsFetching] = useState(false); // Safeguard to prevent fetch loop
   const swiperRef = useRef(null);
   const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
 
   const fetchTournamentData = useCallback(async () => {
+    if (isFetching) {
+      console.log('Fetch already in progress, skipping...');
+      return;
+    }
+    setIsFetching(true);
     setLoading(true);
     try {
       const data = await fetchTournament();
@@ -64,8 +70,9 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       addNotification('Error al cargar el torneo', 'error');
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
-  }, [fetchTournament, addNotification, onFinishTournament]);
+  }, [fetchTournament, addNotification, onFinishTournament, isFetching]);
 
   useEffect(() => {
     if (tournamentId) {
@@ -92,23 +99,23 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
     setTabValue(swiper.activeIndex);
   };
 
-  const handleGenerateKnockout = async () => {
+  const handleGenerateKnockout = useCallback(async () => {
     try {
       await generateKnockoutPhase();
       await fetchTournamentData();
     } catch (err) {
       addNotification('Error al generar la fase de eliminación', 'error');
     }
-  };
+  }, [generateKnockoutPhase, addNotification, fetchTournamentData]);
 
-  const handleAdvanceEliminationRound = async () => {
+  const handleAdvanceEliminationRound = useCallback(async () => {
     try {
       await advanceEliminationRound();
       await fetchTournamentData();
     } catch (err) {
       addNotification('Error al avanzar la ronda de eliminación', 'error');
     }
-  };
+  }, [advanceEliminationRound, addNotification, fetchTournamentData]);
 
   if (loading) {
     return (
