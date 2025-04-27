@@ -27,7 +27,7 @@ import TournamentHistory from './components/TournamentHistory';
 import TournamentInProgress from './components/TournamentInProgress';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
-import ManageRoles from './components/ManageRoles'; // Fixed typo: ManageBLACK -> ManageRoles
+import ManageRoles from './components/ManageRoles';
 import ClubManagement from './components/ClubManagement';
 import { useAuth } from './contexts/AuthContext';
 import { useNotification } from './contexts/NotificationContext';
@@ -441,12 +441,10 @@ const App = () => {
           {user ? (
             <>
               {view === 'jugadores' && (
-                // <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />
-                <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
+                <PlayerForm onRegisterPlayer={() => {}} onUpdatePlayer={updatePlayer} onPlayerAdded={handlePlayerAdded} users={users} />
               )}
               {view === 'crear' && (role === 'admin' || role === 'coach') && (
-                // <TournamentForm players={players} onCreateTournament={createTournament} />
-                <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
+                <TournamentForm players={players} onCreateTournament={createTournament} />
               )}
               {view === 'activos' && !selectedTournamentId && (
                 <Box>
@@ -515,18 +513,9 @@ const App = () => {
                   addNotification={addNotification}
                 />
               )}
-              {view === 'historial' && (
-                // <TournamentHistory tournaments={tournaments} />
-                <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
-              )}
-              {view === 'roles' && role === 'admin' && (
-                // <ManageRoles />
-                <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
-              )}
-              {view === 'clubs' && role === 'admin' && (
-                // <ClubManagement />
-                <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
-              )}
+              {view === 'historial' && <TournamentHistory tournaments={tournaments} />}
+              {view === 'roles' && role === 'admin' && <ManageRoles />}
+              {view === 'clubs' && role === 'admin' && <ClubManagement />}
               {view === 'perfil' && (
                 <Box
                   sx={{
@@ -611,11 +600,9 @@ const App = () => {
           <DialogTitle id="auth-dialog-title">{authView === 'login' ? 'Iniciar Sesión' : 'Registrarse'}</DialogTitle>
           <DialogContent>
             {authView === 'login' ? (
-              // <LoginForm onSwitchToRegister={() => setAuthView('register')} onLoginSuccess={handleLoginSuccess} />
-              <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
+              <LoginForm onSwitchToRegister={() => setAuthView('register')} onLoginSuccess={handleLoginSuccess} />
             ) : (
-              // <RegisterForm onSwitchToLogin={() => setAuthView('login')} />
-              <Typography>Temporarily disabled to isolate react-router-dom error</Typography>
+              <RegisterForm onSwitchToLogin={() => setAuthView('login')} />
             )}
           </DialogContent>
         </Dialog>
