@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -29,7 +29,13 @@ const MatchCard = ({
   totalSets,
   isEditable = true,
 }) => {
-  const [localResult, setLocalResult] = useState(matchResult);
+  const [localResult, setLocalResult] = useState(() => {
+    const initialResult = { ...matchResult };
+    if (!initialResult.sets || initialResult.sets.length < totalSets) {
+      initialResult.sets = Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+    }
+    return initialResult;
+  });
 
   console.log('MatchCard props:', {
     matchId: match._id,
@@ -45,12 +51,14 @@ const MatchCard = ({
     const newResult = { ...localResult };
     if (field.startsWith('set')) {
       const [type, index] = field.split('-');
+      const idx = parseInt(index, 10);
       newResult.sets = [...newResult.sets];
-      newResult.sets[parseInt(index, 10)] = { ...newResult.sets[parseInt(index, 10)], [setIndex === 0 ? 'player1' : 'player2']: value };
+      newResult.sets[idx] = { ...newResult.sets[idx], [setIndex === 0 ? 'player1' : 'player2']: value };
     } else if (field.startsWith('tiebreak')) {
       const [type, index, player] = field.split('-');
+      const idx = parseInt(index, 10);
       newResult.sets = [...newResult.sets];
-      newResult.sets[parseInt(index, 10)] = { ...newResult.sets[parseInt(index, 10)], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
+      newResult.sets[idx] = { ...newResult.sets[idx], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
     } else if (field === 'winner') {
       newResult.winner = value;
     } else if (field.startsWith('matchTiebreak')) {
@@ -152,11 +160,10 @@ const MatchCard = ({
                 <TextField
                   size="small"
                   type="number"
-                  value={localResult.sets[idx]?.player1 || ''}
+                  value={localResult.sets && localResult.sets[idx] ? localResult.sets[idx].player1 : ''}
                   onChange={(e) => handleLocalInputChange(`set${idx}-0`, e.target.value, 0)}
                   sx={{
                     width: 40,
-                    border: '1px solid red', // Debug: Add border to confirm rendering
                     '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
                   }}
                   error={!!matchErrors[`set${idx}`]}
@@ -166,26 +173,25 @@ const MatchCard = ({
                 <TextField
                   size="small"
                   type="number"
-                  value={localResult.sets[idx]?.player2 || ''}
+                  value={localResult.sets && localResult.sets[idx] ? localResult.sets[idx].player2 : ''}
                   onChange={(e) => handleLocalInputChange(`set${idx}-1`, e.target.value, 1)}
                   sx={{
                     width: 40,
-                    border: '1px solid red', // Debug: Add border to confirm rendering
                     '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
                   }}
                   error={!!matchErrors[`set${idx}`]}
                   aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
                 />
-                {parseInt(localResult.sets[idx]?.player1, 10) === 6 && parseInt(localResult.sets[idx]?.player2, 10) === 6 && (
+                {parseInt(localResult.sets && localResult.sets[idx] ? localResult.sets[idx].player1 : 0, 10) === 6 &&
+                  parseInt(localResult.sets && localResult.sets[idx] ? localResult.sets[idx].player2 : 0, 10) === 6 && (
                   <>
                     <TextField
                       size="small"
                       type="number"
-                      value={localResult.sets[idx]?.tiebreak1 || ''}
+                      value={localResult.sets && localResult.sets[idx] ? localResult.sets[idx].tiebreak1 : ''}
                       onChange={(e) => handleLocalInputChange(`tiebreak${idx}-1`, e.target.value, 1)}
                       sx={{
                         width: 40,
-                        border: '1px solid red', // Debug: Add border to confirm rendering
                         '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
                       }}
                       error={!!matchErrors[`set${idx}`]}
@@ -195,11 +201,10 @@ const MatchCard = ({
                     <TextField
                       size="small"
                       type="number"
-                      value={localResult.sets[idx]?.tiebreak2 || ''}
+                      value={localResult.sets && localResult.sets[idx] ? localResult.sets[idx].tiebreak2 : ''}
                       onChange={(e) => handleLocalInputChange(`tiebreak${idx}-2`, e.target.value, 2)}
                       sx={{
                         width: 40,
-                        border: '1px solid red', // Debug: Add border to confirm rendering
                         '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
                       }}
                       error={!!matchErrors[`set${idx}`]}
@@ -229,7 +234,6 @@ const MatchCard = ({
                   onChange={(e) => handleLocalInputChange('matchTiebreak-player1', e.target.value)}
                   sx={{
                     width: 40,
-                    border: '1px solid red', // Debug: Add border to confirm rendering
                     '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
                   }}
                   error={!!matchErrors.matchTiebreak}
@@ -243,7 +247,6 @@ const MatchCard = ({
                   onChange={(e) => handleLocalInputChange('matchTiebreak-player2', e.target.value)}
                   sx={{
                     width: 40,
-                    border: '1px solid red', // Debug: Add border to confirm rendering
                     '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
                   }}
                   error={!!matchErrors.matchTiebreak}

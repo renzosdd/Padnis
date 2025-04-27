@@ -16,21 +16,31 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
   const canEdit = role === 'admin' || role === 'coach';
 
   const groups = tournament.groups || [];
-  const totalSets = tournament.format?.sets || 1; // Ensure totalSets is defined
+  const totalSets = tournament.format?.sets || 1;
 
   const initializeMatchResults = () => {
     const results = {};
     groups.forEach((group) => {
       group.matches.forEach((match) => {
+        const sets = match.result?.sets?.length > 0
+          ? match.result.sets.map(set => ({
+              player1: set.player1?.toString() || '',
+              player2: set.player2?.toString() || '',
+              tiebreak1: set.tiebreak1?.toString() || '',
+              tiebreak2: set.tiebreak2?.toString() || '',
+            }))
+          : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+
+        // Ensure the sets array has exactly totalSets elements
+        while (sets.length < totalSets) {
+          sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+        }
+        if (sets.length > totalSets) {
+          sets.length = totalSets; // Truncate if too many sets
+        }
+
         results[match._id] = {
-          sets: match.result?.sets?.length > 0
-            ? match.result.sets.map(set => ({
-                player1: set.player1?.toString() || '',
-                player2: set.player2?.toString() || '',
-                tiebreak1: set.tiebreak1?.toString() || '',
-                tiebreak2: set.tiebreak2?.toString() || '',
-              }))
-            : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }),
+          sets,
           winner: match.result?.winner ? normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1) : '',
           matchTiebreak: match.result?.matchTiebreak1 ? {
             player1: match.result.matchTiebreak1.toString(),
@@ -40,6 +50,7 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
         };
       });
     });
+    console.log('Initialized matchResults:', results);
     setMatchResults(results);
   };
 
@@ -219,11 +230,11 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
       if (field.startsWith('set')) {
         const [type, index] = field.split('-');
         result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = { ...result.sets[index], [setIndex === 0 ? 'player1' : 'player2']: value };
+        result.sets[parseInt(index, 10)] = { ...result.sets[parseInt(index, 10)], [setIndex === 0 ? 'player1' : 'player2']: value };
       } else if (field.startsWith('tiebreak')) {
         const [type, index, player] = field.split('-');
         result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = { ...result.sets[index], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
+        result.sets[parseInt(index, 10)] = { ...result.sets[parseInt(index, 10)], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
       } else if (field === 'winner') {
         result.winner = value;
       } else if (field.startsWith('matchTiebreak')) {

@@ -26,22 +26,31 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     return tournament.rounds;
   }, [tournament]);
 
-  const totalSets = tournament.format?.sets || 1; // Ensure totalSets is defined
+  const totalSets = tournament.format?.sets || 1;
 
-  // Initialize local match results
   const initializeMatchResults = useCallback(() => {
     const results = {};
     rounds.forEach((round) => {
       round.matches.forEach((match) => {
+        const sets = match.result?.sets?.length > 0
+          ? match.result.sets.map(set => ({
+              player1: set.player1?.toString() || '',
+              player2: set.player2?.toString() || '',
+              tiebreak1: set.tiebreak1?.toString() || '',
+              tiebreak2: set.tiebreak2?.toString() || '',
+            }))
+          : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+
+        // Ensure the sets array has exactly totalSets elements
+        while (sets.length < totalSets) {
+          sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+        }
+        if (sets.length > totalSets) {
+          sets.length = totalSets; // Truncate if too many sets
+        }
+
         results[match._id] = {
-          sets: match.result?.sets?.length > 0
-            ? match.result.sets.map(set => ({
-                player1: set.player1?.toString() || '',
-                player2: set.player2?.toString() || '',
-                tiebreak1: set.tiebreak1?.toString() || '',
-                tiebreak2: set.tiebreak2?.toString() || '',
-              }))
-            : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }),
+          sets,
           winner: match.result?.winner ? normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1) : '',
           matchTiebreak: match.result?.matchTiebreak1 ? {
             player1: match.result.matchTiebreak1.toString(),
@@ -51,6 +60,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
         };
       });
     });
+    console.log('Initialized matchResults (Bracket):', results);
     setMatchResults(results);
   }, [rounds, tournament, totalSets]);
 
@@ -58,7 +68,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     initializeMatchResults();
   }, [initializeMatchResults]);
 
-  // Validate set scores
   const validateSet = (set, index) => {
     const p1Score = parseInt(set.player1, 10);
     const p2Score = parseInt(set.player2, 10);
@@ -69,7 +78,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
       return `Set ${index + 1}: Ingresa puntajes válidos`;
     }
     if (p1Score === 0 && p2Score === 0) {
-      return null; // Allow empty sets
+      return null;
     }
     if (p1Score === 6 && p2Score <= 4) return null;
     if (p2Score === 6 && p1Score <= 4) return null;
@@ -87,7 +96,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     return `Set ${index + 1}: Puntaje inválido (6-4, 7-5, o 6-6 con tiebreak)`;
   };
 
-  // Validate match tiebreak
   const validateMatchTiebreak = (matchTiebreak) => {
     if (!matchTiebreak) return null;
     const tb1 = parseInt(matchTiebreak.player1, 10);
@@ -96,7 +104,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
       return 'Ingresa puntajes de tiebreak válidos';
     }
     if (tb1 === 0 && tb2 === 0) {
-      return null; // Allow empty tiebreak
+      return null;
     }
     if (tb1 === tb2) {
       return 'El tiebreak debe tener un ganador';
@@ -107,18 +115,15 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     return null;
   };
 
-  // Validate match result
   const validateResult = (matchId, result) => {
     const errors = {};
     const sets = result.sets || [];
 
-    // Validate set scores
     sets.forEach((set, index) => {
       const error = validateSet(set, index);
       if (error) errors[`set${index}`] = error;
     });
 
-    // Validate match tiebreak for two-set matches
     if (totalSets === 2) {
       let setsWonByPlayer1 = 0;
       let setsWonByPlayer2 = 0;
@@ -136,7 +141,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
       }
     }
 
-    // Validate winner
     if (result.winner) {
       const match = rounds.flatMap(r => r.matches).find(m => m._id === matchId);
       const p1Id = normalizeId(match.player1?.player1?._id || match.player1?.player1);
@@ -162,7 +166,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     return Object.keys(errors).length > 0 ? errors : null;
   };
 
-  // Save single match result
   const saveMatchResult = useCallback(async (matchId, result) => {
     if (!canEdit) return;
     if (!result) return;
@@ -174,7 +177,6 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
       return;
     }
 
-    // Ensure all sets have valid scores before saving
     const validSets = result.sets.filter(set => parseInt(set.player1, 10) > 0 || parseInt(set.player2, 10) > 0);
     if (validSets.length !== totalSets) {
       setErrors(prev => ({ ...prev, [matchId]: { general: `Ingresa exactamente ${totalSets} set${totalSets > 1 ? 's' : ''} válidos` } }));
@@ -235,18 +237,17 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     }
   }, [canEdit, tournament, addNotification, fetchTournament]);
 
-  // Handle input changes
   const handleInputChange = (matchId, field, value, setIndex = null) => {
     setMatchResults(prev => {
       const result = { ...prev[matchId] };
       if (field.startsWith('set')) {
         const [type, index] = field.split('-');
         result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = { ...result.sets[index], [setIndex === 0 ? 'player1' : 'player2']: value };
+        result.sets[parseInt(index, 10)] = { ...result.sets[parseInt(index, 10)], [setIndex === 0 ? 'player1' : 'player2']: value };
       } else if (field.startsWith('tiebreak')) {
         const [type, index, player] = field.split('-');
         result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = { ...result.sets[index], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
+        result.sets[parseInt(index, 10)] = { ...result.sets[parseInt(index, 10)], [player === '1' ? 'tiebreak1' : 'tiebreak2']: value };
       } else if (field === 'winner') {
         result.winner = value;
       } else if (field.startsWith('matchTiebreak')) {
