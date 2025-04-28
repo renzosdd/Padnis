@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
    import axios from 'axios';
    import { useSelector, useDispatch } from 'react-redux';
-   import { setPlayers } from './store/store'; // Correcto para src/frontend/src/store/store.js
+   import { setPlayers } from '../store/store'; // Correcto para src/frontend/src/store/store.js
    import {
      ThemeProvider,
      createTheme,
