@@ -4,11 +4,18 @@ import MatchCard from './MatchCard';
 const TournamentGroups = ({ groups, tournament }) => {
   const [matchResults, setMatchResults] = useState({});
 
-  const totalSets = tournament.format.sets;
+  // Establecemos un valor por defecto para totalSets si tournament.format.sets no está definido
+  const totalSets = tournament?.format?.sets || 1;
 
   const initializeMatchResults = () => {
+    // Si groups no es un arreglo, salimos temprano
+    if (!Array.isArray(groups)) return;
+
     const results = {};
     groups.forEach((group) => {
+      // Verificamos que group.matches sea un arreglo
+      if (!Array.isArray(group.matches)) return;
+
       group.matches.forEach((match) => {
         const sets = match.result?.sets?.length > 0
           ? match.result.sets.map(set => ({
@@ -50,19 +57,27 @@ const TournamentGroups = ({ groups, tournament }) => {
 
   return (
     <div>
-      {groups.map((group) => (
-        <div key={group._id}>
-          {group.matches.map((match) => (
-            <MatchCard
-              key={match._id}
-              matchResult={matchResults[match._id] || { sets: Array(totalSets).fill({ player1: '', player2: '' }) }}
-              totalSets={totalSets}
-              handleLocalInputChange={handleLocalInputChange}
-              matchErrors={{}}
-            />
-          ))}
-        </div>
-      ))}
+      {Array.isArray(groups) ? (
+        groups.map((group) => (
+          <div key={group._id}>
+            {Array.isArray(group.matches) ? (
+              group.matches.map((match) => (
+                <MatchCard
+                  key={match._id}
+                  matchResult={matchResults[match._id] || { sets: Array(totalSets).fill({ player1: '', player2: '' }) }}
+                  totalSets={totalSets}
+                  handleLocalInputChange={handleLocalInputChange}
+                  matchErrors={{}}
+                />
+              ))
+            ) : (
+              <p>No hay partidos disponibles para este grupo.</p>
+            )}
+          </div>
+        ))
+      ) : (
+        <p>No hay grupos disponibles.</p>
+      )}
     </div>
   );
 };

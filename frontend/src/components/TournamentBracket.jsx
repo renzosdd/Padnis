@@ -4,9 +4,13 @@ import MatchCard from './MatchCard';
 const TournamentBracket = ({ matches, tournament }) => {
   const [matchResults, setMatchResults] = useState({});
 
-  const totalSets = tournament.format.sets;
+  // Establecemos un valor por defecto para totalSets si tournament.format.sets no está definido
+  const totalSets = tournament?.format?.sets || 1;
 
   const initializeMatchResults = () => {
+    // Si matches no es un arreglo, salimos temprano
+    if (!Array.isArray(matches)) return;
+
     const results = {};
     matches.forEach((match) => {
       const sets = match.result?.sets?.length > 0
@@ -48,15 +52,19 @@ const TournamentBracket = ({ matches, tournament }) => {
 
   return (
     <div>
-      {matches.map((match) => (
-        <MatchCard
-          key={match._id}
-          matchResult={matchResults[match._id] || { sets: Array(totalSets).fill({ player1: '', player2: '' }) }}
-          totalSets={totalSets}
-          handleLocalInputChange={handleLocalInputChange}
-          matchErrors={{}}
-        />
-      ))}
+      {Array.isArray(matches) ? (
+        matches.map((match) => (
+          <MatchCard
+            key={match._id}
+            matchResult={matchResults[match._id] || { sets: Array(totalSets).fill({ player1: '', player2: '' }) }}
+            totalSets={totalSets}
+            handleLocalInputChange={handleLocalInputChange}
+            matchErrors={{}}
+          />
+        ))
+      ) : (
+        <p>No hay partidos disponibles.</p>
+      )}
     </div>
   );
 };
