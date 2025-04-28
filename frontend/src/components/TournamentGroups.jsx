@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { Box, Typography } from '@mui/material';
-import { setMatchResult } from './store';
+import { setMatchResult } from './store/store';
 import MatchCard from './MatchCard';
 
 const BACKEND_URL = 'https://padnis.onrender.com';

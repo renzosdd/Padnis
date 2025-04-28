@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
-import { setPlayers } from './store'; // Ajusta la ruta según donde hayas colocado store.js
+import { setPlayers } from './store/store'; // Ajusta la ruta según donde hayas colocado store.js
 import {
   ThemeProvider,
   createTheme,
