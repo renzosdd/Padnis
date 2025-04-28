@@ -3,9 +3,9 @@ import {
   Box,
   Typography,
   TextField,
-  Button,
-  Avatar,
   IconButton,
+  Avatar,
+  CircularProgress,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -32,15 +32,22 @@ const MatchCard = ({
     }
     return initialResult;
   });
-
   const [isEditing, setIsEditing] = useState(!matchResult.saved);
+  const [isSaving, setIsSaving] = useState(false); // Estado para manejar el guardado
 
-  const handleSave = () => {
-    setIsEditing(false);
-    onSave(match._id, localResult);
+  const handleSave = async (event) => {
+    event.preventDefault(); // Prevenir la recarga de la página
+    setIsSaving(true);
+    try {
+      await onSave(match._id, localResult);
+      setIsEditing(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleEdit = () => {
+  const handleEdit = (event) => {
+    event.preventDefault(); // Prevenir cualquier comportamiento predeterminado
     setIsEditing(true);
     onToggleEdit(match._id);
   };
@@ -178,7 +185,7 @@ const MatchCard = ({
                 aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
               />
               {parseInt(localResult.sets?.[idx]?.player1 || 0, 10) === 6 &&
-                parseInt(localResult.sets?.[idx]?.player2 || 0, 10) === 6 && (
+                parseInt(localResult.sets?.[idx]?.player2 ||  0, 10) === 6 && (
                 <>
                   <TextField
                     size="small"
@@ -306,8 +313,9 @@ const MatchCard = ({
                 onClick={handleSave}
                 sx={{ color: '#1976d2' }}
                 aria-label="Guardar resultado"
+                disabled={isSaving}
               >
-                <SaveIcon fontSize="small" />
+                {isSaving ? <CircularProgress size={20} /> : <SaveIcon fontSize="small" />}
               </IconButton>
             )}
           </>

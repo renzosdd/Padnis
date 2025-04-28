@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Box, Typography } from '@mui/material'; // Agrega Box aquí
+import { Box, Typography } from '@mui/material';
 import MatchCard from './MatchCard';
 
 const TournamentGroups = ({
