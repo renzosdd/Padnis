@@ -1,6 +1,5 @@
 import { configureStore, createSlice } from '@reduxjs/toolkit';
 
-// Slice para los jugadores (ya lo estás usando en App.jsx)
 const playersSlice = createSlice({
   name: 'players',
   initialState: { list: [] },
@@ -11,7 +10,6 @@ const playersSlice = createSlice({
   },
 });
 
-// Slice para los resultados de los partidos
 const matchResultsSlice = createSlice({
   name: 'matchResults',
   initialState: {},
