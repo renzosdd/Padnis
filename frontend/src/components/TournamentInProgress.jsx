@@ -146,40 +146,57 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
     );
   }
 
-  const hasGroups = tournament.groups && tournament.groups.length > 0;
-  const hasRounds = tournament.rounds && tournament.rounds.length > 0;
+  const hasGroups = Array.isArray(tournament.groups) && tournament.groups.length > 0;
+  const hasRounds = Array.isArray(tournament.rounds) && tournament.rounds.length > 0;
 
   // Ensure tabs and slides are aligned
   const tabConfig = [
     { label: 'Detalles', component: <TournamentDetails tournament={tournament} /> },
     ...(hasGroups
       ? [
-          { label: 'Grupos', component: <TournamentGroups
-            tournament={tournament}
-            role={role}
-            generateKnockoutPhase={handleGenerateKnockout}
-            getPlayerName={getPlayerName}
-            fetchTournament={fetchTournamentData}
-            addNotification={addNotification}
-          /> },
-          { label: 'Posiciones', component: <TournamentStandings
-            tournament={tournament}
-            standings={standings}
-            getPlayerName={getPlayerName}
-          /> },
+          {
+            label: 'Grupos',
+            component: (
+              <TournamentGroups
+                tournament={tournament}
+                role={role}
+                generateKnockoutPhase={handleGenerateKnockout}
+                getPlayerName={getPlayerName}
+                fetchTournament={fetchTournamentData}
+                addNotification={addNotification}
+                groups={tournament.groups || []} // Aseguramos que groups siempre sea un arreglo
+              />
+            ),
+          },
+          {
+            label: 'Posiciones',
+            component: (
+              <TournamentStandings
+                tournament={tournament}
+                standings={standings}
+                getPlayerName={getPlayerName}
+              />
+            ),
+          },
         ]
       : []),
     ...(hasRounds
       ? [
-          { label: 'Llave', component: <TournamentBracket
-            tournament={tournament}
-            role={role}
-            getPlayerName={getPlayerName}
-            getRoundName={getRoundName}
-            advanceEliminationRound={handleAdvanceEliminationRound}
-            fetchTournament={fetchTournamentData}
-            addNotification={addNotification}
-          /> },
+          {
+            label: 'Llave',
+            component: (
+              <TournamentBracket
+                tournament={tournament}
+                role={role}
+                getPlayerName={getPlayerName}
+                getRoundName={getRoundName}
+                advanceEliminationRound={handleAdvanceEliminationRound}
+                fetchTournament={fetchTournamentData}
+                addNotification={addNotification}
+                matches={tournament.rounds || []} // Aseguramos que rounds siempre sea un arreglo
+              />
+            ),
+          },
         ]
       : []),
   ];
@@ -217,6 +234,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
         modules={[Navigation, Pagination]}
         pagination={{ clickable: true }}
         style={{ width: '100%' }}
+        lazy={true} // Habilita la carga perezosa para mejorar el rendimiento
       >
         {tabConfig.map((tab, index) => (
           <SwiperSlide key={index}>
