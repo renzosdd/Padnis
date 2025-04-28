@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -16,9 +16,9 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
   const canEdit = role === 'admin' || role === 'coach';
 
   const groups = tournament.groups || [];
-  const totalSets = tournament.format?.sets || 1;
+  const totalSets = tournament.format?.sets || 2; // Default to 2 sets if undefined
 
-  console.log('TournamentGroups rendered:', { totalSets, canEdit });
+  console.log('TournamentGroups rendered:', { totalSets, canEdit, tournamentFormat: tournament.format });
 
   const initializeMatchResults = () => {
     const results = {};
@@ -289,7 +289,7 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
           <Grid container spacing={1} sx={{ overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
             {group.matches && Array.isArray(group.matches) && group.matches.length > 0 ? (
               group.matches.map((match, matchIndex) => {
-                const matchResult = matchResults[match._id] || {};
+                const matchResult = useMemo(() => matchResults[match._id] || {}, [matchResults[match._id]]);
                 const matchErrors = errors[match._id] || {};
                 const isTied = matchResult.sets?.length === 2 &&
                   matchResult.sets.reduce((acc, set) => {

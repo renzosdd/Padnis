@@ -26,7 +26,9 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     return tournament.rounds;
   }, [tournament]);
 
-  const totalSets = tournament.format?.sets || 1;
+  const totalSets = tournament.format?.sets || 2; // Default to 2 sets
+
+  console.log('TournamentBracket rendered:', { totalSets, canEdit, tournamentFormat: tournament.format });
 
   const initializeMatchResults = useCallback(() => {
     const results = {};
@@ -41,12 +43,11 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
             }))
           : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
 
-        // Ensure the sets array has exactly totalSets elements
         while (sets.length < totalSets) {
           sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
         }
         if (sets.length > totalSets) {
-          sets.length = totalSets; // Truncate if too many sets
+          sets.length = totalSets;
         }
 
         results[match._id] = {
@@ -221,10 +222,14 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setMatchResults(prev => ({
-        ...prev,
-        [matchId]: { ...prev[matchId], saved: true },
-      }));
+      setMatchResults(prev => {
+        const updated = {
+          ...prev,
+          [matchId]: { ...prev[matchId], saved: true },
+        };
+        console.log('Updated matchResults after save (Bracket):', updated);
+        return updated;
+      });
       setErrors(prev => ({ ...prev, [matchId]: null }));
       addNotification('Resultado guardado con éxito', 'success');
       await fetchTournament();
@@ -254,15 +259,20 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
         const player = field.split('-')[1];
         result.matchTiebreak = { ...result.matchTiebreak, [player]: value };
       }
+      console.log('Updated matchResults after input change (Bracket):', { matchId, field, value, result });
       return { ...prev, [matchId]: result };
     });
   };
 
   const toggleEditMode = (matchId) => {
-    setMatchResults(prev => ({
-      ...prev,
-      [matchId]: { ...prev[matchId], saved: !prev[matchId].saved },
-    }));
+    setMatchResults(prev => {
+      const updated = {
+        ...prev,
+        [matchId]: { ...prev[matchId], saved: !prev[matchId].saved },
+      };
+      console.log('Updated matchResults after toggleEditMode (Bracket):', updated);
+      return updated;
+    });
   };
 
   const handleConfirmAdvance = async () => {
@@ -304,7 +314,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
           <Grid container spacing={1} sx={{ overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
             {round.matches && Array.isArray(round.matches) && round.matches.length > 0 ? (
               round.matches.map((match, matchIndex) => {
-                const matchResult = matchResults[match._id] || {};
+                const matchResult = useMemo(() => matchResults[match._id] || {}, [matchResults[match._id]]);
                 const matchErrors = errors[match._id] || {};
                 const isEditable = roundIndex === rounds.length - 1;
                 const isTied = matchResult.sets?.length === 2 &&
