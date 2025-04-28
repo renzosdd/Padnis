@@ -51,7 +51,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   const swiperRef = useRef(null);
   const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
 
-  console.log('TournamentInProgress rendered:', { tournamentId, isFetching, loading });
+  console.log('TournamentInProgress rendered:', { tournamentId, isFetching, loading, tabValue });
 
   const fetchTournamentData = useCallback(async () => {
     if (isFetching) {
@@ -87,12 +87,11 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
 
   const handleTabChange = (event, newValue) => {
     console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
+    setTabValue(newValue);
     if (swiperRef.current && swiperRef.current.swiper) {
       swiperRef.current.swiper.slideTo(newValue);
-      setTabValue(newValue);
     } else {
       console.warn('Swiper ref is not initialized properly during tab change');
-      setTabValue(newValue);
     }
   };
 
@@ -150,6 +149,41 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   const hasGroups = tournament.groups && tournament.groups.length > 0;
   const hasRounds = tournament.rounds && tournament.rounds.length > 0;
 
+  // Ensure tabs and slides are aligned
+  const tabConfig = [
+    { label: 'Detalles', component: <TournamentDetails tournament={tournament} /> },
+    ...(hasGroups
+      ? [
+          { label: 'Grupos', component: <TournamentGroups
+            tournament={tournament}
+            role={role}
+            generateKnockoutPhase={handleGenerateKnockout}
+            getPlayerName={getPlayerName}
+            fetchTournament={fetchTournamentData}
+            addNotification={addNotification}
+          /> },
+          { label: 'Posiciones', component: <TournamentStandings
+            tournament={tournament}
+            standings={standings}
+            getPlayerName={getPlayerName}
+          /> },
+        ]
+      : []),
+    ...(hasRounds
+      ? [
+          { label: 'Llave', component: <TournamentBracket
+            tournament={tournament}
+            role={role}
+            getPlayerName={getPlayerName}
+            getRoundName={getRoundName}
+            advanceEliminationRound={handleAdvanceEliminationRound}
+            fetchTournament={fetchTournamentData}
+            addNotification={addNotification}
+          /> },
+        ]
+      : []),
+  ];
+
   return (
     <Box sx={{ p: { xs: 1, sm: 2 } }}>
       <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 1 }}>
@@ -163,10 +197,13 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
         aria-label="Pestañas de navegación del torneo"
         sx={{ mb: 2 }}
       >
-        <Tab label="Detalles" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }} />
-        {hasGroups && <Tab label="Grupos" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }} />}
-        {hasGroups && <Tab label="Posiciones" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }} />}
-        {hasRounds && <Tab label="Llave" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }} />}
+        {tabConfig.map((tab, index) => (
+          <Tab
+            key={index}
+            label={tab.label}
+            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+          />
+        ))}
       </Tabs>
       <Swiper
         ref={swiperRef}
@@ -181,51 +218,13 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
         pagination={{ clickable: true }}
         style={{ width: '100%' }}
       >
-        <SwiperSlide>
-          <ErrorBoundary>
-            <TournamentDetails tournament={tournament} />
-          </ErrorBoundary>
-        </SwiperSlide>
-        {hasGroups && (
-          <SwiperSlide>
+        {tabConfig.map((tab, index) => (
+          <SwiperSlide key={index}>
             <ErrorBoundary>
-              <TournamentGroups
-                tournament={tournament}
-                role={role}
-                generateKnockoutPhase={handleGenerateKnockout}
-                getPlayerName={getPlayerName}
-                fetchTournament={fetchTournamentData}
-                addNotification={addNotification}
-              />
+              {tab.component}
             </ErrorBoundary>
           </SwiperSlide>
-        )}
-        {hasGroups && (
-          <SwiperSlide>
-            <ErrorBoundary>
-              <TournamentStandings
-                tournament={tournament}
-                standings={standings}
-                getPlayerName={getPlayerName}
-              />
-            </ErrorBoundary>
-          </SwiperSlide>
-        )}
-        {hasRounds && (
-          <SwiperSlide>
-            <ErrorBoundary>
-              <TournamentBracket
-                tournament={tournament}
-                role={role}
-                getPlayerName={getPlayerName}
-                getRoundName={getRoundName}
-                advanceEliminationRound={handleAdvanceEliminationRound}
-                fetchTournament={fetchTournamentData}
-                addNotification={addNotification}
-              />
-            </ErrorBoundary>
-          </SwiperSlide>
-        )}
+        ))}
       </Swiper>
     </Box>
   );
