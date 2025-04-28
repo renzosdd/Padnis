@@ -51,6 +51,8 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   const swiperRef = useRef(null);
   const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
 
+  console.log('TournamentInProgress rendered:', { tournamentId, isFetching, loading });
+
   const fetchTournamentData = useCallback(async () => {
     if (isFetching) {
       console.log('Fetch already in progress, skipping...');
@@ -81,7 +83,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       setError('No se proporcionó un ID de torneo válido');
       setLoading(false);
     }
-  }, [tournamentId]); // Removed fetchTournamentData from dependencies to prevent loop
+  }, [tournamentId]);
 
   const handleTabChange = (event, newValue) => {
     console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
@@ -90,7 +92,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       setTabValue(newValue);
     } else {
       console.warn('Swiper ref is not initialized properly during tab change');
-      setTabValue(newValue); // Fallback to update tabValue
+      setTabValue(newValue);
     }
   };
 
@@ -100,7 +102,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   };
 
   const handleGenerateKnockout = useCallback(async () => {
-    if (isFetching) return; // Prevent re-fetch if already fetching
+    if (isFetching) return;
     try {
       await generateKnockoutPhase();
       await fetchTournamentData();
@@ -110,7 +112,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
   }, [generateKnockoutPhase, addNotification, fetchTournamentData, isFetching]);
 
   const handleAdvanceEliminationRound = useCallback(async () => {
-    if (isFetching) return; // Prevent re-fetch if already fetching
+    if (isFetching) return;
     try {
       await advanceEliminationRound();
       await fetchTournamentData();

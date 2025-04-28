@@ -37,7 +37,7 @@ const MatchCard = ({
     return initialResult;
   });
 
-  console.log('MatchCard props:', {
+  console.log('MatchCard rendered:', {
     matchId: match._id,
     canEdit,
     isEditable,
@@ -45,6 +45,30 @@ const MatchCard = ({
     totalSets,
     sets: localResult.sets,
   });
+
+  useEffect(() => {
+    // Sync localResult with matchResult only if saved state changes
+    if (matchResult.saved !== localResult.saved) {
+      setLocalResult((prev) => {
+        const updated = { ...matchResult };
+        if (!updated.sets || updated.sets.length < totalSets) {
+          updated.sets = Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+        }
+        // Preserve unsaved input values
+        updated.sets = updated.sets.map((set, idx) => ({
+          ...set,
+          player1: prev.sets[idx]?.player1 || set.player1,
+          player2: prev.sets[idx]?.player2 || set.player2,
+          tiebreak1: prev.sets[idx]?.tiebreak1 || set.tiebreak1,
+          tiebreak2: prev.sets[idx]?.tiebreak2 || set.tiebreak2,
+        }));
+        updated.winner = prev.winner || updated.winner;
+        updated.matchTiebreak = prev.matchTiebreak || updated.matchTiebreak;
+        console.log('Synced localResult with matchResult:', updated);
+        return updated;
+      });
+    }
+  }, [matchResult.saved, totalSets]);
 
   const handleLocalInputChange = (field, value, setIndex = null) => {
     console.log('handleLocalInputChange called:', { field, value, setIndex });

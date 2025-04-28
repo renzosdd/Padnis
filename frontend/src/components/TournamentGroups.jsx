@@ -18,6 +18,8 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
   const groups = tournament.groups || [];
   const totalSets = tournament.format?.sets || 1;
 
+  console.log('TournamentGroups rendered:', { totalSets, canEdit });
+
   const initializeMatchResults = () => {
     const results = {};
     groups.forEach((group) => {
@@ -31,12 +33,11 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
             }))
           : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
 
-        // Ensure the sets array has exactly totalSets elements
         while (sets.length < totalSets) {
           sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
         }
         if (sets.length > totalSets) {
-          sets.length = totalSets; // Truncate if too many sets
+          sets.length = totalSets;
         }
 
         results[match._id] = {
@@ -210,10 +211,14 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
       await axios.put(`https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setMatchResults(prev => ({
-        ...prev,
-        [matchId]: { ...prev[matchId], saved: true },
-      }));
+      setMatchResults(prev => {
+        const updated = {
+          ...prev,
+          [matchId]: { ...prev[matchId], saved: true },
+        };
+        console.log('Updated matchResults after save:', updated);
+        return updated;
+      });
       setErrors(prev => ({ ...prev, [matchId]: null }));
       addNotification('Resultado guardado con éxito', 'success');
       await fetchTournament();
@@ -241,15 +246,20 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
         const player = field.split('-')[1];
         result.matchTiebreak = { ...result.matchTiebreak, [player]: value };
       }
+      console.log('Updated matchResults after input change:', { matchId, field, value, result });
       return { ...prev, [matchId]: result };
     });
   };
 
   const toggleEditMode = (matchId) => {
-    setMatchResults(prev => ({
-      ...prev,
-      [matchId]: { ...prev[matchId], saved: !prev[matchId].saved },
-    }));
+    setMatchResults(prev => {
+      const updated = {
+        ...prev,
+        [matchId]: { ...prev[matchId], saved: !prev[matchId].saved },
+      };
+      console.log('Updated matchResults after toggleEditMode:', updated);
+      return updated;
+    });
   };
 
   const handleGenerateKnockout = async () => {
