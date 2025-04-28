@@ -26,9 +26,9 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
     return tournament.rounds;
   }, [tournament]);
 
-  const totalSets = tournament.format?.sets || 2; // Default to 2 sets
+  const totalSets = tournament.format?.sets || 2;
 
-  console.log('TournamentBracket rendered:', { totalSets, canEdit, tournamentFormat: tournament.format });
+  console.log('TournamentBracket rendered:', { totalSets, canEdit, role, tournamentFormat: tournament.format, rounds });
 
   const initializeMatchResults = useCallback(() => {
     const results = {};
@@ -347,7 +347,7 @@ const TournamentBracket = ({ tournament, role, getPlayerName, getRoundName, adva
               })
             ) : (
               <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                No hay partidos disponibles para esta ronda.
+                No hay rondas disponibles para mostrar.
               </Typography>
             )}
           </Grid>

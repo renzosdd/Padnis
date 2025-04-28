@@ -16,40 +16,42 @@ const TournamentGroups = ({ tournament, role, generateKnockoutPhase, getPlayerNa
   const canEdit = role === 'admin' || role === 'coach';
 
   const groups = tournament.groups || [];
-  const totalSets = tournament.format?.sets || 2; // Default to 2 sets if undefined
+  const totalSets = tournament.format?.sets || 2;
 
-  console.log('TournamentGroups rendered:', { totalSets, canEdit, tournamentFormat: tournament.format });
+  console.log('TournamentGroups rendered:', { totalSets, canEdit, tournamentFormat: tournament.format, groups });
 
   const initializeMatchResults = () => {
     const results = {};
     groups.forEach((group) => {
-      group.matches.forEach((match) => {
-        const sets = match.result?.sets?.length > 0
-          ? match.result.sets.map(set => ({
-              player1: set.player1?.toString() || '',
-              player2: set.player2?.toString() || '',
-              tiebreak1: set.tiebreak1?.toString() || '',
-              tiebreak2: set.tiebreak2?.toString() || '',
-            }))
-          : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+      if (group.matches && Array.isArray(group.matches)) {
+        group.matches.forEach((match) => {
+          const sets = match.result?.sets?.length > 0
+            ? match.result.sets.map(set => ({
+                player1: set.player1?.toString() || '',
+                player2: set.player2?.toString() || '',
+                tiebreak1: set.tiebreak1?.toString() || '',
+                tiebreak2: set.tiebreak2?.toString() || '',
+              }))
+            : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
 
-        while (sets.length < totalSets) {
-          sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
-        }
-        if (sets.length > totalSets) {
-          sets.length = totalSets;
-        }
+          while (sets.length < totalSets) {
+            sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+          }
+          if (sets.length > totalSets) {
+            sets.length = totalSets;
+          }
 
-        results[match._id] = {
-          sets,
-          winner: match.result?.winner ? normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1) : '',
-          matchTiebreak: match.result?.matchTiebreak1 ? {
-            player1: match.result.matchTiebreak1.toString(),
-            player2: match.result.matchTiebreak2.toString(),
-          } : null,
-          saved: !!match.result?.winner,
-        };
-      });
+          results[match._id] = {
+            sets,
+            winner: match.result?.winner ? normalizeId(match.result.winner?.player1?._id || match.result.winner?.player1) : '',
+            matchTiebreak: match.result?.matchTiebreak1 ? {
+              player1: match.result.matchTiebreak1.toString(),
+              player2: match.result.matchTiebreak2.toString(),
+            } : null,
+            saved: !!match.result?.winner,
+          };
+        });
+      }
     });
     console.log('Initialized matchResults:', results);
     setMatchResults(results);
