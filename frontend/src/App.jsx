@@ -18,6 +18,7 @@ import {
   DialogContent,
   useMediaQuery,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import { People, EmojiEvents, Settings, ExpandMore } from '@mui/icons-material';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -58,10 +59,14 @@ const App = () => {
   const [userAnchor, setUserAnchor] = useState(null);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
-  const { user, role, logout } = useAuth();
-  const { addNotification } = useNotification();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
+  const initialRetryDelay = 2000; // 2 segundos de retraso inicial
+
+  const { user, role, logout } = useAuth();
+  const { addNotification } = useNotification();
   const players = useSelector((state) => state.players.list);
   const dispatch = useDispatch();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -72,7 +77,7 @@ const App = () => {
       if (!token) throw new Error('No token available');
       const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 60000,
+        timeout: 10000, // Reducido a 10 segundos
       });
       const normalizedPlayers = response.data.map((player) => ({ ...player, _id: String(player._id) }));
       dispatch(setPlayers(normalizedPlayers));
@@ -82,14 +87,14 @@ const App = () => {
     }
   }, [addNotification, dispatch]);
 
-  const fetchTournaments = useCallback(async (retries = 3, backoff = 5000) => {
+  const fetchTournaments = useCallback(async (retries = maxRetries, backoff = initialRetryDelay) => {
     try {
       const token = localStorage.getItem('token');
       const url = `${BACKEND_URL}/api/tournaments?status=En%20curso`;
       console.log('Fetching tournaments from:', url, 'with token:', token ? 'present' : 'missing');
       const response = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        timeout: 60000,
+        timeout: 10000, // Reducido a 10 segundos
       });
       console.log('API response (App.jsx):', response.data);
       if (!Array.isArray(response.data)) {
@@ -114,11 +119,8 @@ const App = () => {
       });
       setTournaments(validTournaments);
       setError(null);
-      if (selectedTournamentId && !validTournaments.some((t) => t._id === selectedTournamentId)) {
-        setSelectedTournamentId(null);
-        setView('activos');
-        addNotification('El torneo seleccionado ya no está disponible', 'warning');
-      }
+      setRetryCount(0);
+      setLoading(false);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
       const errorDetails = {
@@ -133,20 +135,21 @@ const App = () => {
       if (error.code === 'ERR_NETWORK') {
         userMessage += '. El servidor podría estar inactivo. Por favor, intenta recargar la página o verifica el estado del servidor.';
       }
-      addNotification(userMessage, 'error');
-      if (retries > 0 && error.code === 'ERR_NETWORK') {
+      if (retries > 0) {
         console.log(`Retrying fetch tournaments (${retries} retries left)...`);
-        setTimeout(() => fetchTournaments(retries - 1, backoff * 2), backoff);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          fetchTournaments(retries - 1, backoff * 2);
+        }, backoff);
       } else {
         setTournaments([]);
         setSelectedTournamentId(null);
         setView('activos');
-        if (error.code === 'ERR_NETWORK') {
-          setError('No se pudo conectar al servidor. Es posible que el servidor esté inactivo o haya un problema de red.');
-        }
+        setError(userMessage);
+        setLoading(false);
       }
     }
-  }, [user, addNotification]); // Removed selectedTournamentId to prevent unnecessary re-renders
+  }, [user, addNotification]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -154,7 +157,7 @@ const App = () => {
       if (!token) throw new Error('No token available');
       const response = await axios.get(`${BACKEND_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 60000,
+        timeout: 10000,
       });
       setUsers(response.data);
     } catch (error) {
@@ -282,21 +285,55 @@ const App = () => {
     ));
   }, [tournaments, user, handleTournamentSelect, isMobile]);
 
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          p: 2,
+          bgcolor: '#f5f5f5',
+        }}
+      >
+        <CircularProgress aria-label="Cargando aplicación" />
+        <Typography sx={{ mt: 2, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+          Cargando datos...
+        </Typography>
+      </Box>
+    );
+  }
+
   if (error) {
     return (
-      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', textAlign: 'center' }}>
-        <Typography variant={isMobile ? 'h6' : 'h5'} color="error" gutterBottom>
-          Error: {error}
-        </Typography>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          p: 2,
+          bgcolor: '#f5f5f5',
+          textAlign: 'center',
+        }}
+      >
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
         <Button
           variant="contained"
           color="primary"
           onClick={() => {
+            setLoading(true);
             setError(null);
+            setRetryCount(0);
             fetchTournaments();
           }}
-          sx={{ mt: 2, mr: 2 }}
-          aria-label="Reintentar cargar datos"
+          sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, px: 3, py: 1 }}
+          aria-label="Reintentar cargar torneos"
         >
           Reintentar
         </Button>
@@ -304,19 +341,11 @@ const App = () => {
           variant="outlined"
           color="secondary"
           onClick={() => window.location.reload()}
-          sx={{ mt: 2 }}
+          sx={{ mt: 2, fontSize: { xs: '0.875rem', sm: '1rem' }, px: 3, py: 1 }}
           aria-label="Recargar página"
         >
           Recargar Página
         </Button>
-      </Box>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Box sx={{ p: 3, bgcolor: '#f5f5f5', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <CircularProgress aria-label="Cargando aplicación" />
       </Box>
     );
   }
