@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Box, Typography } from '@mui/material';
 import MatchCard from './MatchCard';
 
 const TournamentBracket = ({
@@ -133,22 +134,28 @@ const TournamentBracket = ({
         matchTiebreak2: result.matchTiebreak ? parseInt(result.matchTiebreak.player2, 10) : undefined,
       };
 
-      await axios.put(
+      console.log('Saving match result - Payload:', payload);
+
+      const response = await axios.put(
         `https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`,
         payload,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         }
       );
+
+      console.log('Save match result - Response:', response.data);
+
       setMatchResults((prev) => ({
         ...prev,
         [matchId]: { ...prev[matchId], saved: true },
       }));
       setErrors((prev) => ({ ...prev, [matchId]: null }));
       addNotification('Resultado guardado con éxito', 'success');
-      await fetchTournament();
+      await fetchTournament(true);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error al guardar resultado';
+      console.error('Error saving match result:', errorMessage);
       setErrors((prev) => ({ ...prev, [matchId]: { general: errorMessage } }));
       addNotification(errorMessage, 'error');
     }
@@ -231,13 +238,13 @@ const TournamentBracket = ({
   };
 
   if (!Array.isArray(matches) || matches.length === 0) {
-    return <Typography>No hay partidos disponibles.</Typography>;
+    return <Typography textAlign="center">No hay partidos disponibles.</Typography>;
   }
 
   return (
-    <Box sx={{ p: { xs: 0.5, sm: 2 }, maxWidth: '100%', overflowX: 'auto' }}>
+    <Box sx={{ p: { xs: 1, sm: 2 }, maxWidth: '100%', overflowX: 'hidden' }}>
       {matches.map((match, index) => (
-        <Box key={match._id || index} sx={{ mb: 2 }}>
+        <Box key={match._id || index} sx={{ mb: 3 }}>
           <MatchCard
             match={match}
             matchResult={matchResults[match._id] || { sets: Array(totalSets).fill({ player1: '', player2: '' }) }}

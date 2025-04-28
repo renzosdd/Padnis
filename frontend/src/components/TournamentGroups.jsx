@@ -137,22 +137,28 @@ const TournamentGroups = ({
         matchTiebreak2: result.matchTiebreak ? parseInt(result.matchTiebreak.player2, 10) : undefined,
       };
 
-      await axios.put(
+      console.log('Saving match result - Payload:', payload);
+
+      const response = await axios.put(
         `https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`,
         payload,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         }
       );
+
+      console.log('Save match result - Response:', response.data);
+
       setMatchResults((prev) => ({
         ...prev,
         [matchId]: { ...prev[matchId], saved: true },
       }));
       setErrors((prev) => ({ ...prev, [matchId]: null }));
       addNotification('Resultado guardado con éxito', 'success');
-      await fetchTournament();
+      await fetchTournament(true);
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error al guardar resultado';
+      console.error('Error saving match result:', errorMessage);
       setErrors((prev) => ({ ...prev, [matchId]: { general: errorMessage } }));
       addNotification(errorMessage, 'error');
     }
@@ -239,10 +245,10 @@ const TournamentGroups = ({
   }
 
   return (
-    <Box sx={{ p: { xs: 0.5, sm: 2 }, maxWidth: '100%', overflowX: 'auto' }}>
+    <Box sx={{ p: { xs: 1, sm: 2 }, maxWidth: '100%', overflowX: 'hidden' }}>
       {groups.map((group, groupIndex) => (
-        <Box key={group._id || groupIndex} sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 1, color: '#1976d2' }}>
+        <Box key={group._id || groupIndex} sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ fontSize: { xs: '1.25rem', sm: '1.25rem' }, mb: 1.5, color: '#1976d2', textAlign: 'center' }}>
             {group.name || `Grupo ${groupIndex + 1}`}
           </Typography>
           {Array.isArray(group.matches) ? (
@@ -262,7 +268,7 @@ const TournamentGroups = ({
               />
             ))
           ) : (
-            <Typography>No hay partidos en este grupo.</Typography>
+            <Typography textAlign="center">No hay partidos en este grupo.</Typography>
           )}
         </Box>
       ))}

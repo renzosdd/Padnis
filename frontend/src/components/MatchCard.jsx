@@ -33,21 +33,23 @@ const MatchCard = ({
     return initialResult;
   });
   const [isEditing, setIsEditing] = useState(!matchResult.saved);
-  const [isSaving, setIsSaving] = useState(false); // Estado para manejar el guardado
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async (event) => {
-    event.preventDefault(); // Prevenir la recarga de la página
+    event.preventDefault();
     setIsSaving(true);
     try {
       await onSave(match._id, localResult);
       setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving match result:', error);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleEdit = (event) => {
-    event.preventDefault(); // Prevenir cualquier comportamiento predeterminado
+    event.preventDefault();
     setIsEditing(true);
     onToggleEdit(match._id);
   };
@@ -64,45 +66,49 @@ const MatchCard = ({
   return (
     <Box
       sx={{
-        p: 1,
+        p: { xs: 1.5, sm: 2 },
         mb: 2,
         border: matchResult.saved ? '2px solid #388e3c' : '1px solid #e0e0e0',
         borderRadius: 2,
         width: '100%',
         minHeight: { xs: 'auto', sm: 120 },
+        bgcolor: 'white',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
       }}
       aria-label={`Partido ${match._id}`}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Avatar sx={{ bgcolor: '#1976d2', width: 24, height: 24, fontSize: '0.75rem' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+        <Avatar sx={{ bgcolor: '#1976d2', width: { xs: 32, sm: 24 }, height: { xs: 32, sm: 24 }, fontSize: '0.75rem' }}>
           {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1)?.[0] || '?'}
         </Avatar>
         <Typography
           sx={{
-            fontSize: { xs: '0.875rem', sm: '1rem' },
+            fontSize: { xs: '1rem', sm: '1rem' },
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: { xs: 'normal', sm: 'nowrap' },
             maxWidth: { xs: 'none', sm: '200px' },
             flex: 1,
+            lineHeight: 1.2,
           }}
         >
           {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1) || 'Jugador no disponible'}
           {match.player1?.player2 && ` / ${getPlayerName(tournament, match.player1?.player2?._id || match.player1?.player2) || 'Jugador no disponible'}`}
         </Typography>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Avatar sx={{ bgcolor: '#424242', width: 24, height: 24, fontSize: '0.75rem' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+        <Avatar sx={{ bgcolor: '#424242', width: { xs: 32, sm: 24 }, height: { xs: 32, sm: 24 }, fontSize: '0.75rem' }}>
           {match.player2?.name ? 'BYE' : getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1)?.[0] || '?'}
         </Avatar>
         <Typography
           sx={{
-            fontSize: { xs: '0.875rem', sm: '1rem' },
+            fontSize: { xs: '1rem', sm: '1rem' },
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: { xs: 'normal', sm: 'nowrap' },
             maxWidth: { xs: 'none', sm: '200px' },
             flex: 1,
+            lineHeight: 1.2,
           }}
         >
           {match.player2?.name || (getPlayerName(tournament, match.player2?.player1?._id || match.player2?.player1) || 'Jugador no disponible')}
@@ -110,7 +116,7 @@ const MatchCard = ({
         </Typography>
       </Box>
       {canEdit && isEditable && matchResult.saved ? (
-        <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, mt: 1 }}>
+        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' }, mt: 1 }}>
           {localResult.sets.map((set, idx) => (
             <span key={idx}>
               Set {idx + 1}: {set.player1 || 0}-{set.player2 || 0}
@@ -125,7 +131,7 @@ const MatchCard = ({
           sx={{
             display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
-            gap: { xs: 1, sm: 2 },
+            gap: { xs: 1.5, sm: 2 },
             mt: 1,
             alignItems: { xs: 'stretch', sm: 'center' },
           }}
@@ -136,11 +142,11 @@ const MatchCard = ({
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 0.5,
+                gap: 0.75,
                 flexWrap: 'wrap',
               }}
             >
-              <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
+              <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.75rem' }, minWidth: 50 }}>
                 Set {idx + 1}:
               </Typography>
               <TextField
@@ -157,13 +163,14 @@ const MatchCard = ({
                   handleLocalInputChange(`set${idx}-0`, value, 0);
                 }}
                 sx={{
-                  width: 40,
-                  '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  width: { xs: 50, sm: 40 },
+                  '& input': { fontSize: { xs: '1rem', sm: '0.75rem' }, textAlign: 'center', padding: { xs: '8px', sm: '4px' } },
                 }}
                 error={!!matchErrors[`set${idx}`]}
                 aria-label={`Puntuación del equipo 1 para el set ${idx + 1}`}
+                inputProps={{ min: 0 }}
               />
-              <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+              <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.75rem' } }}>-</Typography>
               <TextField
                 size="small"
                 type="number"
@@ -178,14 +185,15 @@ const MatchCard = ({
                   handleLocalInputChange(`set${idx}-1`, value, 1);
                 }}
                 sx={{
-                  width: 40,
-                  '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  width: { xs: 50, sm: 40 },
+                  '& input': { fontSize: { xs: '1rem', sm: '0.75rem' }, textAlign: 'center', padding: { xs: '8px', sm: '4px' } },
                 }}
                 error={!!matchErrors[`set${idx}`]}
                 aria-label={`Puntuación del equipo 2 para el set ${idx + 1}`}
+                inputProps={{ min: 0 }}
               />
               {parseInt(localResult.sets?.[idx]?.player1 || 0, 10) === 6 &&
-                parseInt(localResult.sets?.[idx]?.player2 ||  0, 10) === 6 && (
+                parseInt(localResult.sets?.[idx]?.player2 || 0, 10) === 6 && (
                 <>
                   <TextField
                     size="small"
@@ -201,13 +209,14 @@ const MatchCard = ({
                       handleLocalInputChange(`tiebreak${idx}-1`, value, 1);
                     }}
                     sx={{
-                      width: 40,
-                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                      width: { xs: 50, sm: 40 },
+                      '& input': { fontSize: { xs: '1rem', sm: '0.75rem' }, textAlign: 'center', padding: { xs: '8px', sm: '4px' } },
                     }}
                     error={!!matchErrors[`set${idx}`]}
                     aria-label={`Tiebreak del equipo 1 para el set ${idx + 1}`}
+                    inputProps={{ min: 0 }}
                   />
-                  <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+                  <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.75rem' } }}>-</Typography>
                   <TextField
                     size="small"
                     type="number"
@@ -222,11 +231,12 @@ const MatchCard = ({
                       handleLocalInputChange(`tiebreak${idx}-2`, value, 2);
                     }}
                     sx={{
-                      width: 40,
-                      '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                      width: { xs: 50, sm: 40 },
+                      '& input': { fontSize: { xs: '1rem', sm: '0.75rem' }, textAlign: 'center', padding: { xs: '8px', sm: '4px' } },
                     }}
                     error={!!matchErrors[`set${idx}`]}
                     aria-label={`Tiebreak del equipo 2 para el set ${idx + 1}`}
+                    inputProps={{ min: 0 }}
                   />
                 </>
               )}
@@ -237,12 +247,12 @@ const MatchCard = ({
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 0.5,
+                gap: 0.75,
                 flexWrap: 'wrap',
-                mt: { xs: 1, sm: 0 },
+                mt: { xs: 1.5, sm: 0 },
               }}
             >
-              <Typography sx={{ fontSize: '0.75rem', minWidth: 50 }}>
+              <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.75rem' }, minWidth: 50 }}>
                 Tiebreak:
               </Typography>
               <TextField
@@ -258,13 +268,14 @@ const MatchCard = ({
                   handleLocalInputChange('matchTiebreak-player1', value);
                 }}
                 sx={{
-                  width: 40,
-                  '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  width: { xs: 50, sm: 40 },
+                  '& input': { fontSize: { xs: '1rem', sm: '0.75rem' }, textAlign: 'center', padding: { xs: '8px', sm: '4px' } },
                 }}
                 error={!!matchErrors.matchTiebreak}
                 aria-label="Puntuación de tiebreak del partido para el equipo 1"
+                inputProps={{ min: 0 }}
               />
-              <Typography sx={{ fontSize: '0.75rem' }}>-</Typography>
+              <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.75rem' } }}>-</Typography>
               <TextField
                 size="small"
                 type="number"
@@ -278,44 +289,45 @@ const MatchCard = ({
                   handleLocalInputChange('matchTiebreak-player2', value);
                 }}
                 sx={{
-                  width: 40,
-                  '& input': { fontSize: '0.75rem', textAlign: 'center', padding: '4px' },
+                  width: { xs: 50, sm: 40 },
+                  '& input': { fontSize: { xs: '1rem', sm: '0.75rem' }, textAlign: 'center', padding: { xs: '8px', sm: '4px' } },
                 }}
                 error={!!matchErrors.matchTiebreak}
                 aria-label="Puntuación de tiebreak del partido para el equipo 2"
+                inputProps={{ min: 0 }}
               />
             </Box>
           )}
         </Box>
       ) : (
-        <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, mt: 1 }}>
+        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' }, mt: 1 }}>
           No editable
         </Typography>
       )}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5 }}>
         {matchResult.saved ? (
-          <CheckCircle sx={{ color: '#388e3c', fontSize: '1rem' }} aria-label="Partido completado" />
+          <CheckCircle sx={{ color: '#388e3c', fontSize: '1.25rem' }} aria-label="Partido completado" />
         ) : (
-          <HourglassEmpty sx={{ color: '#757575', fontSize: '1rem' }} aria-label="Partido pendiente" />
+          <HourglassEmpty sx={{ color: '#757575', fontSize: '1.25rem' }} aria-label="Partido pendiente" />
         )}
         {canEdit && isEditable && (
           <>
             {matchResult.saved ? (
               <IconButton
                 onClick={handleEdit}
-                sx={{ color: '#388e3c' }}
+                sx={{ color: '#388e3c', padding: { xs: '12px', sm: '8px' } }}
                 aria-label="Editar resultado"
               >
-                <EditIcon fontSize="small" />
+                <EditIcon fontSize="medium" />
               </IconButton>
             ) : (
               <IconButton
                 onClick={handleSave}
-                sx={{ color: '#1976d2' }}
+                sx={{ color: '#1976d2', padding: { xs: '12px', sm: '8px' } }}
                 aria-label="Guardar resultado"
                 disabled={isSaving}
               >
-                {isSaving ? <CircularProgress size={20} /> : <SaveIcon fontSize="small" />}
+                {isSaving ? <CircularProgress size={24} /> : <SaveIcon fontSize="medium" />}
               </IconButton>
             )}
           </>
