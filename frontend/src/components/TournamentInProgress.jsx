@@ -46,7 +46,10 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tabValue, setTabValue] = useState(0);
+  const [tabValue, setTabValue] = useState(() => {
+    // Recuperar tabValue de localStorage para mantener la pestaña seleccionada
+    return parseInt(localStorage.getItem(`tabValue_${tournamentId}`) || '0', 10);
+  });
   const [isFetching, setIsFetching] = useState(false);
   const [hasFetched, setHasFetched] = useState(false);
   const swiperRef = useRef(null);
@@ -87,7 +90,12 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
     }
   }, [tournamentId, fetchTournamentData]);
 
-  const handleTabChange = (event, newValue) => {
+  useEffect(() => {
+    // Guardar tabValue en localStorage para mantener la pestaña seleccionada
+    localStorage.setItem(`tabValue_${tournamentId}`, tabValue.toString());
+  }, [tabValue, tournamentId]);
+
+  const handleTabChange = useCallback((event, newValue) => {
     console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
     setTabValue(newValue);
     if (swiperRef.current && swiperRef.current.swiper) {
@@ -95,18 +103,18 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
     } else {
       console.warn('Swiper ref is not initialized properly during tab change');
     }
-  };
+  }, []);
 
-  const handleSlideChange = (swiper) => {
+  const handleSlideChange = useCallback((swiper) => {
     console.log('Slide changed to index:', swiper.activeIndex);
     setTabValue(swiper.activeIndex);
-  };
+  }, []);
 
   const handleGenerateKnockout = useCallback(async () => {
     if (isFetching) return;
     try {
       await generateKnockoutPhase();
-      setHasFetched(false); // Permitir una nueva solicitud
+      setHasFetched(false);
       await fetchTournamentData(true);
     } catch (err) {
       addNotification('Error al generar la fase de eliminación', 'error');
@@ -117,7 +125,7 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
     if (isFetching) return;
     try {
       await advanceEliminationRound();
-      setHasFetched(false); // Permitir una nueva solicitud
+      setHasFetched(false);
       await fetchTournamentData(true);
     } catch (err) {
       addNotification('Error al avanzar la ronda de eliminación', 'error');

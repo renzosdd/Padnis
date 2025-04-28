@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import axios from 'axios';
 import { Box, Typography } from '@mui/material';
+import { setMatchResult } from './store';
 import MatchCard from './MatchCard';
+
+const BACKEND_URL = 'https://padnis.onrender.com';
 
 const TournamentGroups = ({
   groups,
@@ -12,86 +16,84 @@ const TournamentGroups = ({
   fetchTournament,
   addNotification,
 }) => {
-  const [matchResults, setMatchResults] = useState({});
-  const [errors, setErrors] = useState({});
-
+  const matchResults = useSelector((state) => state.matchResults);
+  const dispatch = useDispatch();
   const canEdit = role === 'admin' || role === 'coach';
   const totalSets = tournament?.format?.sets || 1;
 
   const initializeMatchResults = () => {
     if (!Array.isArray(groups)) return;
 
-    const results = {};
     groups.forEach((group) => {
       if (!Array.isArray(group.matches)) return;
 
       group.matches.forEach((match) => {
-        const sets = match.result?.sets?.length > 0
-          ? match.result.sets.map(set => ({
-              player1: set.player1?.toString() || '',
-              player2: set.player2?.toString() || '',
-              tiebreak1: set.tiebreak1?.toString() || '',
-              tiebreak2: set.tiebreak2?.toString() || '',
-            }))
-          : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+        if (!matchResults[match._id]) {
+          const sets = match.result?.sets?.length > 0
+            ? match.result.sets.map(set => ({
+                player1: set.player1?.toString() || '',
+                player2: set.player2?.toString() || '',
+                tiebreak1: set.tiebreak1?.toString() || '',
+                tiebreak2: set.tiebreak2?.toString() || '',
+              }))
+            : Array(totalSets).fill({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
 
-        while (sets.length < totalSets) {
-          sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
-        }
-        if (sets.length > totalSets) {
-          sets.length = totalSets;
-        }
+          while (sets.length < totalSets) {
+            sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+          }
+          if (sets.length > totalSets) {
+            sets.length = totalSets;
+          }
 
-        results[match._id] = {
-          sets,
-          winner: match.result?.winner ? match.result.winner?.player1?._id || match.result.winner?.player1 : '',
-          matchTiebreak: match.result?.matchTiebreak1 ? {
-            player1: match.result.matchTiebreak1.toString(),
-            player2: match.result.matchTiebreak2.toString(),
-          } : null,
-          saved: !!match.result?.winner,
-        };
+          dispatch(setMatchResult({
+            matchId: match._id,
+            result: {
+              sets,
+              winner: match.result?.winner ? match.result.winner?.player1?._id || match.result.winner?.player1 : '',
+              matchTiebreak: match.result?.matchTiebreak1 ? {
+                player1: match.result.matchTiebreak1.toString(),
+                player2: match.result.matchTiebreak2.toString(),
+              } : null,
+              saved: !!match.result?.winner,
+            },
+          }));
+        }
       });
     });
-    setMatchResults(results);
   };
 
   useEffect(() => {
     initializeMatchResults();
-  }, [groups, totalSets]);
+  }, [groups, totalSets, matchResults, dispatch]);
 
   const handleInputChange = (matchId, field, value, setIndex = null) => {
-    setMatchResults((prev) => {
-      const result = { ...prev[matchId] };
-      if (field.startsWith('set')) {
-        const [type, index] = field.split('-');
-        result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = {
-          ...result.sets[parseInt(index, 10)],
-          [setIndex === 0 ? 'player1' : 'player2']: value,
-        };
-      } else if (field.startsWith('tiebreak')) {
-        const [type, index, player] = field.split('-');
-        result.sets = [...result.sets];
-        result.sets[parseInt(index, 10)] = {
-          ...result.sets[parseInt(index, 10)],
-          [player === '1' ? 'tiebreak1' : 'tiebreak2']: value,
-        };
-      } else if (field === 'winner') {
-        result.winner = value;
-      } else if (field.startsWith('matchTiebreak')) {
-        const player = field.split('-')[1];
-        result.matchTiebreak = { ...result.matchTiebreak, [player]: value };
-      }
-      return { ...prev, [matchId]: result };
-    });
+    const result = { ...matchResults[matchId] };
+    if (field.startsWith('set')) {
+      const [type, index] = field.split('-');
+      result.sets = [...result.sets];
+      result.sets[parseInt(index, 10)] = {
+        ...result.sets[parseInt(index, 10)],
+        [setIndex === 0 ? 'player1' : 'player2']: value,
+      };
+    } else if (field.startsWith('tiebreak')) {
+      const [type, index, player] = field.split('-');
+      result.sets = [...result.sets];
+      result.sets[parseInt(index, 10)] = {
+        ...result.sets[parseInt(index, 10)],
+        [player === '1' ? 'tiebreak1' : 'tiebreak2']: value,
+      };
+    } else if (field === 'winner') {
+      result.winner = value;
+    } else if (field.startsWith('matchTiebreak')) {
+      const player = field.split('-')[1];
+      result.matchTiebreak = { ...result.matchTiebreak, [player]: value };
+    }
+    dispatch(setMatchResult({ matchId, result }));
   };
 
   const toggleEditMode = (matchId) => {
-    setMatchResults((prev) => ({
-      ...prev,
-      [matchId]: { ...prev[matchId], saved: !prev[matchId].saved },
-    }));
+    const result = { ...matchResults[matchId], saved: !matchResults[matchId].saved };
+    dispatch(setMatchResult({ matchId, result }));
   };
 
   const saveMatchResult = async (matchId, result) => {
@@ -100,16 +102,15 @@ const TournamentGroups = ({
 
     const validationErrors = validateResult(matchId, result);
     if (validationErrors) {
-      setErrors((prev) => ({ ...prev, [matchId]: validationErrors }));
       addNotification('Corrige los errores antes de guardar', 'error');
-      return;
+      return validationErrors;
     }
 
     const validSets = result.sets.filter(set => parseInt(set.player1, 10) > 0 || parseInt(set.player2, 10) > 0);
     if (validSets.length !== totalSets) {
-      setErrors((prev) => ({ ...prev, [matchId]: { general: `Ingresa exactamente ${totalSets} set${totalSets > 1 ? 's' : ''} válidos` } }));
-      addNotification(`Ingresa exactamente ${totalSets} set${totalSets > 1 ? 's' : ''} válidos`, 'error');
-      return;
+      const error = { general: `Ingresa exactamente ${totalSets} set${totalSets > 1 ? 's' : ''} válidos` };
+      addNotification(error.general, 'error');
+      return error;
     }
 
     try {
@@ -140,27 +141,25 @@ const TournamentGroups = ({
       console.log('Saving match result - Payload:', payload);
 
       const response = await axios.put(
-        `https://padnis.onrender.com/api/tournaments/${tournament._id}/matches/${matchId}/result`,
+        `${BACKEND_URL}/api/tournaments/${tournament._id}/matches/${matchId}/result`,
         payload,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          timeout: 10000,
         }
       );
 
       console.log('Save match result - Response:', response.data);
 
-      setMatchResults((prev) => ({
-        ...prev,
-        [matchId]: { ...prev[matchId], saved: true },
-      }));
-      setErrors((prev) => ({ ...prev, [matchId]: null }));
+      dispatch(setMatchResult({ matchId, result: { ...result, saved: true } }));
       addNotification('Resultado guardado con éxito', 'success');
       await fetchTournament(true);
+      return null;
     } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Error al guardar resultado';
       console.error('Error saving match result:', errorMessage);
-      setErrors((prev) => ({ ...prev, [matchId]: { general: errorMessage } }));
       addNotification(errorMessage, 'error');
+      return { general: errorMessage };
     }
   };
 
@@ -258,12 +257,12 @@ const TournamentGroups = ({
                 match={match}
                 matchResult={matchResults[match._id] || { sets: Array(totalSets).fill({ player1: '', player2: '' }) }}
                 totalSets={totalSets}
-                handleLocalInputChange={handleInputChange}
-                matchErrors={errors[match._id] || {}}
+                handleLocalInputChange={(field, value, setIndex) => handleInputChange(match._id, field, value, setIndex)}
+                matchErrors={{}} // Errors are now handled by saveMatchResult
                 getPlayerName={getPlayerName}
                 tournament={tournament}
                 onSave={saveMatchResult}
-                onToggleEdit={toggleEditMode}
+                onToggleEdit={(matchId) => toggleEditMode(matchId)}
                 canEdit={canEdit}
               />
             ))

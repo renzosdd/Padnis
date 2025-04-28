@@ -1,27 +1,38 @@
 import { configureStore, createSlice } from '@reduxjs/toolkit';
 
+// Slice para los jugadores (ya lo estás usando en App.jsx)
 const playersSlice = createSlice({
   name: 'players',
-  initialState: {
-    list: [],
-    page: 1,
-    perPage: 10,
-  },
+  initialState: { list: [] },
   reducers: {
     setPlayers: (state, action) => {
       state.list = action.payload;
     },
-    setPage: (state, action) => {
-      state.page = action.payload;
+  },
+});
+
+// Slice para los resultados de los partidos
+const matchResultsSlice = createSlice({
+  name: 'matchResults',
+  initialState: {},
+  reducers: {
+    setMatchResult: (state, action) => {
+      const { matchId, result } = action.payload;
+      state[matchId] = result;
+    },
+    resetMatchResults: (state) => {
+      return {};
     },
   },
 });
 
-export const { setPlayers, setPage } = playersSlice.actions;
+export const { setPlayers } = playersSlice.actions;
+export const { setMatchResult, resetMatchResults } = matchResultsSlice.actions;
 
-const store = configureStore({
+export const store = configureStore({
   reducer: {
     players: playersSlice.reducer,
+    matchResults: matchResultsSlice.reducer,
   },
 });
 

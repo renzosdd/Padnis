@@ -6,6 +6,7 @@ import {
   IconButton,
   Avatar,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -34,15 +35,21 @@ const MatchCard = ({
   });
   const [isEditing, setIsEditing] = useState(!matchResult.saved);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const handleSave = async (event) => {
     event.preventDefault();
     setIsSaving(true);
+    setSaveError(null);
     try {
-      await onSave(match._id, localResult);
-      setIsEditing(false);
+      const errors = await onSave(match._id, localResult);
+      if (errors) {
+        setSaveError(errors.general || 'Error al guardar resultado');
+      } else {
+        setIsEditing(false);
+      }
     } catch (error) {
-      console.error('Error saving match result:', error);
+      setSaveError(error.message || 'Error al guardar resultado');
     } finally {
       setIsSaving(false);
     }
@@ -51,6 +58,7 @@ const MatchCard = ({
   const handleEdit = (event) => {
     event.preventDefault();
     setIsEditing(true);
+    setSaveError(null);
     onToggleEdit(match._id);
   };
 
@@ -77,6 +85,11 @@ const MatchCard = ({
       }}
       aria-label={`Partido ${match._id}`}
     >
+      {saveError && (
+        <Alert severity="error" sx={{ mb: 1 }}>
+          {saveError}
+        </Alert>
+      )}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
         <Avatar sx={{ bgcolor: '#1976d2', width: { xs: 32, sm: 24 }, height: { xs: 32, sm: 24 }, fontSize: '0.75rem' }}>
           {getPlayerName(tournament, match.player1?.player1?._id || match.player1?.player1)?.[0] || '?'}

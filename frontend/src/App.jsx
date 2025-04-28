@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useSelector, useDispatch } from 'react-redux';
-import { setPlayers } from './store';
+import { setPlayers } from './store'; // Ajusta la ruta según donde hayas colocado store.js
 import {
   ThemeProvider,
   createTheme,
@@ -63,7 +63,7 @@ const App = () => {
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const maxRetries = 3;
-  const initialRetryDelay = 2000; // 2 segundos de retraso inicial
+  const initialRetryDelay = 2000;
 
   const { user, role, logout } = useAuth();
   const { addNotification } = useNotification();
@@ -77,7 +77,7 @@ const App = () => {
       if (!token) throw new Error('No token available');
       const response = await axios.get(`${BACKEND_URL}/api/players`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000, // Reducido a 10 segundos
+        timeout: 10000,
       });
       const normalizedPlayers = response.data.map((player) => ({ ...player, _id: String(player._id) }));
       dispatch(setPlayers(normalizedPlayers));
@@ -94,7 +94,7 @@ const App = () => {
       console.log('Fetching tournaments from:', url, 'with token:', token ? 'present' : 'missing');
       const response = await axios.get(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        timeout: 10000, // Reducido a 10 segundos
+        timeout: 10000,
       });
       console.log('API response (App.jsx):', response.data);
       if (!Array.isArray(response.data)) {
