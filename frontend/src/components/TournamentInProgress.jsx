@@ -83,7 +83,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       setError('No se proporcionó un ID de torneo válido');
       setLoading(false);
     }
-  }, [tournamentId]);
+  }, [tournamentId, fetchTournamentData]);
 
   const handleTabChange = (event, newValue) => {
     console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
