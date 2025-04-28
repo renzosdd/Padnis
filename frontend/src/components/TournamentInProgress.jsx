@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
   Box,
   Tabs,
@@ -42,20 +42,21 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTournament }) => {
+const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false); // Nueva bandera para evitar múltiples solicitudes
   const swiperRef = useRef(null);
   const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
 
   console.log('TournamentInProgress rendered:', { tournamentId, isFetching, loading, tabValue });
 
   const fetchTournamentData = useCallback(async () => {
-    if (isFetching) {
-      console.log('Fetch already in progress, skipping...');
+    if (isFetching || hasFetched) {
+      console.log('Fetch already in progress or already fetched, skipping...');
       return;
     }
     setIsFetching(true);
@@ -64,6 +65,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       const data = await fetchTournament();
       console.log('Fetched tournament data in TournamentInProgress:', data);
       setTournament(data);
+      setHasFetched(true); // Marcamos que ya se ha solicitado los datos
       if (data.status !== 'En curso') {
         onFinishTournament(data);
       }
@@ -74,7 +76,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       setLoading(false);
       setIsFetching(false);
     }
-  }, [fetchTournament, addNotification, onFinishTournament, isFetching]);
+  }, [fetchTournament, addNotification, onFinishTournament, isFetching, hasFetched]);
 
   useEffect(() => {
     if (tournamentId) {
@@ -102,6 +104,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
 
   const handleGenerateKnockout = useCallback(async () => {
     if (isFetching) return;
+    setHasFetched(false); // Permitir una nueva solicitud después de generar la fase de eliminación
     try {
       await generateKnockoutPhase();
       await fetchTournamentData();
@@ -112,6 +115,7 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
 
   const handleAdvanceEliminationRound = useCallback(async () => {
     if (isFetching) return;
+    setHasFetched(false); // Permitir una nueva solicitud después de avanzar la ronda
     try {
       await advanceEliminationRound();
       await fetchTournamentData();
@@ -246,6 +250,6 @@ const TournamentInProgress = ({ tournamentId, role, addNotification, onFinishTou
       </Swiper>
     </Box>
   );
-};
+});
 
 export default TournamentInProgress;
