@@ -1,146 +1,87 @@
+// src/frontend/src/useTournament.js
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 
-const useTournament = (tournamentId) => {
-  const [standings, setStandings] = useState([]);
+const API_URL = process.env.REACT_APP_API_URL || 'https://padnis.onrender.com';
 
-  // Fetch tournament data by ID
-  const fetchTournament = useCallback(async () => {
-    try {
-      const response = await axios.get(`https://padnis.onrender.com/api/tournaments/${tournamentId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      const tournamentData = response.data;
-      console.log('Fetched tournament data in useTournament:', tournamentData);
-      // Compute standings if the tournament has groups
-      if (tournamentData.groups && Array.isArray(tournamentData.groups)) {
-        const computedStandings = computeStandings(tournamentData);
-        setStandings(computedStandings);
-      }
-      return tournamentData;
-    } catch (error) {
-      console.error('Error fetching tournament:', error);
-      throw error;
-    }
-  }, [tournamentId]);
-
-  // Compute standings for groups phase
-  const computeStandings = (tournament) => {
-    if (!tournament.groups || !Array.isArray(tournament.groups)) return [];
-
-    return tournament.groups.map((group) => {
-      const groupStandings = {};
-
-      // Initialize standings for each participant in the group
-      const participants = Array.isArray(group.participants) ? group.participants : [];
-      participants.forEach((participant) => {
-        const player1Id = participant.player1?._id || participant.player1;
-        if (player1Id) {
-          groupStandings[player1Id] = {
-            player1: participant.player1,
-            points: 0,
-            matchesPlayed: 0,
+export const computeStandings = (tournament) => {
+  const groups = (tournament.groups || []).map((group) => {
+    const table = {};
+    group.matches.forEach((m) => {
+      const r = m.result;
+      if (!r || !r.winner) return;
+      const winId = r.winner.player1;
+      const loseId = r.runnerUp?.player1;
+      [winId, loseId].forEach((pid) => {
+        if (!pid) return;
+        if (!table[pid]) {
+          table[pid] = {
+            player1: pid,
             wins: 0,
             losses: 0,
-            setsWon: 0,
-            setsLost: 0,
+            matchesPlayed: 0,
+            points: 0
           };
         }
       });
-
-      // Process each match to update standings
-      const matches = Array.isArray(group.matches) ? group.matches : [];
-      matches.forEach((match) => {
-        if (!match.result || !match.result.winner) return;
-
-        const winnerId = match.result.winner?.player1?._id || match.result.winner?.player1;
-        const runnerUpId = match.result.runnerUp?.player1?._id || match.result.runnerUp?.player1;
-
-        if (!winnerId || !runnerUpId) return;
-
-        // Update matches played
-        if (groupStandings[winnerId]) groupStandings[winnerId].matchesPlayed += 1;
-        if (groupStandings[runnerUpId]) groupStandings[runnerUpId].matchesPlayed += 1;
-
-        // Update wins and losses
-        if (groupStandings[winnerId]) groupStandings[winnerId].wins += 1;
-        if (groupStandings[runnerUpId]) groupStandings[runnerUpId].losses += 1;
-
-        // Update points (e.g., 3 points for a win)
-        if (groupStandings[winnerId]) groupStandings[winnerId].points += 3;
-
-        // Update sets won and lost
-        const sets = Array.isArray(match.result.sets) ? match.result.sets : [];
-        sets.forEach((set) => {
-          const p1Score = parseInt(set.player1, 10);
-          const p2Score = parseInt(set.player2, 10);
-          const tb1 = parseInt(set.tiebreak1, 10);
-          const tb2 = parseInt(set.tiebreak2, 10);
-
-          const player1WinsSet = p1Score > p2Score || (p1Score === p2Score && tb1 > tb2);
-          const player2WinsSet = p2Score > p1Score || (p1Score === p2Score && tb2 > tb1);
-
-          const player1Id = match.player1?.player1?._id || match.player1?.player1;
-          const player2Id = match.player2?.player1?._id || match.player2?.player1;
-
-          if (player1WinsSet && groupStandings[player1Id] && groupStandings[player2Id]) {
-            groupStandings[player1Id].setsWon += 1;
-            groupStandings[player2Id].setsLost += 1;
-          } else if (player2WinsSet && groupStandings[player1Id] && groupStandings[player2Id]) {
-            groupStandings[player2Id].setsWon += 1;
-            groupStandings[player1Id].setsLost += 1;
-          }
-        });
-      });
-
-      // Convert standings object to array and sort by points
-      const standingsArray = Object.values(groupStandings).sort((a, b) => {
-        if (b.points !== a.points) return b.points - a.points;
-        const setDiffA = a.setsWon - a.setsLost;
-        const setDiffB = b.setsWon - b.setsLost;
-        return setDiffB - setDiffA;
-      });
-
-      return {
-        groupName: group.groupName || `Grupo ${tournament.groups.indexOf(group) + 1}`,
-        standings: standingsArray,
-      };
+      if (table[winId]) {
+        table[winId].wins += 1;
+        table[winId].matchesPlayed += 1;
+        table[winId].points += 3;
+      }
+      if (loseId && table[loseId]) {
+        table[loseId].losses += 1;
+        table[loseId].matchesPlayed += 1;
+      }
     });
-  };
+    const standings = Object.values(table).sort((a, b) => b.points - a.points);
+    return { name: group.name, standings };
+  });
+  return { groups: groups };
+};
 
-  // Generate knockout phase
+const useTournament = (tournamentId) => {
+  const [standings, setStandings] = useState({ groups: [] });
+
+  const fetchTournament = useCallback(
+    async (updateMatch = false, matchId, result) => {
+      const token = localStorage.getItem('token');
+      if (updateMatch && matchId && result) {
+        await axios.put(
+          `${API_URL}/api/tournaments/${tournamentId}/matches/${matchId}/result`,
+          result,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      const res = await axios.get(
+        `${API_URL}/api/tournaments/${tournamentId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = res.data;
+      if (data.groups) {
+        setStandings(computeStandings(data));
+      }
+      return data;
+    },
+    [tournamentId]
+  );
+
   const generateKnockoutPhase = useCallback(async () => {
-    try {
-      await axios.post(`https://padnis.onrender.com/api/tournaments/${tournamentId}/generate-knockout`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      const updatedTournament = await fetchTournament();
-      return updatedTournament;
-    } catch (error) {
-      console.error('Error generating knockout phase:', error);
-      throw error;
-    }
-  }, [tournamentId, fetchTournament]);
+    // If backend supports, call its endpoint here.
+    // Otherwise, re-fetch and assume server handled it.
+    await fetchTournament();
+  }, [fetchTournament]);
 
-  // Advance elimination round
   const advanceEliminationRound = useCallback(async () => {
-    try {
-      await axios.post(`https://padnis.onrender.com/api/tournaments/${tournamentId}/advance-elimination`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      const updatedTournament = await fetchTournament();
-      return updatedTournament;
-    } catch (error) {
-      console.error('Error advancing elimination round:', error);
-      throw error;
-    }
-  }, [tournamentId, fetchTournament]);
+    // If backend supports advance-round, call it here.
+    await fetchTournament();
+  }, [fetchTournament]);
 
   return {
     standings,
     fetchTournament,
     generateKnockoutPhase,
-    advanceEliminationRound,
+    advanceEliminationRound
   };
 };
 

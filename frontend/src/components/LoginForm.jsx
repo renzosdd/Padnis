@@ -7,20 +7,23 @@ import { TextField, Button, Box } from '@mui/material';
 const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  const { onLogin } = useAuth();
   const { addNotification } = useNotification();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('https://padnis.onrender.com/api/login', { username, password });
-      localStorage.setItem('token', response.data.token);
-      login(response.data.username, response.data.role);
+      const { data } = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/login`,
+        { username, password }
+      );
+      onLogin({ token: data.token, username: data.username, role: data.role });
       addNotification('Inicio de sesión exitoso', 'success');
       if (onLoginSuccess) onLoginSuccess();
     } catch (error) {
       console.error('Error logging in from frontend:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Error al iniciar sesión';
+      const errorMessage =
+        error.response?.data?.message || error.message || 'Error al iniciar sesión';
       addNotification(errorMessage, 'error');
     }
   };
@@ -43,8 +46,12 @@ const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
         margin="normal"
       />
       <Box sx={{ mt: 2 }}>
-        <Button variant="contained" color="primary" type="submit" sx={{ mr: 1 }}>Iniciar sesión</Button>
-        <Button variant="text" onClick={onSwitchToRegister}>¿No tienes cuenta? Regístrate</Button>
+        <Button variant="contained" color="primary" type="submit" sx={{ mr: 1 }}>
+          Iniciar sesión
+        </Button>
+        <Button variant="text" onClick={onSwitchToRegister}>
+          ¿No tienes cuenta? Regístrate
+        </Button>
       </Box>
     </Box>
   );

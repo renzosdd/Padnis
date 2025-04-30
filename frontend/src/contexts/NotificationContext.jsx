@@ -5,19 +5,17 @@ const NotificationContext = createContext();
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
 
-  const addNotification = (message, type) => {
-    setNotifications(prev => [...prev, { message, type }]);
-    setTimeout(() => setNotifications(prev => prev.slice(1)), 3000);
+  const addNotification = (message, severity = 'info') => {
+    const key = Date.now();
+    setNotifications((prev) => [...prev, { key, message, severity }]);
+    setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.key !== key));
+    }, 3000);
   };
 
   return (
     <NotificationContext.Provider value={{ notifications, addNotification }}>
       {children}
-      {notifications.map((notif, idx) => (
-        <div key={idx} className={`toast ${notif.type}`}>
-          {notif.message}
-        </div>
-      ))}
     </NotificationContext.Provider>
   );
 };

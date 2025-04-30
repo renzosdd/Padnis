@@ -1,4 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+// src/frontend/src/components/TournamentInProgress.jsx
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+  useContext
+} from 'react';
 import {
   Box,
   Tabs,
@@ -6,34 +14,36 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  Snackbar
 } from '@mui/material';
-import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination } from 'swiper/modules';
+import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
+
 import TournamentDetails from './TournamentDetails.jsx';
 import TournamentGroups from './TournamentGroups.jsx';
 import TournamentStandings from './TournamentStandings.jsx';
 import TournamentBracket from './TournamentBracket.jsx';
 import useTournament from './useTournament.js';
 import { getPlayerName, getRoundName } from './tournamentUtils.js';
+import AuthContext from '../contexts/AuthContext';
+import NotificationContext from '../contexts/NotificationContext';
+import { SocketContext } from '../App.jsx';
 
-// Error Boundary Component
+// Captura errores de renderizado
 class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };
-
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-
   render() {
     if (this.state.hasError) {
       return (
         <Box sx={{ p: 2 }}>
           <Alert severity="error">
-            Ocurrió un error al renderizar este componente: {this.state.error?.message || 'Error desconocido'}.
-            Por favor, intenta recargar la página o contacta al soporte.
+            Ocurrió un error: {this.state.error?.message || 'desconocido'}.
           </Alert>
         </Box>
       );
@@ -42,104 +52,108 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFinishTournament }) => {
+const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(() => {
-    // Recuperar tabValue de localStorage para mantener la pestaña seleccionada
-    return parseInt(localStorage.getItem(`tabValue_${tournamentId}`) || '0', 10);
+    return parseInt(localStorage.getItem(`tab_${tournamentId}`) || '0', 10);
   });
-  const [isFetching, setIsFetching] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [snackbar, setSnackbar] = useState(null);
+
   const swiperRef = useRef(null);
-  const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } = useTournament(tournamentId);
+  const socket = useContext(SocketContext);
+  const { user, role } = useContext(AuthContext);
+  const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } =
+    useTournament(tournamentId);
 
-  console.log('TournamentInProgress rendered:', { tournamentId, isFetching, loading, tabValue });
+  const addNotification = useContext(NotificationContext).addNotification;
 
-  const fetchTournamentData = useCallback(async (force = false) => {
-    if (isFetching || (hasFetched && !force)) {
-      console.log('Fetch already in progress or already fetched, skipping...');
-      return;
-    }
-    setIsFetching(true);
-    setLoading(true);
-    try {
-      const data = await fetchTournament();
-      console.log('Fetched tournament data in TournamentInProgress:', data);
-      setTournament(data);
-      setHasFetched(true);
-      if (data.status !== 'En curso') {
-        onFinishTournament(data);
+  // Carga inicial o forzada
+  const loadTournament = useCallback(
+    async (force = false) => {
+      setLoading(true);
+      try {
+        const data = await fetchTournament();
+        setTournament(data);
+        if (data.status !== 'En curso') onFinishTournament?.(data);
+      } catch (err) {
+        const msg = err.response?.data?.message || err.message;
+        setError(msg);
+        addNotification('Error cargando torneo', 'error');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Error al cargar el torneo');
-      addNotification('Error al cargar el torneo', 'error');
-    } finally {
-      setLoading(false);
-      setIsFetching(false);
-    }
-  }, [fetchTournament, addNotification, onFinishTournament, isFetching, hasFetched]);
+    },
+    [fetchTournament, onFinishTournament, addNotification]
+  );
 
   useEffect(() => {
-    if (tournamentId) {
-      fetchTournamentData();
-    } else {
-      setError('No se proporcionó un ID de torneo válido');
+    if (tournamentId) loadTournament();
+    else {
+      setError('ID de torneo inválido');
       setLoading(false);
     }
-  }, [tournamentId, fetchTournamentData]);
+  }, [tournamentId, loadTournament]);
 
+  // Socket.io: recarga dinámica
   useEffect(() => {
-    // Guardar tabValue en localStorage para mantener la pestaña seleccionada
-    localStorage.setItem(`tabValue_${tournamentId}`, tabValue.toString());
+    socket.on('match:updated', () => {
+      loadTournament(true);
+      addNotification('Resultado actualizado', 'success');
+    });
+    socket.on('tournament:roundChanged', () => {
+      loadTournament(true);
+      addNotification('Nueva ronda generada', 'info');
+    });
+    return () => {
+      socket.off('match:updated');
+      socket.off('tournament:roundChanged');
+    };
+  }, [socket, loadTournament, addNotification]);
+
+  // Guardar pestaña en localStorage
+  useEffect(() => {
+    localStorage.setItem(`tab_${tournamentId}`, tabValue.toString());
   }, [tabValue, tournamentId]);
 
-  const handleTabChange = useCallback((event, newValue) => {
-    console.log('handleTabChange triggered - New tab value:', newValue, 'Swiper ref:', swiperRef.current);
-    setTabValue(newValue);
-    if (swiperRef.current && swiperRef.current.swiper) {
-      swiperRef.current.swiper.slideTo(newValue);
-    } else {
-      console.warn('Swiper ref is not initialized properly during tab change');
-    }
+  // Cambiar pestaña
+  const handleTabChange = useCallback((_, newVal) => {
+    setTabValue(newVal);
+    swiperRef.current?.swiper?.slideTo(newVal);
   }, []);
 
+  // Syncronizar Swiper → Tabs
   const handleSlideChange = useCallback((swiper) => {
-    console.log('Slide changed to index:', swiper.activeIndex);
     setTabValue(swiper.activeIndex);
   }, []);
 
-  const handleGenerateKnockout = useCallback(async () => {
-    if (isFetching) return;
+  // Handlers de fase de eliminación
+  const onGenerateKnockout = useCallback(async () => {
     try {
       await generateKnockoutPhase();
-      setHasFetched(false);
-      await fetchTournamentData(true);
-    } catch (err) {
-      addNotification('Error al generar la fase de eliminación', 'error');
+      loadTournament(true);
+    } catch {
+      addNotification('Error al generar eliminatorias', 'error');
     }
-  }, [generateKnockoutPhase, addNotification, fetchTournamentData, isFetching]);
+  }, [generateKnockoutPhase, loadTournament, addNotification]);
 
-  const handleAdvanceEliminationRound = useCallback(async () => {
-    if (isFetching) return;
+  const onAdvanceRound = useCallback(async () => {
     try {
       await advanceEliminationRound();
-      setHasFetched(false);
-      await fetchTournamentData(true);
-    } catch (err) {
-      addNotification('Error al avanzar la ronda de eliminación', 'error');
+      loadTournament(true);
+    } catch {
+      addNotification('Error al avanzar ronda', 'error');
     }
-  }, [advanceEliminationRound, addNotification, fetchTournamentData, isFetching]);
+  }, [advanceEliminationRound, loadTournament, addNotification]);
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
         <CircularProgress aria-label="Cargando torneo" />
       </Box>
     );
   }
-
   if (error) {
     return (
       <Box sx={{ p: 2 }}>
@@ -147,13 +161,10 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
       </Box>
     );
   }
-
   if (!tournament) {
     return (
       <Box sx={{ p: 2 }}>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          No se encontró el torneo.
-        </Typography>
+        <Typography>No se encontró el torneo.</Typography>
       </Box>
     );
   }
@@ -161,29 +172,29 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
   const hasGroups = Array.isArray(tournament.groups) && tournament.groups.length > 0;
   const hasRounds = Array.isArray(tournament.rounds) && tournament.rounds.length > 0;
 
-  const tabConfig = [
-    { label: 'Detalles', component: <TournamentDetails tournament={tournament} /> },
+  // Configuración de pestañas
+  const tabs = [
+    { label: 'Detalles', content: <TournamentDetails tournament={tournament} /> },
     ...(hasGroups
       ? [
           {
             label: 'Grupos',
-            component: (
+            content: (
               <TournamentGroups
                 tournament={tournament}
                 role={role}
-                generateKnockoutPhase={handleGenerateKnockout}
                 getPlayerName={getPlayerName}
-                fetchTournament={fetchTournamentData}
+                fetchTournament={() => loadTournament(true)}
                 addNotification={addNotification}
-                groups={tournament.groups || []}
+                generateKnockoutPhase={onGenerateKnockout}
+                groups={tournament.groups}
               />
             ),
           },
           {
             label: 'Posiciones',
-            component: (
+            content: (
               <TournamentStandings
-                tournament={tournament}
                 standings={standings}
                 getPlayerName={getPlayerName}
               />
@@ -195,16 +206,16 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
       ? [
           {
             label: 'Llave',
-            component: (
+            content: (
               <TournamentBracket
                 tournament={tournament}
                 role={role}
                 getPlayerName={getPlayerName}
                 getRoundName={getRoundName}
-                advanceEliminationRound={handleAdvanceEliminationRound}
-                fetchTournament={fetchTournamentData}
+                fetchTournament={() => loadTournament(true)}
                 addNotification={addNotification}
-                matches={tournament.rounds || []}
+                advanceEliminationRound={onAdvanceRound}
+                matches={tournament.rounds}
               />
             ),
           },
@@ -214,47 +225,46 @@ const TournamentInProgress = memo(({ tournamentId, role, addNotification, onFini
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2 } }}>
-      <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 1 }}>
-        {tournament.name || 'Torneo sin nombre'}
+      <Typography
+        variant="h5"
+        sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2 }}
+      >
+        {tournament.name}
       </Typography>
+
       <Tabs
         value={tabValue}
         onChange={handleTabChange}
         variant="scrollable"
         scrollButtons="auto"
-        aria-label="Pestañas de navegación del torneo"
         sx={{ mb: 2 }}
       >
-        {tabConfig.map((tab, index) => (
-          <Tab
-            key={index}
-            label={tab.label}
-            sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-          />
+        {tabs.map((t, i) => (
+          <Tab key={i} label={t.label} />
         ))}
       </Tabs>
+
       <Swiper
         ref={swiperRef}
+        modules={[Navigation, Pagination]}
         spaceBetween={10}
         slidesPerView={1}
         onSlideChange={handleSlideChange}
-        onSwiper={(swiper) => {
-          console.log('Swiper initialized:', swiper);
-          swiperRef.current = { swiper };
-        }}
-        modules={[Navigation, Pagination]}
         pagination={{ clickable: true }}
-        style={{ width: '100%' }}
-        lazy={true}
       >
-        {tabConfig.map((tab, index) => (
-          <SwiperSlide key={index}>
-            <ErrorBoundary>
-              {tab.component}
-            </ErrorBoundary>
+        {tabs.map((t, i) => (
+          <SwiperSlide key={i}>
+            <ErrorBoundary>{t.content}</ErrorBoundary>
           </SwiperSlide>
         ))}
       </Swiper>
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar(null)}
+        message={snackbar}
+      />
     </Box>
   );
 });

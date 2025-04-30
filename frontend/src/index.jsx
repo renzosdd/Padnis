@@ -1,15 +1,18 @@
 import React from 'react';
-   import ReactDOM from 'react-dom/client';
-   import { Provider } from 'react-redux';
-   import store from './store/store'; // Correcto para src/frontend/src/store/store.js
-   import App from './components/App';
-   //import './index.css'; // Si tienes un archivo CSS
+import ReactDOM from 'react-dom/client';
+import { Provider as ReduxProvider } from 'react-redux';
+import { ThemeProvider } from '@mui/material';
+import store from './store/store';
+import App from './App';
+import theme from './theme';
 
-   const root = ReactDOM.createRoot(document.getElementById('root'));
-   root.render(
-     <React.StrictMode>
-       <Provider store={store}>
-         <App />
-       </Provider>
-     </React.StrictMode>
-   );
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <ReduxProvider store={store}>
+      <ThemeProvider theme={theme}>
+        <App />
+      </ThemeProvider>
+    </ReduxProvider>
+  </React.StrictMode>
+);

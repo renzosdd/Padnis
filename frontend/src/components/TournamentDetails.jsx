@@ -1,158 +1,102 @@
+// src/frontend/src/components/TournamentDetails.jsx
 import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
   Table,
-  TableBody,
-  TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TableCell,
+  TableBody,
   TablePagination,
   TextField,
-  Paper,
+  Paper
 } from '@mui/material';
-import { getPlayerName, normalizeId } from './tournamentUtils.js';
+import { getPlayerName, normalizeId } from '../tournamentUtils';
 
 const TournamentDetails = ({ tournament }) => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Filter participants based on search (match individual player names for doubles)
-  const filteredParticipants = useMemo(() => {
-    if (!tournament?.participants || !Array.isArray(tournament.participants)) {
-      console.warn('Invalid or missing participants:', tournament?.participants);
-      return [];
-    }
-    return tournament.participants.filter((participant) => {
-      const player1Id = normalizeId(participant.player1?._id || participant.player1);
-      const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2) : null;
-      const player1Name = getPlayerName(tournament, player1Id);
-      const player2Name = player2Id ? getPlayerName(tournament, player2Id) : '';
-      const searchLower = search.toLowerCase();
-      return (
-        player1Name.toLowerCase().includes(searchLower) ||
-        (player2Name && player2Name.toLowerCase().includes(searchLower))
-      );
+  const filtered = useMemo(() => {
+    if (!tournament.participants) return [];
+    return tournament.participants.filter(p => {
+      const name = getPlayerName(tournament, normalizeId(p.player1)).toLowerCase();
+      return name.includes(search.toLowerCase());
     });
-  }, [tournament, search]);
-
-  // Pagination logic
-  const paginatedParticipants = filteredParticipants.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
-
-  const handleSearchChange = (event) => {
-    setSearch(event.target.value);
-    setPage(0);
-  };
+  }, [search, tournament]);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
 
-  const handleChangeRowsPerPage = (event) => {
+  const handleChangeRowsPerPage = event => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
+  const currentData = useMemo(() => {
+    return filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [filtered, page, rowsPerPage]);
+
   return (
-    <Box sx={{ p: { xs: 0.5, sm: 2 }, maxWidth: '100%', overflowX: 'auto' }}>
-      <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, color: '#1976d2', mb: 1 }}>
+    <Box>
+      <Typography variant="h6" gutterBottom>
         Detalles del Torneo
       </Typography>
-      <Box sx={{ mb: 2 }}>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Nombre:</strong> {tournament.name || 'No definido'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Club:</strong> {tournament.club?.name || 'No definido'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Categoría:</strong> {tournament.category || 'No definida'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Tipo:</strong> {tournament.type || 'No definido'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Deporte:</strong> {tournament.sport || 'No definido'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Modalidad:</strong> {tournament.format?.mode || 'No definido'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Sets por partido:</strong> {tournament.format?.sets || 'No definido'}
-        </Typography>
-        <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-          <strong>Juegos por set:</strong> {tournament.format?.gamesPerSet || 'No definido'}
-        </Typography>
-      </Box>
-      <Typography variant="subtitle1" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, mb: 1, fontWeight: 'bold' }}>
-        Participantes
+      <Typography>
+        Nombre: {tournament.name}
       </Typography>
+      <Typography>
+        Tipo: {tournament.type}
+      </Typography>
+      <Typography>
+        Deporte: {tournament.sport}
+      </Typography>
+
       <TextField
-        label="Buscar Participante"
+        label="Buscar participante"
         value={search}
-        onChange={handleSearchChange}
+        onChange={e => setSearch(e.target.value)}
         fullWidth
-        sx={{ mb: 1 }}
         size="small"
-        aria-label="Buscar participante por nombre"
+        sx={{ mt: 2, mb: 2 }}
       />
-      <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table aria-label="Tabla de participantes">
+
+      <TableContainer component={Paper}>
+        <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: '#1976d2' }}>
-              <TableCell sx={{ color: '#fff', fontWeight: 'bold', fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 200 }}>
-                Nombre(s)
-              </TableCell>
+            <TableRow>
+              <TableCell>Participante</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginatedParticipants.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={1} sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, textAlign: 'center' }}>
-                  No hay participantes disponibles
+            {currentData.map((p, index) => (
+              <TableRow key={index}>
+                <TableCell>
+                  {getPlayerName(tournament, normalizeId(p.player1))}
+                  {p.player2
+                    ? ` / ${getPlayerName(tournament, normalizeId(p.player2))}`
+                    : ''}
                 </TableCell>
               </TableRow>
-            ) : (
-              paginatedParticipants.map((participant, index) => {
-                const player1Id = normalizeId(participant.player1?._id || participant.player1);
-                const player2Id = participant.player2 ? normalizeId(participant.player2?._id || participant.player2) : null;
-                const displayName = getPlayerName(tournament, player1Id, player2Id);
-
-                return (
-                  <TableRow
-                    key={player1Id || index}
-                    sx={{ bgcolor: index % 2 === 0 ? '#fff' : '#f5f5f5' }}
-                  >
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                      {displayName}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
+
       <TablePagination
-        rowsPerPageOptions={[10]}
         component="div"
-        count={filteredParticipants.length}
-        rowsPerPage={rowsPerPage}
+        count={filtered.length}
         page={page}
         onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
         onRowsPerPageChange={handleChangeRowsPerPage}
-        labelRowsPerPage="Filas por página:"
-        labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
-        sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-        aria-label="Paginación de participantes"
+        rowsPerPageOptions={[10]}
       />
     </Box>
-  );
+);
 };
-
 export default TournamentDetails;
