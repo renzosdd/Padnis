@@ -1,4 +1,3 @@
-// src/frontend/src/components/NavBar.jsx
 import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,6 +23,18 @@ const NavBar = () => {
         >
           Padnis
         </Typography>
+
+        {user && (role === 'admin' || role === 'coach') && (
+          <Button
+            color="inherit"
+            component={Link}
+            to="/tournaments/create"
+            sx={{ textTransform: 'none' }}
+          >
+            Crear Torneo
+          </Button>
+        )}
+
         {user ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography>{user} ({role})</Typography>
@@ -43,7 +54,6 @@ const NavBar = () => {
         )}
       </Toolbar>
     </AppBar>
-  );
-};
-
+);
+        }
 export default NavBar;

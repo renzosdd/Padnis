@@ -1,4 +1,3 @@
-// src/frontend/src/components/TournamentInProgress.jsx
 import React, {
   useState,
   useEffect,
@@ -34,7 +33,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import SocketContext from '../contexts/SocketContext';
 
-// Captura errores de renderizado
 class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };
   static getDerivedStateFromError(error) {
@@ -63,64 +61,56 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tabValue, setTabValue] = useState(
-    () => parseInt(localStorage.getItem(`tab_${tournamentId}`) || '0', 10)
+  const [tabValue, setTabValue] = useState(() =>
+    parseInt(localStorage.getItem(`tab_${tournamentId}`) || '0', 10)
   );
   const [snackbar, setSnackbar] = useState(null);
-  const swiperRef = useRef(null);
 
-  // Desestructuramos TODO desde el hook
+  const swiperRef = useRef(null);
   const {
-    tournament: freshTournament,
-    matchResults,
-    matchErrors,
     standings,
     fetchTournament,
-    onResultChange,
-    onSaveResult,
     generateKnockoutPhase,
     advanceEliminationRound
   } = useTournament(tournamentId);
 
-  // Carga inicial y forzada
-  const loadTournament = useCallback(
-    async (force = false) => {
-      setLoading(true);
-      try {
-        const data = await fetchTournament({ force });
-        setTournament(data);
-        if (data.status !== 'En curso') {
-          onFinishTournament?.(data);
-        }
-      } catch (err) {
-        const msg = err.response?.data?.message || err.message;
-        setError(msg);
-        addNotification('Error cargando torneo', 'error');
-      } finally {
-        setLoading(false);
+  // Carga del torneo
+  const loadTournament = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchTournament(); // <-- Ya no le pasamos args
+      setTournament(data);
+      if (data.status !== 'En curso') {
+        onFinishTournament?.(data);
       }
-    },
-    [fetchTournament, onFinishTournament, addNotification]
-  );
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message;
+      setError(msg);
+      addNotification('Error cargando torneo', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchTournament, onFinishTournament, addNotification]);
 
+  // Primera carga
   useEffect(() => {
-    if (tournamentId) {
-      loadTournament();
-    } else {
+    if (tournamentId) loadTournament();
+    else {
       setError('ID de torneo inválido');
       setLoading(false);
     }
   }, [tournamentId, loadTournament]);
 
-  // Socket.io
+  // Eventos de socket
   useEffect(() => {
     if (!socket) return;
     socket.on('match:updated', () => {
-      loadTournament(true);
+      loadTournament();
       addNotification('Resultado actualizado', 'success');
     });
     socket.on('tournament:roundChanged', () => {
-      loadTournament(true);
+      loadTournament();
       addNotification('Nueva ronda generada', 'info');
     });
     return () => {
@@ -129,36 +119,10 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
     };
   }, [socket, loadTournament, addNotification]);
 
+  // Persistir pestaña
   useEffect(() => {
     localStorage.setItem(`tab_${tournamentId}`, tabValue.toString());
   }, [tabValue, tournamentId]);
-
-  const handleTabChange = useCallback((_, newVal) => {
-    setTabValue(newVal);
-    swiperRef.current?.swiper?.slideTo(newVal);
-  }, []);
-
-  const handleSlideChange = useCallback((swiper) => {
-    setTabValue(swiper.activeIndex);
-  }, []);
-
-  const onGenerateKnockout = useCallback(async () => {
-    try {
-      await generateKnockoutPhase();
-      loadTournament(true);
-    } catch {
-      addNotification('Error al generar eliminatorias', 'error');
-    }
-  }, [generateKnockoutPhase, loadTournament, addNotification]);
-
-  const onAdvanceRound = useCallback(async () => {
-    try {
-      await advanceEliminationRound();
-      loadTournament(true);
-    } catch {
-      addNotification('Error al avanzar ronda', 'error');
-    }
-  }, [advanceEliminationRound, loadTournament, addNotification]);
 
   if (loading) {
     return (
@@ -184,6 +148,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
 
   const hasGroups = Array.isArray(tournament.groups) && tournament.groups.length > 0;
   const hasRounds = Array.isArray(tournament.rounds) && tournament.rounds.length > 0;
+  const canManage = role === 'admin' || role === 'coach';
 
   const tabs = [
     { label: 'Detalles', content: <TournamentDetails tournament={tournament} /> },
@@ -195,21 +160,21 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
               <TournamentGroups
                 tournament={tournament}
                 role={role}
-                matchResults={matchResults}
-                matchErrors={matchErrors}
-                onResultChange={onResultChange}
-                onSaveResult={onSaveResult}
-                generateKnockoutPhase={onGenerateKnockout}
+                getPlayerName={getPlayerName}
+                onResultChange={() => {}}
+                onSaveResult={() => {}}
+                matchErrors={{}}
+                generateKnockoutPhase={generateKnockoutPhase}
+                fetchTournament={loadTournament}
+                addNotification={addNotification}
+                groups={tournament.groups}
               />
             ),
           },
           {
             label: 'Posiciones',
             content: (
-              <TournamentStandings
-                standings={standings}
-                getPlayerName={getPlayerName}
-              />
+              <TournamentStandings standings={standings} getPlayerName={getPlayerName} />
             ),
           },
         ]
@@ -224,12 +189,10 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
                 role={role}
                 getPlayerName={getPlayerName}
                 getRoundName={getRoundName}
-                fetchTournament={() => loadTournament(true)}
+                fetchTournament={loadTournament}
                 addNotification={addNotification}
-                advanceEliminationRound={onAdvanceRound}
+                advanceEliminationRound={advanceEliminationRound}
                 matches={tournament.rounds}
-                onResultChange={onResultChange}
-                onSaveResult={onSaveResult}
               />
             ),
           },
@@ -248,7 +211,10 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
 
       <Tabs
         value={tabValue}
-        onChange={handleTabChange}
+        onChange={(_, newVal) => {
+          setTabValue(newVal);
+          swiperRef.current?.swiper?.slideTo(newVal);
+        }}
         variant="scrollable"
         scrollButtons="auto"
         sx={{ mb: 2 }}
@@ -263,7 +229,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
         modules={[Navigation, Pagination]}
         spaceBetween={10}
         slidesPerView={1}
-        onSlideChange={handleSlideChange}
+        onSlideChange={(swiper) => setTabValue(swiper.activeIndex)}
         pagination={{ clickable: true }}
       >
         {tabs.map((t, i) => (
