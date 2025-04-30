@@ -5,22 +5,49 @@ export default function useTournament(tournamentId) {
   const [tournament, setTournament] = useState(null);
   const [matchResults, setMatchResults] = useState({});
   const [matchErrors, setMatchErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchTournament = useCallback(async () => {
-    const { data: t } = await api.get(`/tournaments/${tournamentId}`);
-    // normaliza grupos y rondas...
-    setTournament(t);
-    // inicializa matchResults...
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: t } = await api.get(`/tournaments/${tournamentId}`);
+      // Normaliza grupos y rondas
+      t.groups = Array.isArray(t.groups) ? t.groups : [];
+      t.rounds = Array.isArray(t.rounds) ? t.rounds : [];
+      // Inicializa resultado por partido
+      const init = {};
+      [...t.groups, ...t.rounds].forEach(section =>
+        section.matches.forEach(m => {
+          init[m._id] = {
+            ...m.result,
+            saved: Array.isArray(m.result.sets) && m.result.sets.length > 0
+          };
+        })
+      );
+      setTournament(t);
+      setMatchResults(init);
+      setMatchErrors({});
+    } catch (err) {
+      setError(err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
   }, [tournamentId]);
 
   useEffect(() => {
-    if (tournamentId) fetchTournament();
+    if (tournamentId) {
+      fetchTournament();
+    }
   }, [tournamentId, fetchTournament]);
 
   const onResultChange = useCallback((matchId, field, value) => {
     setMatchResults(prev => {
       const mr = { ...prev[matchId] };
-      // lógica de edición inline (sets/tiebreak)...
+      mr.sets = Array.isArray(mr.sets) ? mr.sets : [];
+      // lógica inline...
       mr.saved = false;
       return { ...prev, [matchId]: mr };
     });
@@ -28,14 +55,16 @@ export default function useTournament(tournamentId) {
 
   const onSaveResult = useCallback(async (matchId, result) => {
     try {
-      // detecta KO o fase de grupos...
+      const isKO = tournament?.rounds?.some(r =>
+        r.matches.some(m => m._id === matchId)
+      );
       await api.put(
         `/tournaments/${tournamentId}/matches/${matchId}/result`,
         {
           sets: result.sets,
           winner: result.winner,
           runnerUp: result.runnerUp,
-          isKnockout,
+          isKnockout: isKO,
           matchTiebreak1: result.matchTiebreak.player1,
           matchTiebreak2: result.matchTiebreak.player2
         }
@@ -60,14 +89,21 @@ export default function useTournament(tournamentId) {
     await fetchTournament();
   }, [tournamentId, fetchTournament]);
 
+  const advanceEliminationRound = useCallback(async () => {
+    await fetchTournament();
+  }, [fetchTournament]);
+
   return {
     tournament,
     matchResults,
     matchErrors,
+    loading,
+    error,
     fetchTournament,
     onResultChange,
     onSaveResult,
     generateKnockoutPhase,
+    advanceEliminationRound,
     standings: useMemo(() => tournament?.standings || [], [tournament])
   };
 }
