@@ -7,6 +7,7 @@ import React, {
   memo,
   useContext
 } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Box,
   Tabs,
@@ -28,8 +29,9 @@ import TournamentStandings from './TournamentStandings.jsx';
 import TournamentBracket from './TournamentBracket.jsx';
 import useTournament from './useTournament.js';
 import { getPlayerName, getRoundName } from './tournamentUtils.js';
-import AuthContext from '../contexts/AuthContext';
-import NotificationContext from '../contexts/NotificationContext';
+
+import { useAuth } from '../contexts/AuthContext';
+import { useNotification } from '../contexts/NotificationContext';
 import SocketContext from '../contexts/SocketContext';
 
 // Captura errores de renderizado
@@ -52,7 +54,18 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
+const TournamentInProgress = memo(({ onFinishTournament }) => {
+  // 1) Extraemos el ID de la URL
+  const { id: tournamentId } = useParams();
+
+  // 2) Contextos de autenticación y notificaciones
+  const { user, role } = useAuth();
+  const { addNotification } = useNotification();
+
+  // 3) Socket.io
+  const socket = useContext(SocketContext);
+
+  // Estado local
   const [tournament, setTournament] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -62,21 +75,25 @@ const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
   const [snackbar, setSnackbar] = useState(null);
 
   const swiperRef = useRef(null);
-  const socket = useContext(SocketContext);
-  const { user, role } = useContext(AuthContext);
-  const { standings, fetchTournament, generateKnockoutPhase, advanceEliminationRound } =
-    useTournament(tournamentId);
 
-  const addNotification = useContext(NotificationContext).addNotification;
+  // Hook personalizado para lógica de torneo
+  const {
+    standings,
+    fetchTournament,
+    generateKnockoutPhase,
+    advanceEliminationRound
+  } = useTournament(tournamentId);
 
-  // Carga inicial o forzada
+  // Función para cargar el torneo
   const loadTournament = useCallback(
     async (force = false) => {
       setLoading(true);
       try {
-        const data = await fetchTournament();
+        const data = await fetchTournament({ force });
         setTournament(data);
-        if (data.status !== 'En curso') onFinishTournament?.(data);
+        if (data.status !== 'En curso') {
+          onFinishTournament?.(data);
+        }
       } catch (err) {
         const msg = err.response?.data?.message || err.message;
         setError(msg);
@@ -88,16 +105,19 @@ const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
     [fetchTournament, onFinishTournament, addNotification]
   );
 
+  // Carga inicial y cada vez que cambie el tournamentId
   useEffect(() => {
-    if (tournamentId) loadTournament();
-    else {
+    if (tournamentId) {
+      loadTournament();
+    } else {
       setError('ID de torneo inválido');
       setLoading(false);
     }
   }, [tournamentId, loadTournament]);
 
-  // Socket.io: recarga dinámica
+  // Socket.io: escuchamos eventos en tiempo real
   useEffect(() => {
+    if (!socket) return;
     socket.on('match:updated', () => {
       loadTournament(true);
       addNotification('Resultado actualizado', 'success');
@@ -112,23 +132,23 @@ const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
     };
   }, [socket, loadTournament, addNotification]);
 
-  // Guardar pestaña en localStorage
+  // Guardar la pestaña seleccionada en localStorage
   useEffect(() => {
     localStorage.setItem(`tab_${tournamentId}`, tabValue.toString());
   }, [tabValue, tournamentId]);
 
-  // Cambiar pestaña
+  // Manejo de cambio de pestaña (Tabs → Swiper)
   const handleTabChange = useCallback((_, newVal) => {
     setTabValue(newVal);
     swiperRef.current?.swiper?.slideTo(newVal);
   }, []);
 
-  // Syncronizar Swiper → Tabs
+  // Manejo de cambio de slide (Swiper → Tabs)
   const handleSlideChange = useCallback((swiper) => {
     setTabValue(swiper.activeIndex);
   }, []);
 
-  // Handlers de fase de eliminación
+  // Generar fase eliminatoria
   const onGenerateKnockout = useCallback(async () => {
     try {
       await generateKnockoutPhase();
@@ -138,6 +158,7 @@ const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
     }
   }, [generateKnockoutPhase, loadTournament, addNotification]);
 
+  // Avanzar ronda eliminatoria
   const onAdvanceRound = useCallback(async () => {
     try {
       await advanceEliminationRound();
@@ -147,6 +168,7 @@ const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
     }
   }, [advanceEliminationRound, loadTournament, addNotification]);
 
+  // Estados de carga / error / no encontrado
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -169,10 +191,10 @@ const TournamentInProgress = memo(({ tournamentId, onFinishTournament }) => {
     );
   }
 
+  // Determinar qué pestañas mostrar
   const hasGroups = Array.isArray(tournament.groups) && tournament.groups.length > 0;
   const hasRounds = Array.isArray(tournament.rounds) && tournament.rounds.length > 0;
 
-  // Configuración de pestañas
   const tabs = [
     { label: 'Detalles', content: <TournamentDetails tournament={tournament} /> },
     ...(hasGroups
