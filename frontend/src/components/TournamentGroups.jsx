@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import MatchCard from './MatchCard.jsx';
+import { getPlayerName } from '../utils/tournamentUtils.js';
 
 const TournamentGroups = ({
   tournament,
@@ -21,11 +22,11 @@ const TournamentGroups = ({
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const groups = Array.isArray(tournament?.groups) ? tournament.groups : [];
 
-  const canGen = role === 'admin' || role === 'coach';
+  const canGenerate = role === 'admin' || role === 'coach';
 
   return (
     <Box sx={{ px: isMobile ? 1 : 2, py: 1 }}>
-      {canGen && (
+      {canGenerate && (
         <Button
           variant="contained"
           onClick={generateKnockoutPhase}
@@ -47,24 +48,21 @@ const TournamentGroups = ({
             {grp.name}
           </Typography>
           <Grid container spacing={2}>
-            {grp.matches && grp.matches.length > 0 ? (
+            {Array.isArray(grp.matches) && grp.matches.length > 0 ? (
               grp.matches.map((m) => (
                 <Grid item xs={12} sm={6} key={m._id}>
                   <MatchCard
                     match={m}
                     matchResult={m.result}
-                    totalSets={tournament.format.sets}
+                    totalSets={tournament?.format?.sets || 2}
                     handleLocalInputChange={onResultChange}
                     matchErrors={matchErrors[m._id] || {}}
-                    getPlayerName={(t, pid) =>
-                      /* importa y usa getPlayerName */
-                      t.getPlayerName(tournament, pid)
-                    }
+                    getPlayerName={(pid) => getPlayerName(tournament, pid)}
                     tournament={tournament}
                     onSave={onSaveResult}
                     onToggleEdit={() => {}}
                     canEdit={
-                      tournament.status === 'En curso' &&
+                      tournament?.status === 'En curso' &&
                       (role === 'admin' || role === 'coach')
                     }
                   />
