@@ -1,5 +1,3 @@
-// src/frontend/src/components/TournamentGroups.jsx
-
 import React from 'react';
 import { Box, Typography, Grid, Button, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -10,7 +8,7 @@ const TournamentGroups = ({
   tournament,
   onResultChange,
   onSaveResult,
-  matchErrors,
+  matchErrors = {},
   role,
   generateKnockoutPhase
 }) => {
@@ -43,7 +41,7 @@ const TournamentGroups = ({
             {grp.name}
           </Typography>
           <Grid container spacing={2}>
-            {grp.matches?.length ? (
+            {(grp.matches ?? []).length > 0 ? (
               grp.matches.map((m) => (
                 <Grid item xs={12} sm={6} key={m._id}>
                   <MatchCard

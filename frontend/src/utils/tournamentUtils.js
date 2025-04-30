@@ -1,8 +1,4 @@
-// src/frontend/src/utils/tournamentUtils.js
-
-/**
- * normalizeId: acepta string/ObjectId o { _id, ... } y devuelve string o null
- */
+// normalizeId: acepta string/ObjectId o { _id, … } y devuelve string o null
 export function normalizeId(mix) {
   if (!mix) return null;
   return typeof mix === 'object'
@@ -41,7 +37,7 @@ export function getPlayerName(tournament, playerId) {
 }
 
 /**
- * Convierte un número de ronda (1,2,3...) en un nombre legible
+ * Convierte un número de ronda (1,2,3,…) en un nombre legible
  */
 export function getRoundName(round) {
   switch (round) {
