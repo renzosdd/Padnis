@@ -1,12 +1,7 @@
-// src/frontend/src/App.jsx
 import React, { useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Provider as ReduxProvider } from 'react-redux';
-import { ThemeProvider } from '@mui/material';
 import { io } from 'socket.io-client';
 
-import store from './store/store';
-import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import SocketContext from './contexts/SocketContext';
@@ -18,14 +13,12 @@ import TournamentList from './components/TournamentList';
 import TournamentHistory from './components/TournamentHistory';
 import TournamentInProgress from './components/TournamentInProgress';
 
-function MainApp() {
+const MainApp = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
-      navigate('/', { replace: true });
-    }
+    if (user) navigate('/', { replace: true });
   }, [user, navigate]);
 
   return (
@@ -50,32 +43,20 @@ function MainApp() {
         />
         <Route
           path="/"
-          element={
-            user
-              ? <TournamentList />
-              : <Navigate to="/login" replace />
-          }
+          element={user ? <TournamentList /> : <Navigate to="/login" replace />}
         />
         <Route
           path="/history"
-          element={
-            user
-              ? <TournamentHistory />
-              : <Navigate to="/login" replace />
-          }
+          element={user ? <TournamentHistory /> : <Navigate to="/login" replace />}
         />
         <Route
           path="/tournament/:id"
-          element={
-            user
-              ? <TournamentInProgress />
-              : <Navigate to="/login" replace />
-          }
+          element={user ? <TournamentInProgress /> : <Navigate to="/login" replace />}
         />
       </Routes>
     </>
   );
-}
+};
 
 export default function App() {
   const socket = useMemo(
@@ -84,18 +65,14 @@ export default function App() {
   );
 
   return (
-    <ReduxProvider store={store}>
-      <ThemeProvider theme={theme}>
-        <AuthProvider>
-          <NotificationProvider>
-            <SocketContext.Provider value={socket}>
-              <Router>
-                <MainApp />
-              </Router>
-            </SocketContext.Provider>
-          </NotificationProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </ReduxProvider>
+    <AuthProvider>
+      <NotificationProvider>
+        <SocketContext.Provider value={socket}>
+          <Router>
+            <MainApp />
+          </Router>
+        </SocketContext.Provider>
+      </NotificationProvider>
+    </AuthProvider>
   );
 }
