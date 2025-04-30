@@ -15,7 +15,7 @@ const RegisterForm = ({ onSwitchToLogin, onRegisterSuccess }) => {
     e.preventDefault();
     try {
       const { data } = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/register`,
+        `https://padnis.onrender.com/api/register`,
         { username, password }
       );
       onLogin({ token: data.token, username: data.username, role: data.role });

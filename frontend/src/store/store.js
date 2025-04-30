@@ -44,7 +44,7 @@ const pageSlice = createSlice({
 // ——— RTK QUERY API SLICE ———
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({ baseUrl: process.env.REACT_APP_API_URL }),
+  baseQuery: fetchBaseQuery({ baseUrl: 'https://padnis.onrender.com' }),
   tagTypes: ['Tournament', 'Match', 'Player'],
   endpoints: (builder) => ({
     // Obtener lista de torneos
