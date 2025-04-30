@@ -1,50 +1,41 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import api from '../api'; // tu instancia axios con baseURL y token
+import api from '../api'; // asegúrate de tener src/api.js como en el ejemplo anterior
 
-/**
- * Hook para manejar:
- * - fetch del torneo
- * - generación de eliminatorias
- * - avance de rondas
- * - estado local de resultados de partidos (edición inline)
- * - errores de validación de cada partido
- */
 export default function useTournament(tournamentId) {
   const [tournament, setTournament] = useState(null);
-  const [matchResults, setMatchResults] = useState({});   // { [matchId]: { sets:[], matchTiebreak:{}, saved:bool } }
-  const [matchErrors, setMatchErrors] = useState({});     // { [matchId]: { field: message } }
+  const [matchResults, setMatchResults] = useState({});
+  const [matchErrors, setMatchErrors] = useState({});
 
-  // 1) Fetch y normalización inicial
   const fetchTournament = useCallback(async () => {
     const resp = await api.get(`/tournaments/${tournamentId}`);
     const t = resp.data;
 
-    // Asegurar arrays
+    // Asegurar arrays y result
     t.groups = Array.isArray(t.groups) ? t.groups : [];
-    t.groups.forEach(g => {
+    t.groups.forEach((g) => {
       g.matches = Array.isArray(g.matches) ? g.matches : [];
-      g.matches.forEach(m => {
+      g.matches.forEach((m) => {
         m.result = m.result || { sets: [], matchTiebreak: { player1: '', player2: '' } };
       });
     });
 
     t.rounds = Array.isArray(t.rounds) ? t.rounds : [];
-    t.rounds.forEach(r => {
+    t.rounds.forEach((r) => {
       r.matches = Array.isArray(r.matches) ? r.matches : [];
-      r.matches.forEach(m => {
+      r.matches.forEach((m) => {
         m.result = m.result || { sets: [], matchTiebreak: { player1: '', player2: '' } };
       });
     });
 
     setTournament(t);
 
-    // Inicializar matchResults: traemos cada resultado existente
+    // Inicializar matchResults
     const init = {};
-    [...t.groups, ...t.rounds].forEach(section => {
-      section.matches.forEach(m => {
+    [...t.groups, ...t.rounds].forEach((section) => {
+      section.matches.forEach((m) => {
         init[m._id] = {
           ...m.result,
-          saved: Array.isArray(m.result.sets) && m.result.sets.length > 0
+          saved: Array.isArray(m.result.sets) && m.result.sets.length > 0,
         };
       });
     });
@@ -53,16 +44,13 @@ export default function useTournament(tournamentId) {
     return t;
   }, [tournamentId]);
 
-  // Al montar / cuando cambie el ID
   useEffect(() => {
     if (tournamentId) fetchTournament();
   }, [tournamentId, fetchTournament]);
 
-  // 2) Cambios inline de un partido
   const onResultChange = useCallback((matchId, field, value) => {
-    setMatchResults(prev => {
+    setMatchResults((prev) => {
       const mr = { ...prev[matchId] };
-      // field: "set{i}-0"|"set{i}-1"|"tiebreak{i}-0"|"..."|"matchTiebreak-0"|"matchTiebreak-1"
       const setMatchT = (idx, key, val) => {
         mr.sets = Array.isArray(mr.sets) ? mr.sets : [];
         while (mr.sets.length <= idx) {
@@ -83,70 +71,58 @@ export default function useTournament(tournamentId) {
         mr.matchTiebreak[`player${+pi + 1}`] = value;
       }
 
-      // Al editar, marcamos como no guardado
       mr.saved = false;
       return { ...prev, [matchId]: mr };
     });
   }, []);
 
-  // 3) Guardar en backend
-  const onSaveResult = useCallback(async (matchId, result) => {
-    try {
-      // ¿Es fase eliminatoria?
-      const isKO = tournament.rounds.some(r => r.matches.some(m => m._id === matchId));
-      await api.put(
-        `/tournaments/${tournamentId}/matches/${matchId}/result`,
-        {
+  const onSaveResult = useCallback(
+    async (matchId, result) => {
+      try {
+        // evitamos leer rounds si tournament es null
+        const roundsArr = Array.isArray(tournament?.rounds) ? tournament.rounds : [];
+        const isKO = roundsArr.some((r) => r.matches.some((m) => m._id === matchId));
+
+        await api.put(`/tournaments/${tournamentId}/matches/${matchId}/result`, {
           sets: result.sets,
           winner: result.winner,
           runnerUp: result.runnerUp,
           isKnockout: isKO,
           matchTiebreak1: result.matchTiebreak.player1,
-          matchTiebreak2: result.matchTiebreak.player2
-        }
-      );
-      // marcar como guardado
-      setMatchResults(prev => ({
-        ...prev,
-        [matchId]: { ...result, saved: true }
-      }));
-      return null;
-    } catch (err) {
-      // si vinieron errores de validación
-      const errs = err.response?.data?.errors || [];
-      const obj = errs.reduce((acc, e) => {
-        acc[e.param] = e.msg;
-        return acc;
-      }, {});
-      setMatchErrors(prev => ({ ...prev, [matchId]: obj }));
-      return obj;
-    }
-  }, [tournamentId, tournament.rounds]);
+          matchTiebreak2: result.matchTiebreak.player2,
+        });
 
-  // 4) Generar eliminatorias (botón único)
+        setMatchResults((prev) => ({
+          ...prev,
+          [matchId]: { ...result, saved: true },
+        }));
+        return null;
+      } catch (err) {
+        const errs = err.response?.data?.errors || [];
+        const obj = errs.reduce((acc, e) => {
+          acc[e.param] = e.msg;
+          return acc;
+        }, {});
+        setMatchErrors((prev) => ({ ...prev, [matchId]: obj }));
+        return obj;
+      }
+    },
+    [tournament, tournamentId]
+  );
+
   const generateKnockoutPhase = useCallback(async () => {
-    // Si prefieres que el backend genere, haz un endpoint específico.
-    // Aquí overrideamos todo el objeto "rounds" usando la lógica de tu front.
-    // Por simplicidad recargamos el torneo:
-    await api.put(`/tournaments/${tournamentId}`, { 
-      // rounds: generate frontend, o backend lo hace
+    await api.put(`/tournaments/${tournamentId}`, {
       draft: false,
       status: 'En curso',
     });
     await fetchTournament();
   }, [tournamentId, fetchTournament]);
 
-  // 5) Avanzar rondas de eliminación
   const advanceEliminationRound = useCallback(async () => {
-    // Si backend lo soporta vía endpoint, úsalo.
-    // Si no, recargamos:
     await fetchTournament();
   }, [fetchTournament]);
 
-  // 6) standings (por si lo usas en TournamentStandings)
-  const standings = useMemo(() => {
-    return tournament?.standings || [];
-  }, [tournament]);
+  const standings = useMemo(() => tournament?.standings || [], [tournament]);
 
   return {
     tournament,
@@ -157,6 +133,6 @@ export default function useTournament(tournamentId) {
     onSaveResult,
     generateKnockoutPhase,
     advanceEliminationRound,
-    standings
+    standings,
   };
 }

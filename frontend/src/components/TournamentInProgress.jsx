@@ -27,8 +27,8 @@ import TournamentDetails from './TournamentDetails.jsx';
 import TournamentGroups from './TournamentGroups.jsx';
 import TournamentStandings from './TournamentStandings.jsx';
 import TournamentBracket from './TournamentBracket.jsx';
-import useTournament from './useTournament.js';
-import { getPlayerName, getRoundName } from './tournamentUtils.js';
+import useTournament from '../hooks/useTournament.js';
+import { getPlayerName, getRoundName } from '../hooks/tournamentUtils.js';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';

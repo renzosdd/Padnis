@@ -7,41 +7,28 @@ export function normalizeId(mix) {
 }
 
 /**
- * Dado el objeto completo del torneo y un playerId,
- * busca en participants (singles o dobles) y devuelve un string:
- * - Para individuales: "First Last"
- * - Para dobles:       "FirstA LastA / FirstB LastB"
+ * Dado un torneo y un playerId, devuelve el nombre completo.
+ * Maneja individuales y dobles.
  */
 export function getPlayerName(tournament, playerId) {
   if (!playerId || !Array.isArray(tournament?.participants)) return '';
-  const p = tournament.participants.find((pt) => {
-    const id1 = normalizeId(pt.player1);
-    const id2 = normalizeId(pt.player2);
+  const pt = tournament.participants.find((p) => {
+    const id1 = normalizeId(p.player1);
+    const id2 = normalizeId(p.player2);
     return id1 === playerId || id2 === playerId;
   });
-  if (!p) return '';
+  if (!pt) return '';
+
   // Individual
-  if (!p.player2) {
-    const person = typeof p.player1 === 'object' ? p.player1 : p.player1Data;
-    return `${person.firstName} ${person.lastName}`;
+  if (!pt.player2) {
+    const person = typeof pt.player1 === 'object' ? pt.player1 : {};
+    return `${person.firstName || ''} ${person.lastName || ''}`.trim();
   }
+
   // Dobles
-  const idA = normalizeId(p.player1);
-  const idB = normalizeId(p.player2);
+  const idA = normalizeId(pt.player1);
+  const idB = normalizeId(pt.player2);
   const nameA = getPlayerName(tournament, idA);
   const nameB = getPlayerName(tournament, idB);
   return `${nameA} / ${nameB}`;
-}
-
-/**
- * Opcional: convierte un número de ronda en un nombre legible.
- */
-export function getRoundName(n) {
-  switch (n) {
-    case 1: return 'Final';
-    case 2: return 'Semifinal';
-    case 3: return 'Cuartos';
-    case 4: return 'Octavos';
-    default: return `Ronda ${n}`;
-  }
 }
