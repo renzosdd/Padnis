@@ -1,4 +1,3 @@
-// src/frontend/src/components/MatchCard.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -27,7 +26,14 @@ const MatchCard = ({
   canEdit
 }) => {
   const theme = useTheme();
-  const [localResult, setLocalResult] = useState(matchResult);
+
+  // Inicializamos matchTiebreak aunque venga undefined
+  const [localResult, setLocalResult] = useState({
+    ...matchResult,
+    matchTiebreak1: matchResult.matchTiebreak1 ?? '',
+    matchTiebreak2: matchResult.matchTiebreak2 ?? ''
+  });
+
   const [isEditing, setIsEditing] = useState(
     !matchResult.saved && canEdit && tournament.status === 'En curso'
   );
@@ -35,12 +41,17 @@ const MatchCard = ({
   const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
-    setLocalResult(matchResult);
+    setLocalResult({
+      ...matchResult,
+      matchTiebreak1: matchResult.matchTiebreak1 ?? '',
+      matchTiebreak2: matchResult.matchTiebreak2 ?? ''
+    });
   }, [matchResult]);
 
-  // Detect tie in sets when best-of-2
+  // Detectar empate si es a 2 sets
   const isTied =
     totalSets === 2 &&
+    Array.isArray(localResult.sets) &&
     localResult.sets.reduce((acc, s) => {
       const p1 = +s.player1;
       const p2 = +s.player2;
@@ -75,6 +86,15 @@ const MatchCard = ({
     setIsEditing(true);
   };
 
+  // Primera letra para el Avatar, con fallback a string vacío
+  const name1 = getPlayerName(tournament, match.player1.player1) || '';
+  const letter1 = name1.charAt(0);
+
+  const name2 = match.player1.player2
+    ? getPlayerName(tournament, match.player1.player2) || ''
+    : '';
+  const avatarLetter = letter1 || name2.charAt(0) || '';
+
   return (
     <Box
       sx={{
@@ -92,19 +112,19 @@ const MatchCard = ({
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
-          {getPlayerName(tournament, match.player1.player1)[0]}
+          {avatarLetter}
         </Avatar>
         <Typography flex={1}>
-          {getPlayerName(tournament, match.player1.player1)}
+          {name1}
           {match.player1.player2
-            ? ` / ${getPlayerName(tournament, match.player1.player2)}`
+            ? ` / ${getPlayerName(tournament, match.player1.player2) || ''}`
             : ''}
         </Typography>
         <Typography>vs</Typography>
         <Typography flex={1} textAlign="right">
-          {getPlayerName(tournament, match.player2.player1)}
+          {getPlayerName(tournament, match.player2.player1) || ''}
           {match.player2.player2
-            ? ` / ${getPlayerName(tournament, match.player2.player2)}`
+            ? ` / ${getPlayerName(tournament, match.player2.player2) || ''}`
             : ''}
         </Typography>
       </Box>
@@ -197,11 +217,11 @@ const MatchCard = ({
               <TextField
                 type="number"
                 size="small"
-                value={localResult.matchTiebreak.player1}
+                value={localResult.matchTiebreak1 ?? ''}
                 onChange={(e) =>
                   handleLocalInputChange(
                     match._id,
-                    'matchTiebreak-0',
+                    'matchTiebreak1',
                     e.target.value
                   )
                 }
@@ -213,11 +233,11 @@ const MatchCard = ({
               <TextField
                 type="number"
                 size="small"
-                value={localResult.matchTiebreak.player2}
+                value={localResult.matchTiebreak2 ?? ''}
                 onChange={(e) =>
                   handleLocalInputChange(
                     match._id,
-                    'matchTiebreak-1',
+                    'matchTiebreak2',
                     e.target.value
                   )
                 }

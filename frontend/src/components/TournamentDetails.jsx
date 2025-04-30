@@ -1,4 +1,3 @@
-// src/frontend/src/components/TournamentDetails.jsx
 import React, { useState, useMemo } from 'react';
 import {
   Box,
@@ -15,51 +14,51 @@ import {
 } from '@mui/material';
 import { getPlayerName, normalizeId } from './tournamentUtils';
 
-const TournamentDetails = ({ tournament }) => {
+const TournamentDetails = ({ tournament = {} }) => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  // Asegurarnos de tener siempre un array
+  const participants = useMemo(
+    () => Array.isArray(tournament.participants) ? tournament.participants : [],
+    [tournament.participants]
+  );
+
+  // Filtrado por nombre, usando toLowerCase() sólo cuando name existe
   const filtered = useMemo(() => {
-    if (!tournament.participants) return [];
-    return tournament.participants.filter(p => {
-      const name = getPlayerName(tournament, normalizeId(p.player1)).toLowerCase();
+    return participants.filter((p) => {
+      const raw = getPlayerName(tournament, normalizeId(p.player1));
+      const name = raw ? raw.toLowerCase() : '';
       return name.includes(search.toLowerCase());
     });
-  }, [search, tournament]);
+  }, [search, participants, tournament]);
 
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
+  // Paginación
+  const currentData = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filtered.slice(start, start + rowsPerPage);
+  }, [filtered, page, rowsPerPage]);
 
-  const handleChangeRowsPerPage = event => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+  const handleChangePage = (_, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (e) => {
+    setRowsPerPage(parseInt(e.target.value, 10));
     setPage(0);
   };
-
-  const currentData = useMemo(() => {
-    return filtered.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [filtered, page, rowsPerPage]);
 
   return (
     <Box>
       <Typography variant="h6" gutterBottom>
         Detalles del Torneo
       </Typography>
-      <Typography>
-        Nombre: {tournament.name}
-      </Typography>
-      <Typography>
-        Tipo: {tournament.type}
-      </Typography>
-      <Typography>
-        Deporte: {tournament.sport}
-      </Typography>
+      <Typography>Nombre: {tournament.name || '-'}</Typography>
+      <Typography>Tipo: {tournament.type || '-'}</Typography>
+      <Typography>Deporte: {tournament.sport || '-'}</Typography>
 
       <TextField
         label="Buscar participante"
         value={search}
-        onChange={e => setSearch(e.target.value)}
+        onChange={(e) => setSearch(e.target.value)}
         fullWidth
         size="small"
         sx={{ mt: 2, mb: 2 }}
@@ -73,16 +72,19 @@ const TournamentDetails = ({ tournament }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {currentData.map((p, index) => (
-              <TableRow key={index}>
-                <TableCell>
-                  {getPlayerName(tournament, normalizeId(p.player1))}
-                  {p.player2
-                    ? ` / ${getPlayerName(tournament, normalizeId(p.player2))}`
-                    : ''}
-                </TableCell>
-              </TableRow>
-            ))}
+            {currentData.map((p, idx) => {
+              const name1 = getPlayerName(tournament, normalizeId(p.player1)) || '';
+              const name2 = p.player2
+                ? getPlayerName(tournament, normalizeId(p.player2)) || ''
+                : '';
+              return (
+                <TableRow key={idx}>
+                  <TableCell>
+                    {name2 ? `${name1} / ${name2}` : name1}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
@@ -97,6 +99,7 @@ const TournamentDetails = ({ tournament }) => {
         rowsPerPageOptions={[10]}
       />
     </Box>
-);
+  );
 };
+
 export default TournamentDetails;
