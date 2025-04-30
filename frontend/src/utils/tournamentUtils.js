@@ -1,4 +1,8 @@
-// normalizeId: acepta string/ObjectId o { _id, ... } y devuelve string o null
+// src/frontend/src/utils/tournamentUtils.js
+
+/**
+ * normalizeId: acepta string/ObjectId o { _id, ... } y devuelve string o null
+ */
 export function normalizeId(mix) {
   if (!mix) return null;
   return typeof mix === 'object'
@@ -8,39 +12,36 @@ export function normalizeId(mix) {
 
 /**
  * Dado un torneo y un playerId (string), devuelve:
- * - "First Last" para individuales
- * - "FirstA LastA / FirstB LastB" para dobles
+ *  - "Nombre Apellido" para individuales
+ *  - "NombreA ApellidoA / NombreB ApellidoB" para dobles
  */
 export function getPlayerName(tournament, playerId) {
   if (!playerId || !Array.isArray(tournament?.participants)) return '';
 
-  // Buscamos el participante que contiene ese ID
-  const pt = tournament.participants.find((p) => {
-    const id1 = normalizeId(p.player1);
-    const id2 = normalizeId(p.player2);
-    return id1 === playerId || id2 === playerId;
+  const part = tournament.participants.find((p) => {
+    const a = normalizeId(p.player1);
+    const b = normalizeId(p.player2);
+    return a === playerId || b === playerId;
   });
-  if (!pt) return '';
+  if (!part) return '';
 
-  // Si es individual
-  if (!pt.player2) {
-    const p = pt.player1;
-    if (typeof p === 'object') {
-      return `${p.firstName || ''} ${p.lastName || ''}`.trim();
-    }
-    return '';
+  // Individual
+  if (!part.player2) {
+    const p = part.player1;
+    return typeof p === 'object'
+      ? `${p.firstName || ''} ${p.lastName || ''}`.trim()
+      : '';
   }
 
-  // Si es dobles: asumimos que player1 y player2 son objetos { firstName, lastName }
-  const pA = pt.player1;
-  const pB = pt.player2;
-  const nameA = typeof pA === 'object' ? `${pA.firstName} ${pA.lastName}`.trim() : '';
-  const nameB = typeof pB === 'object' ? `${pB.firstName} ${pB.lastName}`.trim() : '';
+  // Dobles
+  const A = part.player1, B = part.player2;
+  const nameA = typeof A === 'object' ? `${A.firstName} ${A.lastName}`.trim() : '';
+  const nameB = typeof B === 'object' ? `${B.firstName} ${B.lastName}`.trim() : '';
   return `${nameA} / ${nameB}`;
 }
 
 /**
- * Convierte un número de ronda (1,2,3,...) en un nombre legible.
+ * Convierte un número de ronda (1,2,3...) en un nombre legible
  */
 export function getRoundName(round) {
   switch (round) {
