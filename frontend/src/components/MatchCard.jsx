@@ -12,16 +12,15 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import { useTheme } from '@mui/material/styles';
+import { getPlayerName } from '../utils/tournamentUtils.js';
 
 const MatchCard = ({
   match,
   matchResult,
   totalSets,
   matchErrors,
-  getPlayerName,
   tournament,
   onSave,
-  onToggleEdit,
   canEdit
 }) => {
   const theme = useTheme();
@@ -38,12 +37,15 @@ const MatchCard = ({
     return Array.from({ length: totalSets }, () => ({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }));
   };
 
+  // Estado local para el resultado editable
   const [localResult, setLocalResult] = useState(() => ({
     ...matchResult,
     sets: normalizeSets(matchResult.sets),
     matchTiebreak: matchResult.matchTiebreak || { player1: '', player2: '' }
   }));
-  const [isEditing, setIsEditing] = useState(!matchResult.saved && canEdit && tournament.status === 'En curso');
+  const [isEditing, setIsEditing] = useState(
+    !matchResult.saved && canEdit && tournament.status === 'En curso'
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
@@ -57,7 +59,7 @@ const MatchCard = ({
 
   // Manejador interno para cambios en inputs
   const handleLocalInputChange = (key, value) => {
-    setLocalResult(prev => {
+    setLocalResult((prev) => {
       const next = { ...prev };
       if (key.startsWith('set')) {
         const [prefix, idxStr] = key.split('-');
@@ -107,7 +109,6 @@ const MatchCard = ({
 
   const handleEdit = (e) => {
     e.preventDefault();
-    onToggleEdit(match._id);
     setIsEditing(true);
   };
 
@@ -126,25 +127,35 @@ const MatchCard = ({
     >
       {saveError && <Alert severity="error">{saveError}</Alert>}
 
+      {/* Encabezado jugadores */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
           {getPlayerName(tournament, match.player1.player1)?.[0] || '?'}
         </Avatar>
         <Typography flex={1}>
-          {getPlayerName(tournament, match.player1.player1)}{match.player1.player2 ? ` / ${getPlayerName(tournament, match.player1.player2)}` : ''}
+          {getPlayerName(tournament, match.player1.player1)}
+          {match.player1.player2 &&
+            ` / ${getPlayerName(tournament, match.player1.player2)}`
+          }
         </Typography>
         <Typography>vs</Typography>
         <Typography flex={1} textAlign="right">
-          {getPlayerName(tournament, match.player2.player1)}{match.player2.player2 ? ` / ${getPlayerName(tournament, match.player2.player2)}` : ''}
+          {getPlayerName(tournament, match.player2.player1)}
+          {match.player2.player2 &&
+            ` / ${getPlayerName(tournament, match.player2.player2)}`
+          }
         </Typography>
       </Box>
 
+      {/* Resultado o inputs */}
       {localResult.saved && !isEditing && canEdit ? (
         <Typography sx={{ fontSize: '0.875rem', mb: 1 }}>
           {localResult.sets.map((s, i) => (
             <span key={i}>
               Set {i + 1}: {s.player1 || 0}-{s.player2 || 0}
-              {(s.player1 === 6 && s.player2 === 6) && ` (TB ${s.tiebreak1 || 0}-${s.tiebreak2 || 0})`}
+              {s.player1 === 6 && s.player2 === 6 &&
+                ` (TB ${s.tiebreak1 || 0}-${s.tiebreak2 || 0})`
+              }
               {i < localResult.sets.length - 1 && '; '}
             </span>
           ))}
@@ -155,32 +166,49 @@ const MatchCard = ({
         </Typography>
       ) : (
         <Collapse in={!localResult.saved || isEditing}>
+          {/* Inputs de sets y tiebreaks */}
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
             {localResult.sets.map((s, i) => (
               <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <TextField
-                  type="number" size="small" value={s.player1}
+                  type="number"
+                  size="small"
+                  value={s.player1}
                   onChange={(e) => handleLocalInputChange(`set${i}-0`, e.target.value)}
-                  inputProps={{ min: 0 }} error={!!matchErrors[`set${i}`]} sx={{ width: 50 }}
+                  inputProps={{ min: 0 }}
+                  error={!!matchErrors[`set${i}`]}
+                  sx={{ width: 50 }}
                 />
                 <Typography>-</Typography>
                 <TextField
-                  type="number" size="small" value={s.player2}
+                  type="number"
+                  size="small"
+                  value={s.player2}
                   onChange={(e) => handleLocalInputChange(`set${i}-1`, e.target.value)}
-                  inputProps={{ min: 0 }} error={!!matchErrors[`set${i}`]} sx={{ width: 50 }}
+                  inputProps={{ min: 0 }}
+                  error={!!matchErrors[`set${i}`]}
+                  sx={{ width: 50 }}
                 />
-                {( +s.player1 === 6 && +s.player2 === 6 ) && (
-                  <>
+                {+s.player1 === 6 && +s.player2 === 6 && (
+                  <>  {/* Tiebreak de set */}
                     <TextField
-                      type="number" size="small" value={s.tiebreak1}
+                      type="number"
+                      size="small"
+                      value={s.tiebreak1}
                       onChange={(e) => handleLocalInputChange(`tiebreak${i}-1`, e.target.value)}
-                      inputProps={{ min: 0 }} error={!!matchErrors[`set${i}`]} sx={{ width: 50 }}
+                      inputProps={{ min: 0 }}
+                      error={!!matchErrors[`set${i}`]}
+                      sx={{ width: 50 }}
                     />
                     <Typography>-</Typography>
                     <TextField
-                      type="number" size="small" value={s.tiebreak2}
+                      type="number"
+                      size="small"
+                      value={s.tiebreak2}
                       onChange={(e) => handleLocalInputChange(`tiebreak${i}-2`, e.target.value)}
-                      inputProps={{ min: 0 }} error={!!matchErrors[`set${i}`]} sx={{ width: 50 }}
+                      inputProps={{ min: 0 }}
+                      error={!!matchErrors[`set${i}`]}
+                      sx={{ width: 50 }}
                     />
                   </>
                 )}
@@ -191,15 +219,23 @@ const MatchCard = ({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography>Match TB:</Typography>
                   <TextField
-                    type="number" size="small" value={localResult.matchTiebreak.player1}
+                    type="number"
+                    size="small"
+                    value={localResult.matchTiebreak.player1}
                     onChange={(e) => handleLocalInputChange('matchTiebreak-0', e.target.value)}
-                    inputProps={{ min: 0 }} error={!!matchErrors.matchTiebreak} sx={{ width: 50 }}
+                    inputProps={{ min: 0 }}
+                    error={!!matchErrors.matchTiebreak}
+                    sx={{ width: 50 }}
                   />
                   <Typography>-</Typography>
                   <TextField
-                    type="number" size="small" value={localResult.matchTiebreak.player2}
+                    type="number"
+                    size="small"
+                    value={localResult.matchTiebreak.player2}
                     onChange={(e) => handleLocalInputChange('matchTiebreak-1', e.target.value)}
-                    inputProps={{ min: 0 }} error={!!matchErrors.matchTiebreak} sx={{ width: 50 }}
+                    inputProps={{ min: 0 }}
+                    error={!!matchErrors.matchTiebreak}
+                    sx={{ width: 50 }}
                   />
                 </Box>
               )
@@ -208,9 +244,12 @@ const MatchCard = ({
         </Collapse>
       )}
 
+      {/* Botones de editar/guardar */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
         {localResult.saved && !isEditing && canEdit ? (
-          <IconButton onClick={handleEdit}><EditIcon /></IconButton>
+          <IconButton onClick={handleEdit}>
+            <EditIcon />
+          </IconButton>
         ) : canEdit ? (
           <IconButton onClick={handleSave} disabled={isSaving}>
             {isSaving ? <CircularProgress size={24} /> : <SaveIcon />}
