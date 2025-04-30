@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { Add, Remove } from '@mui/icons-material';
 import axios from 'axios';
-import { determineWinner, normalizeId, isValidObjectId } from '../hooks/tournamentUtils.js';
+import { determineWinner, normalizeId, isValidObjectId } from '../utils/tournamentUtils.js';
 
 const MatchDialog = ({
   open,
