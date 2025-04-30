@@ -23,14 +23,13 @@ import RegisterForm from './components/RegisterForm';
 import TournamentList from './components/TournamentList';
 import TournamentHistory from './components/TournamentHistory';
 import TournamentInProgress from './components/TournamentInProgress';
-import TournamentForm from './components/TournamentForm'; // <-- import form component
+import TournamentForm from './components/TournamentForm';
 
 function MainApp() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirige a login si no está autenticado; al home si ya lo está
     if (user) {
       if (['/login', '/register'].includes(window.location.pathname)) {
         navigate('/', { replace: true });
@@ -44,55 +43,27 @@ function MainApp() {
     <>
       <NavBar />
       <Routes>
-        <Route
-          path="/login"
-          element={
-            !user
-              ? <LoginForm onLoginSuccess={() => navigate('/', { replace: true })} />
-              : <Navigate to="/" replace />
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            !user
-              ? <RegisterForm onRegisterSuccess={() => navigate('/', { replace: true })} />
-              : <Navigate to="/" replace />
-          }
-        />
+        {/* ... rutas de login/register/lista/historial ... */}
 
-        {/* Lista de torneos activos */}
-        <Route
-          path="/"
-          element={user ? <TournamentList /> : <Navigate to="/login" replace />}
-        />
-
-        {/* Historial de torneos */}
-        <Route
-          path="/history"
-          element={user ? <TournamentHistory /> : <Navigate to="/login" replace />}
-        />
-
-        {/* Crear nuevo torneo (solo admin/coach) */}
         <Route
           path="/tournaments/create"
           element={
-            user
+            user && (role === 'admin' || role === 'coach')
               ? (
                 <TournamentForm
-                  // después de crear, redirige al detalle del torneo
                   onCreateTournament={(newT) =>
-                    navigate(`/tournament/${newT._id}`, { replace: true })
+                    navigate(`/tournaments/${newT._id}`, { replace: true })
                   }
+                  players={[]} 
                 />
               )
-              : <Navigate to="/login" replace />
+              : <Navigate to="/" replace />
           }
         />
 
-        {/* Ver un torneo en curso */}
+        {/* Aquí cambiamos a "tournaments/:id" */}
         <Route
-          path="/tournament/:id"
+          path="/tournaments/:id"
           element={
             user
               ? <TournamentInProgress />
@@ -100,8 +71,17 @@ function MainApp() {
           }
         />
 
-        {/* Cualquier otra ruta, redirige al home */}
-        <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
+        {/* Si quieres mantener ésta también (opcional): */}
+        <Route
+          path="/tournament/:id"
+          element={<Navigate to="/" replace />}
+        />
+
+        {/* Ruta comodín */}
+        <Route
+          path="*"
+          element={<Navigate to={user ? "/" : "/login"} replace />}
+        />
       </Routes>
     </>
   );
