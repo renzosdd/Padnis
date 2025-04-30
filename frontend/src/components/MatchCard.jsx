@@ -25,15 +25,13 @@ const MatchCard = ({
 }) => {
   const theme = useTheme();
 
-  const normalizeSets = (sets) => {
-    if (Array.isArray(sets)) {
-      const arr = [...sets];
-      while (arr.length < totalSets) {
-        arr.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
-      }
-      return arr.slice(0, totalSets);
+  // Aseguramos siempre un array de sets
+  const normalizeSets = (setsArg) => {
+    const sets = Array.isArray(setsArg) ? [...setsArg] : [];
+    while (sets.length < totalSets) {
+      sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
     }
-    return Array.from({ length: totalSets }, () => ({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' }));
+    return sets.slice(0, totalSets);
   };
 
   const [localResult, setLocalResult] = useState(() => ({
@@ -55,32 +53,32 @@ const MatchCard = ({
     });
   }, [matchResult, totalSets]);
 
-  const handleLocalInputChange = (key, value) => {
+  // Actualiza localResult según campo
+  const handleLocalInputChange = (field, value) => {
     setLocalResult(prev => {
       const next = { ...prev };
-      if (key.startsWith('set')) {
-        const [prefix, idxStr] = key.split('-');
-        const setIndex = parseInt(prefix.replace('set', ''), 10);
-        const playerIndex = parseInt(idxStr, 10);
-        const setObj = { ...next.sets[setIndex] };
-        if (playerIndex === 0) setObj.player1 = value;
-        if (playerIndex === 1) setObj.player2 = value;
-        next.sets = next.sets.map((item, idx) => idx === setIndex ? setObj : item);
-      } else if (key.startsWith('tiebreak')) {
-        const [prefix, idxStr] = key.split('-');
-        const setIndex = parseInt(prefix.replace('tiebreak', ''), 10);
-        const tbIndex = parseInt(idxStr, 10);
-        const setObj = { ...next.sets[setIndex] };
-        if (tbIndex === 1) setObj.tiebreak1 = value;
-        if (tbIndex === 2) setObj.tiebreak2 = value;
-        next.sets = next.sets.map((item, idx) => idx === setIndex ? setObj : item);
-      } else if (key.startsWith('matchTiebreak')) {
-        const [, idxStr] = key.split('-');
-        const tbIndex = parseInt(idxStr, 10);
+      // Asegura array
+      next.sets = normalizeSets(next.sets);
+
+      if (field.startsWith('set')) {
+        // setN-M => sets[N].player{M+1}
+        const [, setIndexStr, playerIndexStr] = field.match(/^set(\d+)-(\d)$/) || [];
+        const si = parseInt(setIndexStr, 10);
+        const pi = parseInt(playerIndexStr, 10);
+        next.sets[si][`player${pi + 1}`] = value;
+      } else if (field.startsWith('tiebreak')) {
+        const [, setIndexStr, tbIndexStr] = field.match(/^tiebreak(\d+)-(\d)$/) || [];
+        const si = parseInt(setIndexStr, 10);
+        const pi = parseInt(tbIndexStr, 10);
+        next.sets[si][`tiebreak${pi + 1}`] = value;
+      } else if (field.startsWith('matchTiebreak')) {
+        const [, tbIndexStr] = field.match(/^matchTiebreak-(\d)$/) || [];
+        const pi = parseInt(tbIndexStr, 10);
         next.matchTiebreak = { ...next.matchTiebreak };
-        if (tbIndex === 0) next.matchTiebreak.player1 = value;
-        if (tbIndex === 1) next.matchTiebreak.player2 = value;
+        next.matchTiebreak[`player${pi + 1}`] = value;
       }
+
+      next.saved = false;
       return next;
     });
   };
@@ -105,7 +103,7 @@ const MatchCard = ({
     setIsEditing(true);
   };
 
-  // Helpers to get display name and initial
+  // Obtiene nombre o placeholder
   const name1 = getPlayerName(tournament, match.player1.player1) || 'Jugador';
   const name2 = getPlayerName(tournament, match.player2.player1) || 'Jugador';
 
@@ -126,23 +124,19 @@ const MatchCard = ({
 
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>{name1.charAt(0)}</Avatar>
+        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>{name1[0]}</Avatar>
         <Typography flex={1}>
           {name1}
-          {match.player1.player2 &&
-            ` / ${getPlayerName(tournament, match.player1.player2)}`
-          }
+          {match.player1.player2 && ` / ${getPlayerName(tournament, match.player1.player2)}`}
         </Typography>
         <Typography>vs</Typography>
         <Typography flex={1} textAlign="right">
           {name2}
-          {match.player2.player2 &&
-            ` / ${getPlayerName(tournament, match.player2.player2)}`
-          }
+          {match.player2.player2 && ` / ${getPlayerName(tournament, match.player2.player2)}`}
         </Typography>
       </Box>
 
-      {/* Score or inputs */}
+      {/* Score o Inputs */}
       {localResult.saved && !isEditing && canEdit ? (
         <Typography sx={{ fontSize: '0.875rem', mb: 1 }}>
           {localResult.sets.map((s, i) => (
@@ -154,9 +148,8 @@ const MatchCard = ({
             </span>
           ))}
           {totalSets === 2 &&
-            localResult.sets.reduce((a, s) => a + ((+s.player1 > +s.player2 ? 1 : -1)), 0) === 0 &&
-            `, Match TB ${localResult.matchTiebreak.player1 || 0}-${localResult.matchTiebreak.player2 || 0}`
-          }
+            localResult.sets.reduce((acc, s) => acc + ((+s.player1 > +s.player2 ? 1 : -1)), 0) === 0 &&
+            `, Match TB ${localResult.matchTiebreak.player1 || 0}-${localResult.matchTiebreak.player2 || 0}`}
         </Typography>
       ) : (
         <Collapse in={!localResult.saved || isEditing}>
@@ -198,7 +191,7 @@ const MatchCard = ({
                       type="number"
                       size="small"
                       value={s.tiebreak2}
-                      onChange={e => handleLocalInputChange(`tiebreak${i}-2`, e.target.value)}
+                      onChange={e => handleLocalInputChange(`tModal${i}-2`, e.target.value)}
                       inputProps={{ min: 0 }}
                       error={!!matchErrors[`set${i}`]}
                       sx={{ width: 50 }}
@@ -208,7 +201,7 @@ const MatchCard = ({
               </Box>
             ))}
             {totalSets === 2 &&
-              localResult.sets.reduce((a, s) => a + ((+s.player1 > +s.player2 ? 1 : -1)), 0) === 0 && (
+              localResult.sets.reduce((acc, s) => acc + ((+s.player1 > +s.player2 ? 1 : -1)), 0) === 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography>Match TB:</Typography>
                   <TextField
