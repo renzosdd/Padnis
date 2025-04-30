@@ -1,5 +1,5 @@
 // src/frontend/src/components/TournamentList.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useGetTournamentsQuery } from '../store/store';
 import {
   Box, Tabs, Tab, Grid, Card, CardContent,
