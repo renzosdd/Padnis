@@ -1,18 +1,47 @@
 // src/frontend/src/components/TournamentList.jsx
-import React from 'react';
-import { Box, Tabs, Tab, Grid, Card, CardContent, Typography, CardActions, Button } from '@mui/material';
+import React, { useState } from 'react';
+import { useGetTournamentsQuery } from '../store/store';
+import {
+  Box, Tabs, Tab, Grid, Card, CardContent,
+  Typography, CardActions, Button, CircularProgress, useMediaQuery
+} from '@mui/material';
 import { Link } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
 
-const TournamentList = ({ tournaments, isMobile, view, onViewChange }) => {
-  const handleTabChange = (_, newValue) => {
-    onViewChange(newValue);
-  };
+const TournamentList = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const [view, setView] = useState('activos');
+  // 'activos' → status=En curso, 'historial' → status=Finalizado
+  const status = view === 'activos' ? 'En curso' : 'Finalizado';
+
+  const {
+    data: tournaments = [],
+    isLoading,
+    isError
+  } = useGetTournamentsQuery(status);
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+  if (isError) {
+    return (
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography color="error">Error cargando torneos.</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: isMobile ? 1 : 2 }}>
       <Tabs
         value={view}
-        onChange={handleTabChange}
+        onChange={(_, v) => setView(v)}
         variant="fullWidth"
         sx={{ mb: 2 }}
       >
