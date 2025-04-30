@@ -19,7 +19,7 @@ const TournamentGroups = ({
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const groups = Array.isArray(tournament.groups) ? tournament.groups : [];
+  const groups = Array.isArray(tournament?.groups) ? tournament.groups : [];
 
   const canGen = role === 'admin' || role === 'coach';
 
@@ -47,7 +47,7 @@ const TournamentGroups = ({
             {grp.name}
           </Typography>
           <Grid container spacing={2}>
-            {Array.isArray(grp.matches) && grp.matches.length > 0 ? (
+            {grp.matches && grp.matches.length > 0 ? (
               grp.matches.map((m) => (
                 <Grid item xs={12} sm={6} key={m._id}>
                   <MatchCard
@@ -56,7 +56,10 @@ const TournamentGroups = ({
                     totalSets={tournament.format.sets}
                     handleLocalInputChange={onResultChange}
                     matchErrors={matchErrors[m._id] || {}}
-                    getPlayerName={(t, pid) => t.getPlayerName(tournament, pid)}
+                    getPlayerName={(t, pid) =>
+                      /* importa y usa getPlayerName */
+                      t.getPlayerName(tournament, pid)
+                    }
                     tournament={tournament}
                     onSave={onSaveResult}
                     onToggleEdit={() => {}}
@@ -78,8 +81,7 @@ const TournamentGroups = ({
         </Box>
       ))}
     </Box>
-);
-
+  );
 };
 
 export default TournamentGroups;
