@@ -1,4 +1,3 @@
-// src/frontend/src/components/TournamentInProgress.jsx
 import React, {
   useState,
   useEffect,
@@ -80,6 +79,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
   const {
     standings,
     fetchTournament,
+    onSaveResult, // Added for saving match results
     generateKnockoutPhase,
     advanceEliminationRound
   } = useTournament(tournamentId);
@@ -237,6 +237,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
                 fetchTournament={() => loadTournament(true)}
                 addNotification={addNotification}
                 advanceEliminationRound={onAdvanceRound}
+                onSaveResult={onSaveResult} // Pass onSaveResult
                 matches={tournament.rounds}
               />
             ),

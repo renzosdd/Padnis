@@ -1,4 +1,3 @@
-// src/frontend/src/components/TournamentBracket.jsx
 import React, { useEffect } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { useSelector, useDispatch } from 'react-redux';
@@ -11,7 +10,8 @@ const TournamentBracket = ({
   getPlayerName,
   fetchTournament,
   addNotification,
-  advanceEliminationRound
+  advanceEliminationRound,
+  onSaveResult // Added prop
 }) => {
   const dispatch = useDispatch();
   const matchResults = useSelector(state => state.matchResults);
@@ -43,9 +43,9 @@ const TournamentBracket = ({
   }, [tournament.rounds, dispatch, totalSets]);
 
   const handleSave = async (matchId, result) => {
-    const errors = await fetchTournament(true, matchId, result);
+    const errors = await onSaveResult(matchId, result); // Use onSaveResult instead of fetchTournament
     if (errors) {
-      addNotification(errors.message || 'Error al guardar resultado', 'error');
+      addNotification(errors.general || 'Error al guardar resultado', 'error');
     } else {
       addNotification('Resultado guardado', 'success');
     }
