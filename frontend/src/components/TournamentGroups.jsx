@@ -1,129 +1,85 @@
-// src/frontend/src/components/TournamentGroups.jsx
-import React, { useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { Box, Typography, Button } from '@mui/material';
-import { setMatchResult, resetMatchResults } from '../store/store';
-import MatchCard from './MatchCard';
+import React from 'react';
+import {
+  Box,
+  Typography,
+  Grid,
+  Button,
+  useMediaQuery
+} from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import MatchCard from './MatchCard.jsx';
 
 const TournamentGroups = ({
-  groups,
   tournament,
+  onResultChange,
+  onSaveResult,
+  matchErrors,
   role,
-  fetchTournament,
-  addNotification,
-  generateKnockoutPhase,
-  getPlayerName
+  generateKnockoutPhase
 }) => {
-  const dispatch = useDispatch();
-  const matchResults = useSelector((state) => state.matchResults);
-  const canEdit = ['admin', 'coach'].includes(role) && tournament.status === 'En curso';
-  const totalSets = tournament.format.sets;
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const groups = Array.isArray(tournament.groups) ? tournament.groups : [];
 
-  // Reset and initialize local results whenever the groups or tournament change
-  useEffect(() => {
-    dispatch(resetMatchResults());
-    groups.forEach((group) => {
-      group.matches.forEach((match) => {
-        const saved = !!match.result?.winner;
-        const initialSets = Array.from({ length: totalSets }, () => ({
-          player1: '',
-          player2: '',
-          tiebreak1: '',
-          tiebreak2: ''
-        }));
-        dispatch(setMatchResult({
-          matchId: match._id,
-          result: {
-            sets: match.result?.sets || initialSets,
-            matchTiebreak: match.result?.matchTiebreak || { player1: '', player2: '' },
-            saved
-          }
-        }));
-      });
-    });
-  }, [groups, dispatch, totalSets]);
-
-  // Save result to backend
-  const handleSave = async (matchId, result) => {
-    const errors = await fetchTournament(true, matchId, result);
-    if (errors) {
-      addNotification(errors.message || 'Error al guardar resultado', 'error');
-    } else {
-      addNotification('Resultado guardado', 'success');
-    }
-    return errors;
-  };
-
-  // Update local result in Redux
-  const handleLocalInputChange = (matchId, field, value) => {
-    const current = matchResults[matchId];
-    if (!current) return;
-    let updated = { ...current };
-
-    const [base, side] = field.split('-');
-    const sideKey = side === '0' ? 'player1' : 'player2';
-
-    if (base.startsWith('set')) {
-      const setIdx = parseInt(base.replace('set',''), 10);
-      updated.sets = current.sets.map((s, i) =>
-        i === setIdx ? { ...s, [sideKey]: value } : s
-      );
-    } else if (base.startsWith('tiebreak')) {
-      const tbIdx = parseInt(base.replace('tiebreak',''), 10);
-      updated.sets = current.sets.map((s, i) =>
-        i === tbIdx
-          ? { ...s, [sideKey === 'player1' ? 'tiebreak1' : 'tiebreak2']: value }
-          : s
-      );
-    } else if (base === 'matchTiebreak') {
-      updated.matchTiebreak = {
-        ...current.matchTiebreak,
-        [sideKey]: value
-      };
-    } else {
-      return;
-    }
-
-    dispatch(setMatchResult({ matchId, result: updated }));
-  };
+  const canGen = role === 'admin' || role === 'coach';
 
   return (
-    <Box>
-      {groups.map((group) => (
-        <Box key={group._id || group.name} sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            {group.name}
+    <Box sx={{ px: isMobile ? 1 : 2, py: 1 }}>
+      {canGen && (
+        <Button
+          variant="contained"
+          onClick={generateKnockoutPhase}
+          sx={{ mb: 2, width: '100%' }}
+        >
+          Generar Eliminatorias
+        </Button>
+      )}
+
+      {groups.length === 0 && (
+        <Typography color="text.secondary">
+          No hay grupos generados.
+        </Typography>
+      )}
+
+      {groups.map((grp, gi) => (
+        <Box key={gi} sx={{ mb: 4 }}>
+          <Typography variant="h6" sx={{ mb: 1, color: '#1976d2' }}>
+            {grp.name}
           </Typography>
-
-          {group.matches.map((match) => (
-            <MatchCard
-              key={match._id}
-              match={match}
-              matchResult={matchResults[match._id] || {}}
-              totalSets={totalSets}
-              handleLocalInputChange={handleLocalInputChange}
-              matchErrors={{}}
-              getPlayerName={getPlayerName}
-              tournament={tournament}
-              onSave={handleSave}
-              onToggleEdit={() => {}}
-              canEdit={canEdit}
-            />
-          ))}
-
-          {canEdit && (
-            <Button
-              variant="contained"
-              onClick={generateKnockoutPhase}
-              sx={{ mt: 2 }}
-            >
-              Generar Eliminatorias
-            </Button>
-          )}
+          <Grid container spacing={2}>
+            {Array.isArray(grp.matches) && grp.matches.length > 0 ? (
+              grp.matches.map((m) => (
+                <Grid item xs={12} sm={6} key={m._id}>
+                  <MatchCard
+                    match={m}
+                    matchResult={m.result}
+                    totalSets={tournament.format.sets}
+                    handleLocalInputChange={onResultChange}
+                    matchErrors={matchErrors[m._id] || {}}
+                    getPlayerName={(t, pid) => t.getPlayerName(tournament, pid)}
+                    tournament={tournament}
+                    onSave={onSaveResult}
+                    onToggleEdit={() => {}}
+                    canEdit={
+                      tournament.status === 'En curso' &&
+                      (role === 'admin' || role === 'coach')
+                    }
+                  />
+                </Grid>
+              ))
+            ) : (
+              <Grid item xs={12}>
+                <Typography color="text.secondary">
+                  No hay partidos en este grupo.
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
         </Box>
       ))}
     </Box>
-  );
+);
+
 };
 
 export default TournamentGroups;

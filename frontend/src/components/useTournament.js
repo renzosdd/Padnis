@@ -1,88 +1,162 @@
-// src/frontend/src/useTournament.js
-import { useState, useCallback } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import api from '../api'; // tu instancia axios con baseURL y token
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://padnis.onrender.com';
+/**
+ * Hook para manejar:
+ * - fetch del torneo
+ * - generación de eliminatorias
+ * - avance de rondas
+ * - estado local de resultados de partidos (edición inline)
+ * - errores de validación de cada partido
+ */
+export default function useTournament(tournamentId) {
+  const [tournament, setTournament] = useState(null);
+  const [matchResults, setMatchResults] = useState({});   // { [matchId]: { sets:[], matchTiebreak:{}, saved:bool } }
+  const [matchErrors, setMatchErrors] = useState({});     // { [matchId]: { field: message } }
 
-export const computeStandings = (tournament) => {
-  const groups = (tournament.groups || []).map((group) => {
-    const table = {};
-    group.matches.forEach((m) => {
-      const r = m.result;
-      if (!r || !r.winner) return;
-      const winId = r.winner.player1;
-      const loseId = r.runnerUp?.player1;
-      [winId, loseId].forEach((pid) => {
-        if (!pid) return;
-        if (!table[pid]) {
-          table[pid] = {
-            player1: pid,
-            wins: 0,
-            losses: 0,
-            matchesPlayed: 0,
-            points: 0
-          };
-        }
+  // 1) Fetch y normalización inicial
+  const fetchTournament = useCallback(async () => {
+    const resp = await api.get(`/tournaments/${tournamentId}`);
+    const t = resp.data;
+
+    // Asegurar arrays
+    t.groups = Array.isArray(t.groups) ? t.groups : [];
+    t.groups.forEach(g => {
+      g.matches = Array.isArray(g.matches) ? g.matches : [];
+      g.matches.forEach(m => {
+        m.result = m.result || { sets: [], matchTiebreak: { player1: '', player2: '' } };
       });
-      if (table[winId]) {
-        table[winId].wins += 1;
-        table[winId].matchesPlayed += 1;
-        table[winId].points += 3;
-      }
-      if (loseId && table[loseId]) {
-        table[loseId].losses += 1;
-        table[loseId].matchesPlayed += 1;
-      }
     });
-    const standings = Object.values(table).sort((a, b) => b.points - a.points);
-    return { name: group.name, standings };
-  });
-  return { groups: groups };
-};
 
-const useTournament = (tournamentId) => {
-  const [standings, setStandings] = useState({ groups: [] });
+    t.rounds = Array.isArray(t.rounds) ? t.rounds : [];
+    t.rounds.forEach(r => {
+      r.matches = Array.isArray(r.matches) ? r.matches : [];
+      r.matches.forEach(m => {
+        m.result = m.result || { sets: [], matchTiebreak: { player1: '', player2: '' } };
+      });
+    });
 
-  const fetchTournament = useCallback(
-    async (updateMatch = false, matchId, result) => {
-      const token = localStorage.getItem('token');
-      if (updateMatch && matchId && result) {
-        await axios.put(
-          `${API_URL}/api/tournaments/${tournamentId}/matches/${matchId}/result`,
-          result,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+    setTournament(t);
+
+    // Inicializar matchResults: traemos cada resultado existente
+    const init = {};
+    [...t.groups, ...t.rounds].forEach(section => {
+      section.matches.forEach(m => {
+        init[m._id] = {
+          ...m.result,
+          saved: Array.isArray(m.result.sets) && m.result.sets.length > 0
+        };
+      });
+    });
+    setMatchResults(init);
+    setMatchErrors({});
+    return t;
+  }, [tournamentId]);
+
+  // Al montar / cuando cambie el ID
+  useEffect(() => {
+    if (tournamentId) fetchTournament();
+  }, [tournamentId, fetchTournament]);
+
+  // 2) Cambios inline de un partido
+  const onResultChange = useCallback((matchId, field, value) => {
+    setMatchResults(prev => {
+      const mr = { ...prev[matchId] };
+      // field: "set{i}-0"|"set{i}-1"|"tiebreak{i}-0"|"..."|"matchTiebreak-0"|"matchTiebreak-1"
+      const setMatchT = (idx, key, val) => {
+        mr.sets = Array.isArray(mr.sets) ? mr.sets : [];
+        while (mr.sets.length <= idx) {
+          mr.sets.push({ player1: '', player2: '', tiebreak1: '', tiebreak2: '' });
+        }
+        mr.sets[idx] = { ...mr.sets[idx], [key]: val };
+      };
+
+      if (field.startsWith('set')) {
+        const [, si, pi] = field.match(/^set(\d+)-(\d)$/);
+        setMatchT(+si, `player${+pi + 1}`, value);
+      } else if (field.startsWith('tiebreak')) {
+        const [, si, pi] = field.match(/^tiebreak(\d+)-(\d)$/);
+        setMatchT(+si, `tiebreak${+pi + 1}`, value);
+      } else if (field.startsWith('matchTiebreak')) {
+        const [, pi] = field.match(/^matchTiebreak-(\d)$/);
+        mr.matchTiebreak = mr.matchTiebreak || { player1: '', player2: '' };
+        mr.matchTiebreak[`player${+pi + 1}`] = value;
       }
-      const res = await axios.get(
-        `${API_URL}/api/tournaments/${tournamentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+
+      // Al editar, marcamos como no guardado
+      mr.saved = false;
+      return { ...prev, [matchId]: mr };
+    });
+  }, []);
+
+  // 3) Guardar en backend
+  const onSaveResult = useCallback(async (matchId, result) => {
+    try {
+      // ¿Es fase eliminatoria?
+      const isKO = tournament.rounds.some(r => r.matches.some(m => m._id === matchId));
+      await api.put(
+        `/tournaments/${tournamentId}/matches/${matchId}/result`,
+        {
+          sets: result.sets,
+          winner: result.winner,
+          runnerUp: result.runnerUp,
+          isKnockout: isKO,
+          matchTiebreak1: result.matchTiebreak.player1,
+          matchTiebreak2: result.matchTiebreak.player2
+        }
       );
-      const data = res.data;
-      if (data.groups) {
-        setStandings(computeStandings(data));
-      }
-      return data;
-    },
-    [tournamentId]
-  );
+      // marcar como guardado
+      setMatchResults(prev => ({
+        ...prev,
+        [matchId]: { ...result, saved: true }
+      }));
+      return null;
+    } catch (err) {
+      // si vinieron errores de validación
+      const errs = err.response?.data?.errors || [];
+      const obj = errs.reduce((acc, e) => {
+        acc[e.param] = e.msg;
+        return acc;
+      }, {});
+      setMatchErrors(prev => ({ ...prev, [matchId]: obj }));
+      return obj;
+    }
+  }, [tournamentId, tournament.rounds]);
 
+  // 4) Generar eliminatorias (botón único)
   const generateKnockoutPhase = useCallback(async () => {
-    // If backend supports, call its endpoint here.
-    // Otherwise, re-fetch and assume server handled it.
+    // Si prefieres que el backend genere, haz un endpoint específico.
+    // Aquí overrideamos todo el objeto "rounds" usando la lógica de tu front.
+    // Por simplicidad recargamos el torneo:
+    await api.put(`/tournaments/${tournamentId}`, { 
+      // rounds: generate frontend, o backend lo hace
+      draft: false,
+      status: 'En curso',
+    });
+    await fetchTournament();
+  }, [tournamentId, fetchTournament]);
+
+  // 5) Avanzar rondas de eliminación
+  const advanceEliminationRound = useCallback(async () => {
+    // Si backend lo soporta vía endpoint, úsalo.
+    // Si no, recargamos:
     await fetchTournament();
   }, [fetchTournament]);
 
-  const advanceEliminationRound = useCallback(async () => {
-    // If backend supports advance-round, call it here.
-    await fetchTournament();
-  }, [fetchTournament]);
+  // 6) standings (por si lo usas en TournamentStandings)
+  const standings = useMemo(() => {
+    return tournament?.standings || [];
+  }, [tournament]);
 
   return {
-    standings,
+    tournament,
+    matchResults,
+    matchErrors,
     fetchTournament,
+    onResultChange,
+    onSaveResult,
     generateKnockoutPhase,
-    advanceEliminationRound
+    advanceEliminationRound,
+    standings
   };
-};
-
-export default useTournament;
+}
