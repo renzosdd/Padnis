@@ -13,7 +13,7 @@ import {
   TextField,
   Paper
 } from '@mui/material';
-import { getPlayerName, normalizeId } from '../tournamentUtils';
+import { getPlayerName, normalizeId } from './tournamentUtils';
 
 const TournamentDetails = ({ tournament }) => {
   const [search, setSearch] = useState('');
