@@ -3,11 +3,14 @@ import React, { useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Provider as ReduxProvider } from 'react-redux';
 import { ThemeProvider } from '@mui/material';
-import store, { api } from './store/store';
+import { io } from 'socket.io-client';
+
+import store from './store/store';
 import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import SocketContext from './contexts/SocketContext';
+
 import NavBar from './components/NavBar';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
@@ -19,7 +22,6 @@ function MainApp() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Si user cambia a truthy, navegamos al home
   useEffect(() => {
     if (user) {
       navigate('/', { replace: true });
@@ -76,7 +78,10 @@ function MainApp() {
 }
 
 export default function App() {
-  const socket = useMemo(() => io(process.env.REACT_APP_API_URL || 'https://padnis.onrender.com'), []);
+  const socket = useMemo(
+    () => io(process.env.REACT_APP_API_URL || 'https://padnis.onrender.com'),
+    []
+  );
 
   return (
     <ReduxProvider store={store}>
