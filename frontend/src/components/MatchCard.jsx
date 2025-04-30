@@ -1,3 +1,4 @@
+// src/components/MatchCard.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -21,12 +22,11 @@ const MatchCard = ({
   tournament,
   onResultChange,
   getPlayerName,
-  onSave,
+  onSaveResult,
   canEdit
 }) => {
   const theme = useTheme();
 
-  // Asegura siempre un array de tamaño totalSets
   const normalizeSets = (setsArg) => {
     const sets = Array.isArray(setsArg) ? [...setsArg] : [];
     while (sets.length < totalSets) {
@@ -35,12 +35,12 @@ const MatchCard = ({
     return sets.slice(0, totalSets);
   };
 
-  const [localResult, setLocalResult] = useState(() => ({
+  const [localResult, setLocalResult] = useState({
     ...matchResult,
     sets: normalizeSets(matchResult.sets),
     matchTiebreak: matchResult.matchTiebreak || { player1: '', player2: '' },
     saved: matchResult.saved
-  }));
+  });
   const [isEditing, setIsEditing] = useState(
     !matchResult.saved && canEdit && tournament.status === 'En curso'
   );
@@ -77,7 +77,6 @@ const MatchCard = ({
     }
   };
 
-  // Calcula ganador y runnerUp basados en sets y tiebreak
   const calculateWinner = () => {
     const wins1 = localResult.sets.reduce((a, s) => a + ((+s.player1 > +s.player2) ? 1 : 0), 0);
     const wins2 = localResult.sets.reduce((a, s) => a + ((+s.player2 > +s.player1) ? 1 : 0), 0);
@@ -88,14 +87,12 @@ const MatchCard = ({
     } else if (wins2 > wins1) {
       winner = match.player2;
       runnerUp = match.player1;
+    } else if (+localResult.matchTiebreak.player1 > +localResult.matchTiebreak.player2) {
+      winner = match.player1;
+      runnerUp = match.player2;
     } else {
-      if (+localResult.matchTiebreak.player1 > +localResult.matchTiebreak.player2) {
-        winner = match.player1;
-        runnerUp = match.player2;
-      } else {
-        winner = match.player2;
-        runnerUp = match.player1;
-      }
+      winner = match.player2;
+      runnerUp = match.player1;
     }
     return { winner, runnerUp };
   };
@@ -107,7 +104,7 @@ const MatchCard = ({
     try {
       const { winner, runnerUp } = calculateWinner();
       const resultToSave = { ...localResult, winner, runnerUp };
-      const errs = await onSave(match._id, resultToSave);
+      const errs = await onSaveResult(match._id, resultToSave);
       if (!errs) setIsEditing(false);
       else setSaveError(errs.general || 'Error al guardar');
     } catch (err) {
@@ -122,7 +119,7 @@ const MatchCard = ({
     setIsEditing(true);
   };
 
-  // Nombres (usa datos poblados o getPlayerName como fallback)
+  // Nombres de jugadores (usa datos poblados o fallback)
   const { player1: p1, player2: p1B } = match.player1;
   const { player1: p2, player2: p2B } = match.player2;
   const name1 = typeof p1 === 'object' && p1.firstName
@@ -155,9 +152,10 @@ const MatchCard = ({
     }}>
       {saveError && <Alert severity="error">{saveError}</Alert>}
 
-      {/* Header de jugadores */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>{name1.charAt(0)}</Avatar>
+        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
+          {name1.charAt(0)}
+        </Avatar>
         <Typography flex={1}>
           {name1}{name1B && ` / ${name1B}`}
         </Typography>
@@ -167,7 +165,6 @@ const MatchCard = ({
         </Typography>
       </Box>
 
-      {/* Score o Inputs */}
       {localResult.saved && !isEditing && canEdit ? (
         <Typography sx={{ fontSize: '0.875rem', mb: 1 }}>
           {localResult.sets.map((s, i) => (
@@ -270,7 +267,6 @@ const MatchCard = ({
         ) : null}
       </Box>
     </Box>
-  );
-};
-
+);
+        }
 export default MatchCard;

@@ -1,3 +1,4 @@
+// src/components/TournamentGroups.jsx
 import React from 'react';
 import { Box, Typography, Grid, Button, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -38,12 +39,12 @@ const TournamentGroups = ({
                 <MatchCard
                   match={m}
                   matchResult={m.result}
-                  totalSets={tournament.format?.sets || 2}
+                  totalSets={tournament.format?.sets ?? 2}
                   matchErrors={matchErrors[m._id] || {}}
                   tournament={tournament}
                   onResultChange={onResultChange}
                   getPlayerName={getPlayerName}
-                  onSave={onSaveResult}
+                  onSaveResult={onSaveResult}
                   canEdit={tournament.status === 'En curso' && canGenerate}
                 />
               </Grid>
@@ -52,7 +53,6 @@ const TournamentGroups = ({
         </Box>
       ))}
     </Box>
-  );
-};
-
+);
+}
 export default TournamentGroups;
