@@ -7,7 +7,7 @@ import store, { api } from './store/store';
 import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { SocketContext } from './contexts/SocketContext'; // o donde tipo lo tengas
+import SocketContext from './contexts/SocketContext';
 import NavBar from './components/NavBar';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
