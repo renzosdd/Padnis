@@ -1,3 +1,4 @@
+// normalizeId: acepta string/ObjectId o { _id, … } y devuelve string o null
 export function normalizeId(mix) {
   if (!mix) return null;
   return typeof mix === 'object'
@@ -11,37 +12,27 @@ export function normalizeId(mix) {
  *  - "NombreA ApellidoA / NombreB ApellidoB" para dobles
  */
 export function getPlayerName(tournament, playerId) {
-  if (!playerId || !Array.isArray(tournament?.participants)) return 'Jugador Desconocido';
+  if (!playerId || !Array.isArray(tournament?.participants)) return '';
 
-  // Normalizar playerId
-  const normalizedId = normalizeId(playerId);
-  if (!normalizedId) return 'Jugador Desconocido';
-
-  // Buscar participante
   const part = tournament.participants.find((p) => {
-    const a = normalizeId(p.player1?._id || p.player1);
-    const b = p.player2 ? normalizeId(p.player2?._id || p.player2) : null;
-    return a === normalizedId || b === normalizedId;
+    const a = normalizeId(p.player1);
+    const b = normalizeId(p.player2);
+    return a === playerId || b === playerId;
   });
-  if (!part) return 'Jugador Desconocido';
+  if (!part) return '';
 
   // Individual
   if (!part.player2) {
     const p = part.player1;
-    return typeof p === 'object' && p.firstName && p.lastName
-      ? `${p.firstName} ${p.lastName}`.trim()
-      : 'Jugador Desconocido';
+    return typeof p === 'object'
+      ? `${p.firstName || ''} ${p.lastName || ''}`.trim()
+      : '';
   }
 
   // Dobles
-  const A = part.player1;
-  const B = part.player2;
-  const nameA = typeof A === 'object' && A.firstName && A.lastName
-    ? `${A.firstName} ${A.lastName}`.trim()
-    : 'Jugador Desconocido';
-  const nameB = typeof B === 'object' && B.firstName && B.lastName
-    ? `${B.firstName} ${B.lastName}`.trim()
-    : 'Jugador Desconocido';
+  const A = part.player1, B = part.player2;
+  const nameA = typeof A === 'object' ? `${A.firstName} ${A.lastName}`.trim() : '';
+  const nameB = typeof B === 'object' ? `${B.firstName} ${B.lastName}`.trim() : '';
   return `${nameA} / ${nameB}`;
 }
 
