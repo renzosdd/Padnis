@@ -1,3 +1,4 @@
+// src/frontend/src/hooks/useTournament.js
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api';
 
@@ -13,10 +14,18 @@ export default function useTournament(tournamentId) {
     setError(null);
     try {
       const { data: t } = await api.get(`/tournaments/${tournamentId}`);
-      // Normaliza grupos y rondas
+      // Normalize groups and rounds
       t.groups = Array.isArray(t.groups) ? t.groups : [];
+      t.groups.forEach(g => {
+        g.matches = Array.isArray(g.matches) ? g.matches : [];
+      });
       t.rounds = Array.isArray(t.rounds) ? t.rounds : [];
-      // Inicializa resultado por partido
+      t.rounds.forEach(r => {
+        r.matches = Array.isArray(r.matches) ? r.matches : [];
+      });
+      setTournament(t);
+
+      // Initialize matchResults
       const init = {};
       [...t.groups, ...t.rounds].forEach(section =>
         section.matches.forEach(m => {
@@ -26,7 +35,6 @@ export default function useTournament(tournamentId) {
           };
         })
       );
-      setTournament(t);
       setMatchResults(init);
       setMatchErrors({});
     } catch (err) {
@@ -47,7 +55,7 @@ export default function useTournament(tournamentId) {
     setMatchResults(prev => {
       const mr = { ...prev[matchId] };
       mr.sets = Array.isArray(mr.sets) ? mr.sets : [];
-      // lógica inline...
+      // inline edit logic (sets, tiebreaks) here...
       mr.saved = false;
       return { ...prev, [matchId]: mr };
     });
