@@ -30,7 +30,7 @@ import useTournament from './useTournament.js';
 import { getPlayerName, getRoundName } from './tournamentUtils.js';
 import AuthContext from '../contexts/AuthContext';
 import NotificationContext from '../contexts/NotificationContext';
-import { SocketContext } from '../App.jsx';
+import SocketContext from '../contexts/SocketContext';
 
 // Captura errores de renderizado
 class ErrorBoundary extends React.Component {
