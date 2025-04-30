@@ -1,4 +1,3 @@
-// src/components/TournamentGroups.jsx
 import React from 'react';
 import { Box, Typography, Grid, Button, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -9,28 +8,26 @@ const TournamentGroups = ({
   tournament,
   onResultChange,
   onSaveResult,
-  matchErrors = {},
+  matchResults,
+  matchErrors,
   role,
   generateKnockoutPhase
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const groups = Array.isArray(tournament?.groups) ? tournament.groups : [];
-  const canGenerate = role === 'admin' || role === 'coach';
+  const canGenerate = ['admin','coach'].includes(role);
 
   return (
-    <Box sx={{ px: isMobile ? 1 : 2, py: 1 }}>
-      {canGenerate && groups.length > 0 && (
-        <Button fullWidth variant="contained" onClick={generateKnockoutPhase} sx={{ mb: 2 }}>
+    <Box sx={{ p: isMobile ? 1 : 2 }}>
+      {canGenerate && tournament.groups.length > 0 && (
+        <Button fullWidth variant="contained" onClick={generateKnockoutPhase} sx={{ mb:2 }}>
           Generar Eliminatorias
         </Button>
       )}
 
-      {groups.length === 0 ? (
-        <Typography color="text.secondary">No hay grupos generados.</Typography>
-      ) : groups.map(grp => (
-        <Box key={grp.name} sx={{ mb: 4 }}>
-          <Typography variant="h6" sx={{ mb: 1, color: '#1976d2' }}>
+      {tournament.groups.map(grp => (
+        <Box key={grp.name} sx={{ mb:4 }}>
+          <Typography variant="h6" sx={{ mb:1, color:'#1976d2' }}>
             {grp.name}
           </Typography>
           <Grid container spacing={2}>
@@ -38,8 +35,8 @@ const TournamentGroups = ({
               <Grid item xs={12} sm={6} key={m._id}>
                 <MatchCard
                   match={m}
-                  matchResult={m.result}
-                  totalSets={tournament.format?.sets ?? 2}
+                  matchResult={matchResults[m._id] || m.result}
+                  totalSets={tournament.format.sets}
                   matchErrors={matchErrors[m._id] || {}}
                   tournament={tournament}
                   onResultChange={onResultChange}
@@ -53,6 +50,7 @@ const TournamentGroups = ({
         </Box>
       ))}
     </Box>
-);
-}
+  );
+};
+
 export default TournamentGroups;
