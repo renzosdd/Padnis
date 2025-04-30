@@ -1,75 +1,126 @@
-import React, { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { setPage } from '../store/store';
-import { Box, Typography, Pagination, useMediaQuery } from '@mui/material';
+// src/frontend/src/components/TournamentHistory.jsx
+import React, { useEffect, useMemo } from 'react'
+import { useSelector, useDispatch } from 'react-redux'
+import { setPage } from '../store/store'
+import { useGetTournamentsQuery } from '../store/store'
+import {
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  Pagination,
+  useMediaQuery
+} from '@mui/material'
+import { Link } from 'react-router-dom'
+import theme from '../theme'
 
-const TournamentHistory = ({ tournaments }) => {
-  const dispatch = useDispatch();
-  const currentPage = useSelector((state) => state.page.currentPage);
-  const [pageTournaments, setPageTournaments] = useState([]);
-  const tournamentsPerPage = 10;
-  const isMobile = useMediaQuery(theme => theme.breakpoints.down('sm'));
+const TOURNAMENTS_PER_PAGE = 10
 
+const TournamentHistory = () => {
+  const dispatch = useDispatch()
+  const currentPage = useSelector((state) => state.page.current)
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+
+  // Fetch only finished tournaments (status=Finalizado)
+  const { data: tournaments = [], isLoading, error } =
+    useGetTournamentsQuery('Finalizado')
+
+  // Compute paginated slice
+  const totalPages = Math.ceil(tournaments.length / TOURNAMENTS_PER_PAGE)
+  const pageTournaments = useMemo(() => {
+    const start = (currentPage - 1) * TOURNAMENTS_PER_PAGE
+    return tournaments.slice(start, start + TOURNAMENTS_PER_PAGE)
+  }, [tournaments, currentPage])
+
+  // Reset to first page if data changes
   useEffect(() => {
-    if (!Array.isArray(tournaments)) return;
+    dispatch(setPage(1))
+  }, [tournaments, dispatch])
 
-    const startIndex = (currentPage - 1) * tournamentsPerPage;
-    const endIndex = startIndex + tournamentsPerPage;
-    setPageTournaments(tournaments.slice(startIndex, endIndex));
-  }, [currentPage, tournaments]);
+  const handlePageChange = (e, page) => {
+    dispatch(setPage(page))
+  }
 
-  const handlePageChange = (event, value) => {
-    dispatch(setPage(value));
-  };
-
-  const totalPages = Math.ceil((tournaments?.length || 0) / tournamentsPerPage);
-
-  if (!tournaments || tournaments.length === 0) {
+  if (isLoading) {
     return (
-      <Box sx={{ p: { xs: 1, sm: 2 }, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-          No hay torneos en el historial.
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography>Cargando historial...</Typography>
+      </Box>
+    )
+  }
+  if (error) {
+    return (
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography color="error">
+          Error al cargar historial
         </Typography>
       </Box>
-    );
+    )
+  }
+  if (tournaments.length === 0) {
+    return (
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography>No hay torneos finalizados todavía.</Typography>
+      </Box>
+    )
   }
 
   return (
-    <Box sx={{ p: { xs: 1, sm: 2 } }}>
-      <Typography variant="h5" sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, mb: 2, color: '#1976d2' }}>
+    <Box sx={{ p: isMobile ? 1 : 2 }}>
+      <Typography
+        variant="h5"
+        sx={{
+          fontSize: isMobile ? '1.25rem' : '1.5rem',
+          mb: 2,
+          color: theme.palette.primary.main
+        }}
+      >
         Historial de Torneos
       </Typography>
-      {pageTournaments.map((tournament) => (
-        <Box
-          key={tournament._id}
-          sx={{
-            mb: 2,
-            p: { xs: 1, sm: 2 },
-            border: '1px solid #e0e0e0',
-            borderRadius: 2,
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            bgcolor: 'background.paper',
-          }}
-        >
-          <Typography variant={isMobile ? 'subtitle1' : 'h6'}>{tournament.name}</Typography>
-          <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-            {tournament.type} - {tournament.sport} ({tournament.format.mode})
-          </Typography>
-          <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-            Estado: {tournament.status}
-          </Typography>
-        </Box>
-      ))}
-      <Pagination
-        count={totalPages}
-        page={currentPage}
-        onChange={handlePageChange}
-        color="primary"
-        size={isMobile ? 'small' : 'medium'}
-        sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}
-      />
-    </Box>
-  );
-};
 
-export default TournamentHistory;
+      <Grid container spacing={2}>
+        {pageTournaments.map((t) => (
+          <Grid item key={t._id} xs={12} sm={6} md={4}>
+            <Card elevation={2}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  {t.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t.type} • {t.sport} ({t.format?.mode})
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  Estado: {t.status}
+                </Typography>
+              </CardContent>
+              <CardActions>
+                <Button
+                  component={Link}
+                  to={`/tournament/${t._id}`}
+                  size="small"
+                >
+                  Ver detalles
+                </Button>
+              </CardActions>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+        <Pagination
+          count={totalPages}
+          page={currentPage}
+          onChange={handlePageChange}
+          color="primary"
+          size={isMobile ? 'small' : 'medium'}
+        />
+      </Box>
+    </Box>
+  )
+}
+
+export default TournamentHistory

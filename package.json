@@ -15,7 +15,10 @@
     "express-rate-limit": "^6.7.0",
     "helmet": "^6.0.1",
     "express-validator": "^7.0.1",
-    "winston": "^3.8.2"
+    "winston": "^3.8.2",
+    "nodemailer": "^6.9.4",
+    "pdfkit": "^0.13.0",
+    "socket.io": "^4.7.1"
   },
   "devDependencies": {
     "nodemon": "^2.0.20"
