@@ -1,4 +1,9 @@
-// normalizeId: admite tanto string/ObjectId como objeto { _id, ... }
+// src/frontend/src/utils/tournamentUtils.js
+
+/**
+ * normaliza un valor que puede ser string/ObjectId o un objeto { _id, ... }
+ * y devuelve siempre el string ID o null.
+ */
 export function normalizeId(mix) {
   if (!mix) return null;
   return typeof mix === 'object'
@@ -7,8 +12,8 @@ export function normalizeId(mix) {
 }
 
 /**
- * Dado un torneo y un playerId, devuelve el nombre completo.
- * Maneja individuales y dobles.
+ * Dado el objeto completo del torneo y un playerId,
+ * devuelve su nombre completo. Maneja singles y dobles.
  */
 export function getPlayerName(tournament, playerId) {
   if (!playerId || !Array.isArray(tournament?.participants)) return '';
@@ -31,4 +36,17 @@ export function getPlayerName(tournament, playerId) {
   const nameA = getPlayerName(tournament, idA);
   const nameB = getPlayerName(tournament, idB);
   return `${nameA} / ${nameB}`;
+}
+
+/**
+ * Convierte un número de ronda (1,2,3...) en un nombre legible.
+ */
+export function getRoundName(n) {
+  switch (n) {
+    case 1: return 'Final';
+    case 2: return 'Semifinal';
+    case 3: return 'Cuartos';
+    case 4: return 'Octavos';
+    default: return `Ronda ${n}`;
+  }
 }
