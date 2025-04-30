@@ -1,151 +1,82 @@
 // src/frontend/src/App.jsx
-import React, { useEffect, useMemo, useContext, createContext, useState, useCallback } from 'react';
-import axios from 'axios';
+import React, { useEffect, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Provider as ReduxProvider } from 'react-redux';
-import {
-  ThemeProvider,
-  createTheme,
-  useMediaQuery,
-  Snackbar,
-  Alert
-} from '@mui/material';
-import { io } from 'socket.io-client';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
-import store from './store/store';
+import { ThemeProvider } from '@mui/material';
+import store, { api } from './store/store';
+import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { NotificationProvider, useNotification } from './contexts/NotificationContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { SocketContext } from './contexts/SocketContext'; // o donde tipo lo tengas
+import NavBar from './components/NavBar';
+import LoginForm from './components/LoginForm';
+import RegisterForm from './components/RegisterForm';
 import TournamentList from './components/TournamentList';
 import TournamentHistory from './components/TournamentHistory';
 import TournamentInProgress from './components/TournamentInProgress';
-import LoginForm from './components/LoginForm';
-import RegisterForm from './components/RegisterForm';
-
-export const SocketContext = createContext();
-
-const BACKEND_URL = process.env.REACT_APP_API_URL || 'https://padnis.onrender.com';
-
-const theme = createTheme({
-  palette: {
-    primary: { main: '#1976d2' },
-    secondary: { main: '#424242' },
-  },
-});
-
-function NotificationSnackbars() {
-  const { notifications } = useNotification();
-  return (
-    <>
-      {notifications.map(({ key, message, severity }) => (
-        <Snackbar
-          key={key}
-          open
-          autoHideDuration={3000}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert severity={severity} variant="filled">
-            {message}
-          </Alert>
-        </Snackbar>
-      ))}
-    </>
-  );
-}
 
 function MainApp() {
   const { user } = useAuth();
-  const { addNotification } = useNotification();
-  const socket = useContext(SocketContext);
-  const [tournaments, setTournaments] = useState([]);
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const navigate = useNavigate();
 
-  const fetchTournaments = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await axios.get(
-        `${BACKEND_URL}/api/tournaments?status=En curso`,
-        { headers }
-      );
-      setTournaments(res.data);
-    } catch (err) {
-      console.error(err);
-      addNotification('Error al cargar torneos', 'error');
-    }
-  }, [addNotification]);
-
+  // Si user cambia a truthy, navegamos al home
   useEffect(() => {
     if (user) {
-      fetchTournaments();
-    } else {
-      setTournaments([]);
+      navigate('/', { replace: true });
     }
-  }, [user, fetchTournaments]);
-
-  useEffect(() => {
-    if (!socket) return;
-    const onMatchUpdated = () => {
-      fetchTournaments();
-      addNotification('Resultado actualizado', 'success');
-    };
-    const onRoundChanged = () => {
-      fetchTournaments();
-      addNotification('Nueva ronda generada', 'info');
-    };
-    socket.on('match:updated', onMatchUpdated);
-    socket.on('tournament:roundChanged', onRoundChanged);
-    return () => {
-      socket.off('match:updated', onMatchUpdated);
-      socket.off('tournament:roundChanged', onRoundChanged);
-    };
-  }, [socket, fetchTournaments, addNotification]);
+  }, [user, navigate]);
 
   return (
     <>
+      <NavBar />
       <Routes>
         <Route
           path="/login"
-          element={!user ? <LoginForm /> : <Navigate to="/" replace />}
+          element={
+            !user
+              ? <LoginForm onLoginSuccess={() => navigate('/', { replace: true })} />
+              : <Navigate to="/" replace />
+          }
         />
         <Route
           path="/register"
-          element={!user ? <RegisterForm /> : <Navigate to="/" replace />}
+          element={
+            !user
+              ? <RegisterForm onRegisterSuccess={() => navigate('/', { replace: true })} />
+              : <Navigate to="/" replace />
+          }
         />
         <Route
           path="/"
           element={
-            user ? (
-              <TournamentList
-                tournaments={tournaments}
-                isMobile={isMobile}
-                view="activos"
-                onViewChange={() => {}}
-              />
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            user
+              ? <TournamentList />
+              : <Navigate to="/login" replace />
           }
         />
         <Route
           path="/history"
           element={
-            user ? <TournamentHistory /> : <Navigate to="/login" replace />
+            user
+              ? <TournamentHistory />
+              : <Navigate to="/login" replace />
           }
         />
         <Route
           path="/tournament/:id"
           element={
-            user ? <TournamentInProgress /> : <Navigate to="/login" replace />
+            user
+              ? <TournamentInProgress />
+              : <Navigate to="/login" replace />
           }
         />
       </Routes>
-      <NotificationSnackbars />
     </>
   );
 }
 
 export default function App() {
-  const socket = useMemo(() => io(BACKEND_URL), []);
+  const socket = useMemo(() => io(process.env.REACT_APP_API_URL || 'https://padnis.onrender.com'), []);
 
   return (
     <ReduxProvider store={store}>

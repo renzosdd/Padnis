@@ -1,28 +1,34 @@
+// src/frontend/src/components/RegisterForm.jsx
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { TextField, Button, Box } from '@mui/material';
 
-const RegisterForm = ({ onSwitchToLogin }) => {
+const RegisterForm = ({ onSwitchToLogin, onRegisterSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const { onLogin } = useAuth();
   const { addNotification } = useNotification();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('https://padnis.onrender.com/api/register', { username, password });
-      addNotification('Usuario registrado con éxito', 'success');
-      onSwitchToLogin();
-    } catch (error) {
-      console.error('Error registering user from frontend:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Error al registrar usuario';
-      addNotification(errorMessage, 'error');
+      const { data } = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/register`,
+        { username, password }
+      );
+      onLogin({ token: data.token, username: data.username, role: data.role });
+      addNotification('Registro exitoso', 'success');
+      if (onRegisterSuccess) onRegisterSuccess();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al registrar';
+      addNotification(msg, 'error');
     }
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 4, maxWidth: 360, mx: 'auto' }}>
       <TextField
         label="Usuario"
         value={username}
@@ -38,9 +44,13 @@ const RegisterForm = ({ onSwitchToLogin }) => {
         fullWidth
         margin="normal"
       />
-      <Box sx={{ mt: 2 }}>
-        <Button variant="contained" color="primary" type="submit" sx={{ mr: 1 }}>Registrarse</Button>
-        <Button variant="text" onClick={onSwitchToLogin}>¿Ya tienes cuenta? Inicia sesión</Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+        <Button type="submit" variant="contained">
+          Registrarse
+        </Button>
+        <Button type="button" onClick={onSwitchToLogin}>
+          ¿Ya tienes cuenta? Inicia sesión
+        </Button>
       </Box>
     </Box>
   );

@@ -1,3 +1,4 @@
+// src/frontend/src/contexts/NotificationContext.jsx
 import React, { createContext, useContext, useState } from 'react';
 
 const NotificationContext = createContext();
@@ -21,9 +22,10 @@ export const NotificationProvider = ({ children }) => {
 };
 
 export const useNotification = () => {
-  const context = useContext(NotificationContext);
-  if (!context) throw new Error('useNotification must be used within a NotificationProvider');
-  return context;
+  const ctx = useContext(NotificationContext);
+  if (!ctx) throw new Error('useNotification must be used within NotificationProvider');
+  return ctx;
 };
 
+// export default para casos donde importe directamente el contexto
 export default NotificationContext;

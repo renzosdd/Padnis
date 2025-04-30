@@ -1,3 +1,4 @@
+// src/frontend/src/components/LoginForm.jsx
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,16 +21,14 @@ const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
       onLogin({ token: data.token, username: data.username, role: data.role });
       addNotification('Inicio de sesión exitoso', 'success');
       if (onLoginSuccess) onLoginSuccess();
-    } catch (error) {
-      console.error('Error logging in from frontend:', error);
-      const errorMessage =
-        error.response?.data?.message || error.message || 'Error al iniciar sesión';
-      addNotification(errorMessage, 'error');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Error al iniciar sesión';
+      addNotification(msg, 'error');
     }
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+    <Box component="form" onSubmit={handleSubmit} sx={{ mt: 4, maxWidth: 360, mx: 'auto' }}>
       <TextField
         label="Usuario"
         value={username}
@@ -45,11 +44,11 @@ const LoginForm = ({ onSwitchToRegister, onLoginSuccess }) => {
         fullWidth
         margin="normal"
       />
-      <Box sx={{ mt: 2 }}>
-        <Button variant="contained" color="primary" type="submit" sx={{ mr: 1 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+        <Button type="submit" variant="contained">
           Iniciar sesión
         </Button>
-        <Button variant="text" onClick={onSwitchToRegister}>
+        <Button type="button" onClick={onSwitchToRegister}>
           ¿No tienes cuenta? Regístrate
         </Button>
       </Box>
