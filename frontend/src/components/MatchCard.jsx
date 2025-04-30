@@ -12,6 +12,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import { useTheme } from '@mui/material/styles';
+import { getPlayerName } from '../utils/tournamentUtils';
 
 const MatchCard = ({
   match,
@@ -20,14 +21,9 @@ const MatchCard = ({
   matchErrors,
   tournament,
   onSave,
-  canEdit,
-  getPlayerName
+  canEdit
 }) => {
   const theme = useTheme();
-  // Define safe name function to avoid l is not a function
-  const nameFn = typeof getPlayerName === 'function'
-    ? getPlayerName
-    : () => '';
 
   const normalizeSets = (sets) => {
     if (Array.isArray(sets)) {
@@ -60,7 +56,7 @@ const MatchCard = ({
   }, [matchResult, totalSets]);
 
   const handleLocalInputChange = (key, value) => {
-    setLocalResult((prev) => {
+    setLocalResult(prev => {
       const next = { ...prev };
       if (key.startsWith('set')) {
         const [prefix, idxStr] = key.split('-');
@@ -89,7 +85,7 @@ const MatchCard = ({
     });
   };
 
-  const handleSave = async (e) => {
+  const handleSave = async e => {
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
@@ -104,12 +100,15 @@ const MatchCard = ({
     }
   };
 
-  const handleEdit = (e) => {
+  const handleEdit = e => {
     e.preventDefault();
     setIsEditing(true);
   };
 
-  // Render
+  // Helpers to get display name and initial
+  const name1 = getPlayerName(tournament, match.player1.player1) || 'Jugador';
+  const name2 = getPlayerName(tournament, match.player2.player1) || 'Jugador';
+
   return (
     <Box
       sx={{
@@ -125,27 +124,25 @@ const MatchCard = ({
     >
       {saveError && <Alert severity="error">{saveError}</Alert>}
 
-      {/* Encabezado jugadores */}
+      {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
-          { (nameFn(tournament, match.player1.player1) || '?')[0] }
-        </Avatar>
+        <Avatar sx={{ bgcolor: theme.palette.primary.main }}>{name1.charAt(0)}</Avatar>
         <Typography flex={1}>
-          {nameFn(tournament, match.player1.player1) || 'Jugador 1'}
+          {name1}
           {match.player1.player2 &&
-            ` / ${nameFn(tournament, match.player1.player2)}`
+            ` / ${getPlayerName(tournament, match.player1.player2)}`
           }
         </Typography>
         <Typography>vs</Typography>
         <Typography flex={1} textAlign="right">
-          {nameFn(tournament, match.player2.player1) || 'Jugador 2'}
+          {name2}
           {match.player2.player2 &&
-            ` / ${nameFn(tournament, match.player2.player2)}`
+            ` / ${getPlayerName(tournament, match.player2.player2)}`
           }
         </Typography>
       </Box>
 
-      {/* Resultado guardado o inputs */}
+      {/* Score or inputs */}
       {localResult.saved && !isEditing && canEdit ? (
         <Typography sx={{ fontSize: '0.875rem', mb: 1 }}>
           {localResult.sets.map((s, i) => (
@@ -157,10 +154,7 @@ const MatchCard = ({
             </span>
           ))}
           {totalSets === 2 &&
-            localResult.sets.reduce(
-              (acc, s) => acc + ((+s.player1 > +s.player2) ? 1 : -1),
-              0
-            ) === 0 &&
+            localResult.sets.reduce((a, s) => a + ((+s.player1 > +s.player2 ? 1 : -1)), 0) === 0 &&
             `, Match TB ${localResult.matchTiebreak.player1 || 0}-${localResult.matchTiebreak.player2 || 0}`
           }
         </Typography>
@@ -173,7 +167,7 @@ const MatchCard = ({
                   type="number"
                   size="small"
                   value={s.player1}
-                  onChange={(e) => handleLocalInputChange(`set${i}-0`, e.target.value)}
+                  onChange={e => handleLocalInputChange(`set${i}-0`, e.target.value)}
                   inputProps={{ min: 0 }}
                   error={!!matchErrors[`set${i}`]}
                   sx={{ width: 50 }}
@@ -183,7 +177,7 @@ const MatchCard = ({
                   type="number"
                   size="small"
                   value={s.player2}
-                  onChange={(e) => handleLocalInputChange(`set${i}-1`, e.target.value)}
+                  onChange={e => handleLocalInputChange(`set${i}-1`, e.target.value)}
                   inputProps={{ min: 0 }}
                   error={!!matchErrors[`set${i}`]}
                   sx={{ width: 50 }}
@@ -194,7 +188,7 @@ const MatchCard = ({
                       type="number"
                       size="small"
                       value={s.tiebreak1}
-                      onChange={(e) => handleLocalInputChange(`tiebreak${i}-1`, e.target.value)}
+                      onChange={e => handleLocalInputChange(`tiebreak${i}-1`, e.target.value)}
                       inputProps={{ min: 0 }}
                       error={!!matchErrors[`set${i}`]}
                       sx={{ width: 50 }}
@@ -204,7 +198,7 @@ const MatchCard = ({
                       type="number"
                       size="small"
                       value={s.tiebreak2}
-                      onChange={(e) => handleLocalInputChange(`tiebreak${i}-2`, e.target.value)}
+                      onChange={e => handleLocalInputChange(`tiebreak${i}-2`, e.target.value)}
                       inputProps={{ min: 0 }}
                       error={!!matchErrors[`set${i}`]}
                       sx={{ width: 50 }}
@@ -214,16 +208,14 @@ const MatchCard = ({
               </Box>
             ))}
             {totalSets === 2 &&
-              localResult.sets.reduce(
-                (acc, s) => acc + ((+s.player1 > +s.player2) ? 1 : -1), 0
-              ) === 0 && (
+              localResult.sets.reduce((a, s) => a + ((+s.player1 > +s.player2 ? 1 : -1)), 0) === 0 && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography>Match TB:</Typography>
                   <TextField
                     type="number"
                     size="small"
                     value={localResult.matchTiebreak.player1}
-                    onChange={(e) => handleLocalInputChange('matchTiebreak-0', e.target.value)}
+                    onChange={e => handleLocalInputChange('matchTiebreak-0', e.target.value)}
                     inputProps={{ min: 0 }}
                     error={!!matchErrors.matchTiebreak}
                     sx={{ width: 50 }}
@@ -233,7 +225,7 @@ const MatchCard = ({
                     type="number"
                     size="small"
                     value={localResult.matchTiebreak.player2}
-                    onChange={(e) => handleLocalInputChange('matchTiebreak-1', e.target.value)}
+                    onChange={e => handleLocalInputChange('matchTiebreak-1', e.target.value)}
                     inputProps={{ min: 0 }}
                     error={!!matchErrors.matchTiebreak}
                     sx={{ width: 50 }}
