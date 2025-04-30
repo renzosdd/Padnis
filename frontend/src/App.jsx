@@ -1,7 +1,12 @@
+// src/frontend/src/App.jsx
 import React, { useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Provider as ReduxProvider } from 'react-redux';
+import { ThemeProvider, CssBaseline } from '@mui/material';
 import { io } from 'socket.io-client';
 
+import store from './store/store';
+import theme from './theme';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import SocketContext from './contexts/SocketContext';
@@ -13,12 +18,19 @@ import TournamentList from './components/TournamentList';
 import TournamentHistory from './components/TournamentHistory';
 import TournamentInProgress from './components/TournamentInProgress';
 
-const MainApp = () => {
+function MainApp() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) navigate('/', { replace: true });
+    // Si no hay usuario, redirigir a login; si lo hay, al home
+    if (user) {
+      if (window.location.pathname === '/login' || window.location.pathname === '/register') {
+        navigate('/', { replace: true });
+      }
+    } else {
+      navigate('/login', { replace: true });
+    }
   }, [user, navigate]);
 
   return (
@@ -56,7 +68,7 @@ const MainApp = () => {
       </Routes>
     </>
   );
-};
+}
 
 export default function App() {
   const socket = useMemo(
@@ -65,14 +77,19 @@ export default function App() {
   );
 
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <SocketContext.Provider value={socket}>
-          <Router>
-            <MainApp />
-          </Router>
-        </SocketContext.Provider>
-      </NotificationProvider>
-    </AuthProvider>
+    <ReduxProvider store={store}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <NotificationProvider>
+            <SocketContext.Provider value={socket}>
+              <Router>
+                <MainApp />
+              </Router>
+            </SocketContext.Provider>
+          </NotificationProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ReduxProvider>
   );
 }
