@@ -1,4 +1,15 @@
 // backend/server.js
+/**
+ * Archivo principal del servidor que expone rutas para gestionar:
+ * - Usuarios (login, register, roles)
+ * - Clubes
+ * - Jugadores
+ * - Torneos (incluye RoundRobin y fase Eliminatoria)
+ * - Envío de invitaciones por email, generación de PDF “al vuelo”
+ * 
+ * Además emite eventos de Socket.IO para notificaciones en tiempo real.
+ */
+
 const express = require('express');
 const http = require('http');                                       // ── NUEVO ──
 const mongoose = require('mongoose');
@@ -9,7 +20,6 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const { body, param, validationResult } = require('express-validator');
 const winston = require('winston');
-
 const nodemailer = require('nodemailer');                           // ── NUEVO ──
 const PDFDocument = require('pdfkit');                              // ── NUEVO ──
 const path = require('path');                                       // ── NUEVO ──
@@ -19,6 +29,13 @@ const Player = require('./models/Player');
 const Tournament = require('./models/Tournament');
 const Club = require('./models/Club');
 
+// Importar utilidades específicas de torneos
+const {
+  validateMatchResult,
+  generateKnockoutRounds,
+  advanceEliminationRound,
+} = require('./tournamentUtils');
+
 const app = express();
 const server = http.createServer(app);                              // ── NUEVO ──
 const { Server } = require('socket.io');                            // ── NUEVO ──
@@ -26,7 +43,9 @@ const io = new Server(server, {                                     // ── NU
   cors: { origin: '*' }                                             // ── NUEVO ──
 });                                                                  // ── NUEVO ──
 
-// Winston logger
+// -------------------------------------------------------
+// Configuración de Winston (logger)
+// -------------------------------------------------------
 const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
   format: winston.format.combine(
@@ -40,7 +59,9 @@ const logger = winston.createLogger({
   ],
 });
 
-// Validate environment variables
+// -------------------------------------------------------
+// Validar variables de entorno
+// -------------------------------------------------------
 const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
 const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
 if (missingEnvVars.length > 0) {
@@ -48,12 +69,15 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-// Nodemailer local SMTP (MailHog/MailDev)             // ── NUEVO ──
+// -------------------------------------------------------
+// Configuración Nodemailer (MailHog/MailDev local)
+// -------------------------------------------------------
 const mailTransporter = nodemailer.createTransport({
   host: 'localhost',
   port: 1025,
   secure: false,
 });
+
 async function sendInviteEmail(to, subject, htmlContent) {
   return mailTransporter.sendMail({
     from: '"Padnis App" <no-reply@padnis.local>',
@@ -61,26 +85,11 @@ async function sendInviteEmail(to, subject, htmlContent) {
     subject,
     html: htmlContent,
   });
-}                                                      // ── NUEVO ──
+}
 
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin: 'https://padnis-frontend.onrender.com',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],    // añadí PATCH por WebSocket
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-app.use(express.json());
-
-// Rate limiting for login endpoint
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
-  message: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos.',
-});
-app.use('/api/login', loginLimiter);
-
-// Connection to MongoDB
+// -------------------------------------------------------
+// Conexión a MongoDB
+// -------------------------------------------------------
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
@@ -94,7 +103,28 @@ const connectDB = async () => {
   }
 };
 
-// Utility Functions
+// -------------------------------------------------------
+// Middlewares globales
+// -------------------------------------------------------
+app.use(helmet());
+app.use(cors({
+  origin: 'https://padnis-frontend.onrender.com',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+app.use(express.json());
+
+// Rate limiting para login
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10,
+  message: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos.',
+});
+app.use('/api/login', loginLimiter);
+
+// -------------------------------------------------------
+// Funciones utilitarias
+// -------------------------------------------------------
 const validateObjectId = (id) => mongoose.isValidObjectId(id);
 
 const checkPlayersExist = async (playerIds) => {
@@ -104,7 +134,9 @@ const checkPlayersExist = async (playerIds) => {
   return playerIds.filter((id) => !existingIds.has(id));
 };
 
-// Authentication Middleware
+// -------------------------------------------------------
+// Middleware de autenticación y roles
+// -------------------------------------------------------
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -131,7 +163,7 @@ const isAdminOrCoach = (req, res, next) => {
   next();
 };
 
-// Validation Middleware
+// Middleware para validar resultados de express-validator
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -140,12 +172,19 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
-// Socket.io connection logging                   // ── NUEVO ──
-io.on('connection', socket => {
+// -------------------------------------------------------
+// Configuración de Socket.IO
+// -------------------------------------------------------
+io.on('connection', (socket) => {
   logger.info('Cliente Socket.io conectado:', socket.id);
-});                                                 // ── NUEVO ──
+  socket.on('disconnect', () => {
+    logger.info('Cliente Socket.io desconectado:', socket.id);
+  });
+});
 
-// Diagnostic Routes
+// -------------------------------------------------------
+// Rutas de diagnóstico
+// -------------------------------------------------------
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Backend is running', timestamp: new Date() });
 });
@@ -160,7 +199,9 @@ app.get('/api/db-check', async (req, res) => {
   }
 });
 
-// Authentication Routes
+// -------------------------------------------------------
+// Rutas de autenticación (login / register)
+// -------------------------------------------------------
 app.post('/api/login', [
   body('username').notEmpty().withMessage('Usuario es obligatorio'),
   body('password').notEmpty().withMessage('Contraseña es obligatoria'),
@@ -179,13 +220,15 @@ app.post('/api/login', [
       logger.info('Password mismatch for user:', { username });
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
-    const token = jwt.sign({ _id: user._id, username, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '1h',
-    });
+    const token = jwt.sign(
+      { _id: user._id, username, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+    );
     logger.info('Login successful:', { username, role: user.role });
     res.json({ token, username, role: user.role });
   } catch (error) {
-    logger.error('Error in login:', { message: error.message, stack: error.stack });
+    logger.error('Error in login:', { message: error.message, stack: err.stack });
     res.status(500).json({ message: 'Error en el servidor al iniciar sesión', error: error.message });
   }
 });
@@ -210,7 +253,9 @@ app.post('/api/register', [
   }
 });
 
-// User Routes
+// -------------------------------------------------------
+// Rutas de Usuarios
+// -------------------------------------------------------
 app.get('/api/users', authenticateToken, async (req, res) => {
   try {
     const users = await User.find({}, 'username role').lean();
@@ -239,7 +284,9 @@ app.put('/api/users/:username/role', authenticateToken, isAdmin, [
   }
 });
 
-// Club Routes
+// -------------------------------------------------------
+// Rutas de Clubes
+// -------------------------------------------------------
 app.post('/api/clubs', authenticateToken, isAdmin, [
   body('name').notEmpty().withMessage('El nombre del club es obligatorio'),
   validateRequest,
@@ -306,15 +353,21 @@ app.delete('/api/clubs/:id', authenticateToken, isAdmin, [
   }
 });
 
-// Player Routes
+// -------------------------------------------------------
+// Rutas de Jugadores
+// -------------------------------------------------------
 app.get('/api/players', async (req, res) => {
   try {
     const { showInactive } = req.query;
     let query = { active: 'Yes' };
     const token = req.headers['authorization']?.split(' ')[1];
     if (token) {
-      const user = jwt.verify(token, process.env.JWT_SECRET);
-      if (user.role === 'admin' && showInactive === 'true') query = {};
+      try {
+        const user = jwt.verify(token, process.env.JWT_SECRET);
+        if (user.role === 'admin' && showInactive === 'true') query = {};
+      } catch {
+        // Token inválido: proceder como espectador
+      }
     }
     const players = await Player.find(query).populate('user', 'username').lean();
     res.status(200).json(players.map((player) => ({
@@ -381,7 +434,11 @@ app.put('/api/players/:playerId', authenticateToken, isAdminOrCoach, [
   }
 });
 
-// Tournament Routes
+// -------------------------------------------------------
+// Rutas de Torneos
+// -------------------------------------------------------
+
+// Crear nuevo torneo
 app.post('/api/tournaments', authenticateToken, isAdminOrCoach, [
   body('name').notEmpty().withMessage('El nombre del torneo es obligatorio'),
   body('type').isIn(['RoundRobin', 'Eliminatorio']).withMessage('Tipo de torneo inválido'),
@@ -464,6 +521,7 @@ app.post('/api/tournaments', authenticateToken, isAdminOrCoach, [
   }
 });
 
+// Listar torneos (puede filtrar por status, show draft para admin, etc.)
 app.get('/api/tournaments', async (req, res) => {
   try {
     const { status } = req.query;
@@ -472,8 +530,8 @@ app.get('/api/tournaments', async (req, res) => {
     if (token) {
       try {
         user = jwt.verify(token, process.env.JWT_SECRET);
-      } catch (err) {
-        logger.debug('Invalid token, proceeding as spectator');
+      } catch {
+        // Token inválido: proceder como espectador
       }
     }
     const query = { draft: false };
@@ -510,6 +568,7 @@ app.get('/api/tournaments', async (req, res) => {
   }
 });
 
+// Obtener un torneo por ID (con validación de acceso si es draft)
 app.get('/api/tournaments/:id', [
   param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
   validateRequest,
@@ -521,8 +580,8 @@ app.get('/api/tournaments/:id', [
     if (token) {
       try {
         user = jwt.verify(token, process.env.JWT_SECRET);
-      } catch (err) {
-        logger.debug('Invalid token, proceeding as spectator');
+      } catch {
+        // Token inválido: proceder como espectador
       }
     }
     const tournament = await Tournament.findById(id)
@@ -542,7 +601,10 @@ app.get('/api/tournaments/:id', [
       })
       .lean();
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
-    if (tournament.draft && (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))) {
+    if (
+      tournament.draft &&
+      (!user || (user.role !== 'admin' && user._id.toString() !== tournament.creator._id.toString()))
+    ) {
       return res.status(403).json({ message: 'No tienes permiso para ver este borrador' });
     }
     res.json(tournament);
@@ -552,6 +614,7 @@ app.get('/api/tournaments/:id', [
   }
 });
 
+// Actualizar torneo por ID (incluye nombre, status, draft, grupos, rondas, etc.)
 app.put('/api/tournaments/:id', authenticateToken, isAdminOrCoach, [
   param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
   validateRequest,
@@ -564,10 +627,10 @@ app.put('/api/tournaments/:id', authenticateToken, isAdminOrCoach, [
     const tournament = await Tournament.findById(id);
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
-    // Validaciones de participantes, grupos, rondas, estado, ganador/subcampeón (igual que antes)...
-
+    // Validaciones de participantes, grupos, rondas, estado, ganador/subcampeón (si corresponde)...
     Object.assign(tournament, updates);
     await tournament.save();
+
     const updatedTournament = await Tournament.findById(id)
       .populate('creator', 'username')
       .populate('club', 'name')
@@ -591,127 +654,256 @@ app.put('/api/tournaments/:id', authenticateToken, isAdminOrCoach, [
   }
 });
 
-app.put('/api/tournaments/:tournamentId/matches/:matchId/result', authenticateToken, isAdminOrCoach, [
-  param('tournamentId').custom(validateObjectId).withMessage('ID de torneo inválido'),
-  param('matchId').custom(validateObjectId).withMessage('ID de partido inválido'),
-  body('sets').isArray().withMessage('Los sets deben ser un arreglo'),
-  body('winner').notEmpty().withMessage('El ganador es obligatorio'),
+// -------------------------------------------------------
+// NUEVA RUTA: Generar fase Eliminatoria (Knockout)
+// POST /api/tournaments/:id/knockout
+// -------------------------------------------------------
+app.post('/api/tournaments/:id/knockout',
+  authenticateToken,
+  isAdminOrCoach,
+  [
+    param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
+    validateRequest,
+  ],
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const tournament = await Tournament.findById(id).lean();
+      if (!tournament) {
+        return res.status(404).json({ message: 'Torneo no encontrado' });
+      }
+      if (tournament.type !== 'RoundRobin') {
+        return res.status(400).json({ message: 'Sólo aplica a torneos RoundRobin' });
+      }
+
+      // Generar la primera ronda eliminatoria
+      const knockoutRounds = await generateKnockoutRounds(tournament);
+      await Tournament.findByIdAndUpdate(id, {
+        draft: false,
+        status: 'En curso',
+        rounds: knockoutRounds,
+      });
+
+      const updatedTournament = await Tournament.findById(id)
+        .populate({
+          path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
+        })
+        .lean();
+
+      io.emit('tournament:roundChanged', {
+        tournamentId: id,
+        newRounds: updatedTournament.rounds,
+      });
+      return res.json(updatedTournament);
+    } catch (error) {
+      logger.error('Error generando fase eliminatoria:', { message: error.message, stack: error.stack });
+      return res.status(500).json({
+        message: 'Error interno al generar fase eliminatoria',
+        error: error.message,
+      });
+    }
+  }
+);
+
+// -------------------------------------------------------
+// Actualizar resultado de un partido (grupos o eliminatoria)
+// PUT /api/tournaments/:tournamentId/matches/:matchId/result
+// -------------------------------------------------------
+app.put('/api/tournaments/:tournamentId/matches/:matchId/result',
+  authenticateToken,
+  isAdminOrCoach,
+  [
+    param('tournamentId').custom(validateObjectId).withMessage('ID de torneo inválido'),
+    param('matchId').custom(validateObjectId).withMessage('ID de partido inválido'),
+    body('sets').isArray().withMessage('Los sets deben ser un arreglo'),
+    body('winner').notEmpty().withMessage('El ganador es obligatorio'),
+    validateRequest,
+  ],
+  async (req, res) => {
+    const { tournamentId, matchId } = req.params;
+    const { sets, winner, runnerUp, isKnockout, matchTiebreak1, matchTiebreak2 } = req.body;
+    logger.debug('Updating match result:', { tournamentId, matchId, payload: req.body });
+
+    try {
+      // 1) Obtener torneo (sin lean, para modificar subdocumentos)
+      const tournament = await Tournament.findById(tournamentId);
+      if (!tournament) {
+        return res.status(404).json({ message: 'Torneo no encontrado' });
+      }
+
+      // 2) Buscar el partido en grupos o en rounds
+      let match = null;
+      let roundIndex = -1;
+
+      if (!isKnockout && Array.isArray(tournament.groups)) {
+        for (const grp of tournament.groups) {
+          const found = grp.matches.id(matchId);
+          if (found) {
+            match = found;
+            break;
+          }
+        }
+      }
+      if (!match && Array.isArray(tournament.rounds)) {
+        for (let i = 0; i < tournament.rounds.length; i++) {
+          const rnd = tournament.rounds[i];
+          const found = rnd.matches.id(matchId);
+          if (found) {
+            match = found;
+            roundIndex = i;
+            break;
+          }
+        }
+      }
+      if (!match) {
+        return res.status(404).json({ message: 'Partido no encontrado' });
+      }
+
+      // 3) Validar sets y tiebreaks con helper
+      const validationErrors = validateMatchResult({ sets, matchTiebreak1, matchTiebreak2 });
+      if (Object.keys(validationErrors).length > 0) {
+        return res.status(400).json({
+          errors: Object.entries(validationErrors).map(([paramKey, msg]) => ({ param: paramKey, msg })),
+        });
+      }
+
+      // 4) Asignar resultado
+      match.result.sets = sets;
+      match.result.matchTiebreak1 = matchTiebreak1;
+      match.result.matchTiebreak2 = matchTiebreak2;
+      match.result.winner = winner;
+      match.result.runnerUp = runnerUp || null;
+
+      await tournament.save();
+
+      // 5) Si es eliminatoria, verificar si se debe avanzar de ronda
+      if (isKnockout && roundIndex >= 0) {
+        const updatedRounds = await advanceEliminationRound(tournament, roundIndex);
+        if (updatedRounds) {
+          tournament.rounds = updatedRounds;
+          await tournament.save();
+          io.emit('tournament:roundChanged', {
+            tournamentId,
+            newRounds: tournament.rounds,
+          });
+        }
+      }
+
+      // 6) Recargar torneo con populate y emitir evento de match actualizado
+      const finalTournament = await Tournament.findById(tournamentId)
+        .populate({
+          path: 'groups.matches.player1.player1 groups.matches.player1.player2 groups.matches.player2.player1 groups.matches.player2.player2',
+        })
+        .populate({
+          path: 'rounds.matches.player1.player1 rounds.matches.player1.player2 rounds.matches.player2.player1 rounds.matches.player2.player2',
+        })
+        .lean();
+
+      io.emit('match:updated', {
+        tournamentId,
+        matchId,
+        newMatch: match,
+      });
+
+      return res.json(finalTournament);
+    } catch (error) {
+      logger.error('Error updating match result:', { message: error.message, stack: error.stack });
+      return res.status(500).json({
+        message: 'Error al actualizar resultado',
+        error: error.message,
+      });
+    }
+  }
+);
+
+// -------------------------------------------------------
+// Generación de PDF “al vuelo” para torneo
+// GET /api/tournaments/:id/pdf
+// -------------------------------------------------------
+app.get('/api/tournaments/:id/pdf', [
+  param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
   validateRequest,
 ], async (req, res) => {
-  const { tournamentId, matchId } = req.params;
-  const { sets, winner, runnerUp, isKnockout, matchTiebreak1, matchTiebreak2 } = req.body;
-  logger.debug('Updating match result:', { tournamentId, matchId, payload: req.body });
-
   try {
-    const tournament = await Tournament.findById(tournamentId);
+    const { id } = req.params;
+    const tournament = await Tournament.findById(id).lean();
     if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
 
-    // Búsqueda de match en grupos o rondas (igual que antes)...
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="torneo-${id}.pdf"`);
 
-    // Validaciones de sets, winner, runnerUp, tiebreak de match (igual que antes)...
+    const doc = new PDFDocument({ margin: 50 });
+    doc.pipe(res);
 
-    // Asignación del result
-    match.result.sets = sets;
-    match.result.winner = { player1: winner.player1, player2: winner.player2 || null };
-    match.result.runnerUp = runnerUp ? { player1: runnerUp.player1, player2: runnerUp.player2 || null } : null;
-    match.result.matchTiebreak1 = matchTiebreak1 || undefined;
-    match.result.matchTiebreak2 = matchTiebreak2 || undefined;
+    const logoPath = path.join(__dirname, 'public', 'logo.png');
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 50, 45, { width: 100 });
+    }
 
-    // Actualizar logros en Player si runnerUp (igual que antes)...
-
-    await tournament.save();
-
-    // Emitir evento de Socket.io                           // ── NUEVO ──
-    io.emit('match:updated', {
-      tournamentId: tournament._id,
-      matchId,
-      result: match.result
+    doc.fontSize(20).text(`Torneo: ${tournament.name}`, 50, 160).moveDown();
+    doc.fontSize(12).text('Primeros partidos:');
+    (tournament.rounds[0]?.matches || []).slice(0, 5).forEach((m, i) => {
+      const p1name = m.player1?.player1?.firstName ? `${m.player1.player1.firstName} ${m.player1.player1.lastName}` : '—';
+      const p2name = m.player2?.player1 ? `${m.player2.player1.firstName} ${m.player2.player1.lastName}` : '—';
+      doc.text(
+        `${i + 1}. ${p1name} vs ${p2name} — ${
+          m.result?.sets?.map(s => `${s.player1}-${s.player2}`).join(', ') || 'sin jugar'
+        }`
+      );
     });
 
-    // Si se generó nueva ronda, emitir tournament:roundChanged  // ── NUEVO ──
-    // if (seGeneróNuevaRonda) {
-    //   io.emit('tournament:roundChanged', {
-    //     tournamentId: tournament._id,
-    //     newRound: tournament.currentRound
-    //   });
-    // }
-
-    res.json({ message: 'Resultado actualizado' });
+    doc.end();
   } catch (error) {
-    logger.error('Error updating match result:', { message: error.message, stack: error.stack });
-    res.status(500).json({ message: 'Error al actualizar resultado', error: error.message });
+    logger.error('Error generating PDF:', { message: error.message, stack: error.stack });
+    res.status(500).json({ message: 'Error al generar PDF', error: error.message });
   }
 });
 
-// Generación de PDF “al vuelo”                        // ── NUEVO ──
-app.get('/api/tournaments/:id/pdf', [
-  param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
-  validateRequest
-], async (req, res) => {
-  const { id } = req.params;
-  const tournament = await Tournament.findById(id).lean();
-  if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="torneo-${id}.pdf"`);
-
-  const doc = new PDFDocument({ margin: 50 });
-  doc.pipe(res);
-
-  const logoPath = path.join(__dirname, 'public', 'logo.png');
-  doc.image(logoPath, 50, 45, { width: 100 });
-
-  doc.fontSize(20).text(`Torneo: ${tournament.name}`, 50, 160).moveDown();
-  doc.fontSize(12).text('Primeros partidos:');
-  (tournament.rounds[0]?.matches || []).slice(0, 5).forEach((m, i) => {
-    doc.text(
-      `${i + 1}. ${m.player1.name || '—'} vs ${m.player2.name || '—'} — ${
-        m.result?.sets?.map(s => `${s[0]}-${s[1]}`).join(', ') || 'sin jugar'
-      }`
-    );
-  });
-
-  doc.end();
-});
-
-// Envío de invitaciones por email                  // ── NUEVO ──
+// -------------------------------------------------------
+// Envío de invitaciones por email para torneo
+// POST /api/tournaments/:id/invite
+// -------------------------------------------------------
 app.post('/api/tournaments/:id/invite',
   authenticateToken,
   isAdminOrCoach,
   [
     param('id').custom(validateObjectId).withMessage('ID de torneo inválido'),
     body('email').isEmail().withMessage('Email inválido'),
-    validateRequest
+    validateRequest,
   ],
   async (req, res) => {
-    const { id } = req.params;
-    const { email } = req.body;
-    const tournament = await Tournament.findById(id).lean();
-    if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
-
-    const link = `https://padnis-frontend.onrender.com/tournament/${id}`;
-    const html = `
-      <h1>Invitación al torneo ${tournament.name}</h1>
-      <p>Únete aquí: <a href="${link}">${link}</a></p>
-      <img src="https://your-cdn.com/logo.png" width="120" />
-    `;
     try {
+      const { id } = req.params;
+      const { email } = req.body;
+      const tournament = await Tournament.findById(id).lean();
+      if (!tournament) return res.status(404).json({ message: 'Torneo no encontrado' });
+
+      const link = `https://padnis-frontend.onrender.com/tournament/${id}`;
+      const html = `
+        <h1>Invitación al torneo ${tournament.name}</h1>
+        <p>Únete aquí: <a href="${link}">${link}</a></p>
+        <img src="https://your-cdn.com/logo.png" width="120" />
+      `;
       await sendInviteEmail(email, `Invitación a ${tournament.name}`, html);
       res.json({ message: 'Invitación enviada' });
     } catch (err) {
-      logger.error('Error al enviar invitación:', err);
+      logger.error('Error al enviar invitación:', { message: err.message, stack: err.stack });
       res.status(500).json({ message: 'Error al enviar invitación', error: err.message });
     }
   }
 );
 
-// Global Error Handler
+// -------------------------------------------------------
+// Handler global de errores
+// -------------------------------------------------------
 app.use((err, req, res, next) => {
   logger.error('Unhandled error:', { message: err.message, stack: err.stack });
   res.status(500).json({ message: 'Error interno del servidor', error: err.message });
 });
 
-// Start the Server
+// -------------------------------------------------------
+// Inicialización del servidor
+// -------------------------------------------------------
 connectDB().then(() => {
   const PORT = process.env.PORT || 5001;
   server.listen(PORT, () => logger.info(`Server running on port ${PORT}`));  // ── MODIFICADO ──
@@ -719,3 +911,5 @@ connectDB().then(() => {
   logger.error('Failed to start server:', { message: err.message, stack: err.stack });
   process.exit(1);
 });
+
+module.exports = { app, io };

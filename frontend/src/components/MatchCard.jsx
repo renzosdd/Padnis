@@ -1,222 +1,210 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, TextField,
-  IconButton, Avatar, CircularProgress,
-  Alert, Collapse
+  Card,
+  CardContent,
+  TextField,
+  Button,
+  Grid,
+  Typography,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
+import PropTypes from 'prop-types';
 
+/**
+ * MatchCard muestra inputs de sets, tiebreak del partido y permite guardar resultados.
+ *
+ * Props esperadas:
+ * - match: objeto con datos del partido (player1, player2, result, etc.)
+ * - matchResult: { sets, matchTiebreak: { player1, player2 }, winner, runnerUp, saved }
+ * - totalSets: número de sets correspondientes al torneo
+ * - onResultChange(matchId, campo, valor): callback para actualizar matchResults en el hook
+ * - onSaveResult(): callback para guardar el resultado (ya incluye matchId internamente)
+ * - matchErrors: objeto con errores de validación (p. ej. { 'set0': 'Error mensaje' })
+ * - getPlayerName: función para obtener el nombre visible de un jugador (se pasa desde parent)
+ * - canEdit: boolean que indica si el usuario puede editar resultados
+ */
 const MatchCard = ({
   match,
   matchResult,
   totalSets,
-  matchErrors,
-  tournament,
   onResultChange,
-  getPlayerName,
   onSaveResult,
-  canEdit
+  matchErrors,
+  getPlayerName,
+  canEdit,
 }) => {
-  const theme = useTheme();
-
-  const normalizeSets = setsArg => {
-    const arr = Array.isArray(setsArg) ? [...setsArg] : [];
-    while (arr.length < totalSets) arr.push({ player1:'', player2:'', tiebreak1:'', tiebreak2:'' });
-    return arr.slice(0, totalSets);
-  };
-
-  const [localResult, setLocalResult] = useState({
-    ...matchResult,
-    sets: normalizeSets(matchResult.sets),
-    matchTiebreak: matchResult.matchTiebreak || {player1:'',player2:''},
-    saved: matchResult.saved
-  });
   const [isEditing, setIsEditing] = useState(!matchResult.saved && canEdit);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
-    setLocalResult({
-      ...matchResult,
-      sets: normalizeSets(matchResult.sets),
-      matchTiebreak: matchResult.matchTiebreak || {player1:'',player2:''},
-      saved: matchResult.saved
-    });
+    // Si el partido ya está guardado, no permitir editar
     setIsEditing(!matchResult.saved && canEdit);
-  }, [matchResult, totalSets, canEdit]);
+  }, [matchResult.saved, canEdit]);
 
-  const handleInputChange = (field, value) => {
-    setLocalResult(prev => {
-      const next = {...prev, sets: normalizeSets(prev.sets), saved:false};
-      if (field.startsWith('set')) {
-        const [,si,pi] = field.match(/^set(\d+)-(\d)$/) || [];
-        next.sets[+si][`player${+pi+1}`] = value;
-      } else if (field.startsWith('tiebreak')) {
-        const [,si,pi] = field.match(/^tiebreak(\d+)-(\d)$/) || [];
-        next.sets[+si][`tiebreak${+pi+1}`] = value;
-      } else {
-        const [,pi] = field.match(/^matchTiebreak-(\d)$/) || [];
-        next.matchTiebreak = {...next.matchTiebreak};
-        next.matchTiebreak[`player${+pi+1}`] = value;
-      }
-      return next;
-    });
-    if (typeof onResultChange === 'function') {
-      onResultChange(match._id, field, value);
-    }
+  const handleChange = (field) => (e) => {
+    onResultChange(match._id, field, e.target.value);
   };
 
-  const calcWinner = () => {
-    const w1 = localResult.sets.reduce((a,s)=>a+((+s.player1>+s.player2)?1:0),0);
-    const w2 = localResult.sets.reduce((a,s)=>a+((+s.player2>+s.player1)?1:0),0);
-    let win,run;
-    if (w1>w2) { win=match.player1; run=match.player2; }
-    else if (w2>w1) { win=match.player2; run=match.player1; }
-    else if (+localResult.matchTiebreak.player1>+localResult.matchTiebreak.player2) {
-      win=match.player1; run=match.player2;
-    } else { win=match.player2; run=match.player1; }
-    return { win, run };
+  const handleTiebreakChange = (playerKey) => (e) => {
+    onResultChange(match._id, `matchTiebreak.${playerKey}`, e.target.value);
   };
 
-  const handleSave = async e => {
-    e.preventDefault();
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const { win: winner, run: runnerUp } = calcWinner();
-      const payload = {...localResult, winner, runnerUp};
-      const errs = await onSaveResult(match._id, payload);
-      if (!errs) setIsEditing(false);
-      else setSaveError(errs.general || 'Error al guardar');
-    } catch (err) {
-      setSaveError(err.message);
-    } finally {
-      setIsSaving(false);
-    }
+  const handleWinnerSelection = (playerKey) => () => {
+    const newWinner = { player1: null, player2: null };
+    newWinner[playerKey] = match?.[playerKey]?.player1 || null;
+    onResultChange(match._id, 'winner', newWinner);
   };
 
-  const handleEdit = e => { e.preventDefault(); setIsEditing(true); };
-
-  // Nombres
-  const { player1:p1, player2:p1B } = match.player1;
-  const { player1:p2, player2:p2B } = match.player2;
-  const fmt = p => (typeof p==='object'&&p.firstName)
-    ? `${p.firstName} ${p.lastName}`
-    : getPlayerName(tournament, p) || 'Jugador';
-  const name1 = fmt(p1), name2 = fmt(p2);
-  const name1B = p1B ? fmt(p1B) : null;
-  const name2B = p2B ? fmt(p2B) : null;
+  const handleSave = async () => {
+    await onSaveResult(match._id);
+  };
 
   return (
-    <Box sx={{
-      p:2, mb:2,
-      border: localResult.saved
-        ? `2px solid ${theme.palette.success.main}`
-        : `1px solid ${theme.palette.divider}`,
-      borderRadius:2, bgcolor:'background.paper', width:'100%'
-    }}>
-      {saveError && <Alert severity="error">{saveError}</Alert>}
-
-      <Box sx={{ display:'flex',alignItems:'center',gap:1,mb:1 }}>
-        <Avatar sx={{ bgcolor:theme.palette.primary.main }}>{name1.charAt(0)}</Avatar>
-        <Typography flex={1}>{name1}{name1B&&` / ${name1B}`}</Typography>
-        <Typography>vs</Typography>
-        <Typography flex={1} textAlign="right">{name2}{name2B&&` / ${name2B}`}</Typography>
-      </Box>
-
-      {localResult.saved && !isEditing && canEdit ? (
-        <Typography sx={{ fontSize:'0.875rem', mb:1 }}>
-          {localResult.sets.map((s,i) => (
-            <span key={i}>
-              Set {i+1}: {s.player1||0}-{s.player2||0}
-              {s.player1===6&&s.player2===6 && ` (TB ${s.tiebreak1||0}-${s.tiebreak2||0})`}
-              {i<localResult.sets.length-1&&'; '}
-            </span>
-          ))}
-          {totalSets===2 &&
-           localResult.sets.reduce((a,s)=>a+((+s.player1>+s.player2?1:-1)),0)===0 &&
-           `, Match TB ${localResult.matchTiebreak.player1||0}-${localResult.matchTiebreak.player2||0}`
-          }
+    <Card sx={{ width: 300 }}>
+      <CardContent>
+        <Typography variant="subtitle1">
+          {getPlayerName(match.player1)} vs {getPlayerName(match.player2)}
         </Typography>
-      ) : (
-        <Collapse in={!localResult.saved||isEditing}>
-          <Box sx={{ display:'flex', flexDirection:{xs:'column',sm:'row'}, gap:2 }}>
-            {localResult.sets.map((s,i)=>(
-              <Box key={i} sx={{ display:'flex',alignItems:'center',gap:1 }}>
+
+        <Grid container spacing={1} sx={{ mt: 1 }}>
+          {[...Array(totalSets)].map((_, idx) => (
+            <React.Fragment key={`set-row-${idx}`}>
+              <Grid item xs={5}>
                 <TextField
-                  type="number" size="small" value={s.player1}
-                  onChange={e=>handleInputChange(`set${i}-0`,e.target.value)}
-                  inputProps={{min:0}}
-                  error={!!matchErrors[`set${i}`]}
-                  sx={{width:50}}
+                  label={`Set ${idx + 1} - P1`}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  disabled={!isEditing}
+                  value={matchResult.sets[idx]?.player1 || ''}
+                  onChange={handleChange(`set${idx}.player1`)}
+                  error={!!matchErrors[`set${idx}`]}
+                  helperText={matchErrors[`set${idx}`]}
                 />
-                <Typography>-</Typography>
+              </Grid>
+              <Grid item xs={5}>
                 <TextField
-                  type="number" size="small" value={s.player2}
-                  onChange={e=>handleInputChange(`set${i}-1`,e.target.value)}
-                  inputProps={{min:0}}
-                  error={!!matchErrors[`set${i}`]}
-                  sx={{width:50}}
+                  label={`Set ${idx + 1} - P2`}
+                  type="number"
+                  size="small"
+                  fullWidth
+                  disabled={!isEditing}
+                  value={matchResult.sets[idx]?.player2 || ''}
+                  onChange={handleChange(`set${idx}.player2`)}
+                  error={!!matchErrors[`set${idx}`]}
+                  helperText={matchErrors[`set${idx}`]}
                 />
-                {+s.player1===6&&+s.player2===6&&(
+              </Grid>
+              {matchResult.sets[idx]?.player1 === 6 &&
+                matchResult.sets[idx]?.player2 === 6 && (
                   <>
-                    <TextField
-                      type="number" size="small" value={s.tiebreak1}
-                      onChange={e=>handleInputChange(`tiebreak${i}-1`,e.target.value)}
-                      inputProps={{min:0}}
-                      error={!!matchErrors[`set${i}`]}
-                      sx={{width:50}}
-                    />
-                    <Typography>-</Typography>
-                    <TextField
-                      type="number" size="small" value={s.tiebreak2}
-                      onChange={e=>handleInputChange(`tiebreak${i}-2`,e.target.value)}
-                      inputProps={{min:0}}
-                      error={!!matchErrors[`set${i}`]}
-                      sx={{width:50}}
-                    />
+                    <Grid item xs={1}>
+                      <Typography>TB</Typography>
+                    </Grid>
+                    <Grid item xs={5}>
+                      <TextField
+                        label="Tie P1"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        disabled={!isEditing}
+                        value={matchResult.sets[idx]?.tiebreak1 || ''}
+                        onChange={handleChange(`set${idx}.tiebreak1`)}
+                        error={!!matchErrors[`set${idx}.tiebreak`]}
+                        helperText={matchErrors[`set${idx}.tiebreak`]}
+                      />
+                    </Grid>
+                    <Grid item xs={5}>
+                      <TextField
+                        label="Tie P2"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        disabled={!isEditing}
+                        value={matchResult.sets[idx]?.tiebreak2 || ''}
+                        onChange={handleChange(`set${idx}.tiebreak2`)}
+                        error={!!matchErrors[`set${idx}.tiebreak`]}
+                        helperText={matchErrors[`set${idx}.tiebreak`]}
+                      />
+                    </Grid>
                   </>
                 )}
-              </Box>
-            ))}
-            {totalSets===2 &&
-             localResult.sets.reduce((a,s)=>a+((+s.player1>+s.player2?1:-1)),0)===0 && (
-              <Box sx={{display:'flex',alignItems:'center',gap:1}}>
-                <Typography>Match TB:</Typography>
-                <TextField
-                  type="number" size="small" value={localResult.matchTiebreak.player1}
-                  onChange={e=>handleInputChange('matchTiebreak-0',e.target.value)}
-                  inputProps={{min:0}}
-                  error={!!matchErrors.matchTiebreak}
-                  sx={{width:50}}
-                />
-                <Typography>-</Typography>
-                <TextField
-                  type="number" size="small" value={localResult.matchTiebreak.player2}
-                  onChange={e=>handleInputChange('matchTiebreak-1',e.target.value)}
-                  inputProps={{min:0}}
-                  error={!!matchErrors.matchTiebreak}
-                  sx={{width:50}}
-                />
-              </Box>
-            )}
-          </Box>
-        </Collapse>
-      )}
+            </React.Fragment>
+          ))}
 
-      <Box sx={{ display:'flex',justifyContent:'flex-end',mt:1 }}>
-        {localResult.saved&&!isEditing&&canEdit ? (
-          <IconButton onClick={handleEdit}><EditIcon/></IconButton>
-        ) : canEdit ? (
-          <IconButton onClick={handleSave} disabled={isSaving}>
-            {isSaving ? <CircularProgress size={24}/> : <SaveIcon/>}
-          </IconButton>
-        ) : null}
-      </Box>
-    </Box>
+          {/* Tiebreak de partido (si aplica) */}
+          <Grid item xs={6} sx={{ mt: 1 }}>
+            <TextField
+              label="Match Tie P1"
+              type="number"
+              size="small"
+              fullWidth
+              disabled={!isEditing}
+              value={matchResult.matchTiebreak.player1 || ''}
+              onChange={handleTiebreakChange('player1')}
+              error={!!matchErrors.matchTiebreak}
+              helperText={matchErrors.matchTiebreak}
+            />
+          </Grid>
+          <Grid item xs={6} sx={{ mt: 1 }}>
+            <TextField
+              label="Match Tie P2"
+              type="number"
+              size="small"
+              fullWidth
+              disabled={!isEditing}
+              value={matchResult.matchTiebreak.player2 || ''}
+              onChange={handleTiebreakChange('player2')}
+              error={!!matchErrors.matchTiebreak}
+              helperText={matchErrors.matchTiebreak}
+            />
+          </Grid>
+        </Grid>
+
+        {isEditing && (
+          <Button
+            variant="contained"
+            color="primary"
+            fullWidth
+            sx={{ mt: 2 }}
+            onClick={handleSave}
+          >
+            Guardar
+          </Button>
+        )}
+        {!isEditing && canEdit && (
+          <Typography variant="caption" color="textSecondary" sx={{ mt: 1 }}>
+            Resultado guardado
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
   );
+};
+
+MatchCard.propTypes = {
+  match: PropTypes.object.isRequired,
+  matchResult: PropTypes.shape({
+    sets: PropTypes.arrayOf(
+      PropTypes.shape({
+        player1: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+        player2: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+        tiebreak1: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+        tiebreak2: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      })
+    ),
+    matchTiebreak: PropTypes.shape({
+      player1: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      player2: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    }),
+    winner: PropTypes.object,
+    runnerUp: PropTypes.object,
+    saved: PropTypes.bool,
+  }).isRequired,
+  totalSets: PropTypes.number.isRequired,
+  onResultChange: PropTypes.func.isRequired,
+  onSaveResult: PropTypes.func.isRequired,
+  matchErrors: PropTypes.object.isRequired,
+  getPlayerName: PropTypes.func.isRequired,
+  canEdit: PropTypes.bool.isRequired,
 };
 
 export default MatchCard;

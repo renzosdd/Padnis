@@ -1,126 +1,93 @@
-// src/frontend/src/components/TournamentBracket.jsx
-import React, { useEffect } from 'react';
-import { Box, Typography, Button } from '@mui/material';
+import React, { useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { Button, Grid, Typography } from '@mui/material';
 import MatchCard from './MatchCard';
-import { setMatchResult, resetMatchResults } from '../store/store';
+import { resetMatchResults, setMatchResult } from './store';
+import useTournament from './useTournament';
 
-const TournamentBracket = ({
-  tournament,
-  role,
-  getPlayerName,
-  fetchTournament,
-  addNotification,
-  advanceEliminationRound
-}) => {
+const TournamentBracket = ({ tournamentId, canEdit }) => {
   const dispatch = useDispatch();
-  const matchResults = useSelector(state => state.matchResults);
-  const canEdit = ['admin', 'coach'].includes(role) && tournament.status === 'En curso';
-  const totalSets = tournament.format.sets;
+  const { tournament, matchResults, matchErrors, onResultChange, onSaveResult, refetch } = useTournament(tournamentId);
 
-  // Inicializar resultados locales
+  // Inicializar Redux state de matchResults a partir de la data de tournament.rounds
   useEffect(() => {
     dispatch(resetMatchResults());
-    tournament.rounds.forEach(round => {
-      round.matches.forEach(match => {
-        const saved = !!match.result?.winner;
+    if (!tournament?.rounds) return;
+
+    const totalSets = tournament.format.sets || 3;
+    tournament.rounds.forEach((round) => {
+      round.matches.forEach((match) => {
+        const saved = !!match.result?.winner?.player1 || !!match.result?.winner?.player2;
         const initialSets = Array.from({ length: totalSets }, () => ({
           player1: '',
           player2: '',
           tiebreak1: '',
-          tiebreak2: ''
+          tiebreak2: '',
         }));
-        dispatch(setMatchResult({
-          matchId: match._id,
-          result: {
-            sets: match.result?.sets || initialSets,
-            matchTiebreak: match.result?.matchTiebreak || { player1: '', player2: '' },
-            saved
-          }
-        }));
+        dispatch(
+          setMatchResult({
+            matchId: match._id,
+            result: {
+              sets: match.result?.sets || initialSets,
+              matchTiebreak: match.result?.matchTiebreak || { player1: '', player2: '' },
+              winner: match.result?.winner || { player1: null, player2: null },
+              runnerUp: match.result?.runnerUp || { player1: null, player2: null },
+              saved,
+            },
+          })
+        );
       });
     });
-  }, [tournament.rounds, dispatch, totalSets]);
+  }, [tournament?.rounds, dispatch]);
 
-  const handleSave = async (matchId, result) => {
-    const errors = await fetchTournament(true, matchId, result);
-    if (errors) {
-      addNotification(errors.message || 'Error al guardar resultado', 'error');
-    } else {
-      addNotification('Resultado guardado', 'success');
-    }
-    return errors;
-  };
+  const handleLocalInputChange = useCallback(
+    (matchId, field, value) => {
+      onResultChange(matchId, field, value);
+    },
+    [onResultChange]
+  );
 
-  const handleLocalInputChange = (matchId, field, value) => {
-    const current = matchResults[matchId];
-    if (!current) return;
-    let updated = { ...current };
+  const handleSave = useCallback(
+    async (matchId) => {
+      const result = matchResults[matchId];
+      const errors = await onSaveResult(matchId, result);
+      if (errors) {
+        // Mostrar notificación de error (opcional)
+      } else {
+        // Mostrar notificación de éxito (opcional)
+      }
+    },
+    [matchResults, onSaveResult]
+  );
 
-    const [base, side] = field.split('-');
-    const sideKey = side === '0' ? 'player1' : 'player2';
-
-    if (base.startsWith('set')) {
-      const setIdx = parseInt(base.replace('set',''), 10);
-      updated.sets = current.sets.map((s, i) =>
-        i === setIdx ? { ...s, [sideKey]: value } : s
-      );
-    } else if (base.startsWith('tiebreak')) {
-      const tbIdx = parseInt(base.replace('tiebreak',''), 10);
-      updated.sets = current.sets.map((s, i) =>
-        i === tbIdx
-          ? {
-              ...s,
-              ...(sideKey === 'player1' ? { tiebreak1: value } : { tiebreak2: value })
-            }
-          : s
-      );
-    } else if (base === 'matchTiebreak') {
-      updated.matchTiebreak = {
-        ...current.matchTiebreak,
-        [sideKey]: value
-      };
-    } else {
-      return;
-    }
-
-    dispatch(setMatchResult({ matchId, result: updated }));
-  };
+  if (!tournament) {
+    return <Typography>Cargando torneo...</Typography>;
+  }
 
   return (
-    <Box>
-      {tournament.rounds.map((round, ri) => (
-        <Box key={round.round || ri} sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Ronda {round.round}
-          </Typography>
-          {round.matches.map(match => (
-            <MatchCard
-              key={match._id}
-              match={match}
-              matchResult={matchResults[match._id] || {}}
-              totalSets={totalSets}
-              handleLocalInputChange={handleLocalInputChange}
-              matchErrors={{}}
-              getPlayerName={getPlayerName}
-              tournament={tournament}
-              onSave={handleSave}
-              onToggleEdit={() => {}}
-              canEdit={canEdit}
-            />
-          ))}
-        </Box>
+    <Grid container spacing={2}>
+      {tournament.rounds.map((round) => (
+        <Grid item xs={12} key={`round-${round.round}`}>
+          <Typography variant="h6">Ronda {round.round}</Typography>
+          <Grid container spacing={2}>
+            {round.matches.map((match) => (
+              <Grid item key={match._id}>
+                <MatchCard
+                  match={match}
+                  matchResult={matchResults[match._id] || {}}
+                  totalSets={tournament.format.sets}
+                  onResultChange={handleLocalInputChange}
+                  onSaveResult={() => handleSave(match._id)}
+                  matchErrors={matchErrors[match._id] || {}}
+                  getPlayerName={(p) => (p?.player1 ? `${p.player1.name}` : 'BYE')}
+                  canEdit={canEdit}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        </Grid>
       ))}
-      {canEdit && (
-        <Button
-          variant="contained"
-          onClick={advanceEliminationRound}
-          sx={{ mt: 2 }}
-        >
-          Avanzar Ronda
-        </Button>
-      )}
-    </Box>
+    </Grid>
   );
 };
 

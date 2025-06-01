@@ -1,123 +1,138 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import api from '../api';
+import { useState, useCallback, useEffect } from 'react';
+import api from './api'; // tu configuración de Axios
+import { validateMatchResult } from './tournamentUtils';
 
 export default function useTournament(tournamentId) {
   const [tournament, setTournament] = useState(null);
   const [matchResults, setMatchResults] = useState({});
   const [matchErrors, setMatchErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
   const fetchTournament = useCallback(async () => {
-    if (!tournamentId) {
-      // No llamar si no hay ID válido
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      // Asegurarse de que la ruta sea siempre /tournaments/:id
-      const { data: t } = await api.get(`/tournaments/${tournamentId}`);
-      // Normalizar arrays
-      t.groups = Array.isArray(t.groups) ? t.groups : [];
-      t.groups.forEach(g => {
-        g.matches = Array.isArray(g.matches) ? g.matches : [];
-      });
-      t.rounds = Array.isArray(t.rounds) ? t.rounds : [];
-      t.rounds.forEach(r => {
-        r.matches = Array.isArray(r.matches) ? r.matches : [];
-      });
-      setTournament(t);
+    if (!tournamentId) return;
+    const { data } = await api.get(`/tournaments/${tournamentId}`);
+    setTournament(data);
 
-      // Inicializar matchResults con "saved"
-      const init = {};
-      [...t.groups, ...t.rounds].forEach(section =>
-        section.matches.forEach(m => {
+    const init = {};
+    if (data.groups) {
+      data.groups.forEach((grp) => {
+        grp.matches.forEach((m) => {
           init[m._id] = {
-            ...m.result,
-            saved: Array.isArray(m.result.sets) && m.result.sets.length > 0
+            sets: m.result?.sets || [],
+            matchTiebreak: {
+              player1: m.result?.matchTiebreak1 || '',
+              player2: m.result?.matchTiebreak2 || '',
+            },
+            winner: m.result?.winner || { player1: null, player2: null },
+            runnerUp: m.result?.runnerUp || { player1: null, player2: null },
+            saved: Array.isArray(m.result?.sets) && m.result.sets.length > 0,
           };
-        })
-      );
-      setMatchResults(init);
-      setMatchErrors({});
-    } catch (err) {
-      setError(err);
-      throw err;
-    } finally {
-      setLoading(false);
+        });
+      });
     }
+    if (data.rounds) {
+      data.rounds.forEach((rnd) => {
+        rnd.matches.forEach((m) => {
+          init[m._id] = {
+            sets: m.result?.sets || [],
+            matchTiebreak: {
+              player1: m.result?.matchTiebreak1 || '',
+              player2: m.result?.matchTiebreak2 || '',
+            },
+            winner: m.result?.winner || { player1: null, player2: null },
+            runnerUp: m.result?.runnerUp || { player1: null, player2: null },
+            saved: Array.isArray(m.result?.sets) && m.result.sets.length > 0,
+          };
+        });
+      });
+    }
+
+    setMatchResults(init);
+    setMatchErrors({});
   }, [tournamentId]);
 
   useEffect(() => {
     fetchTournament();
-  }, [tournamentId, fetchTournament]);
+  }, [fetchTournament]);
 
   const onResultChange = useCallback((matchId, field, value) => {
-    setMatchResults(prev => {
-      const mr = { ...prev[matchId] };
-      mr.sets = Array.isArray(mr.sets) ? mr.sets : [];
-      // Aquí iría la lógica inline para sets/tiebreak...
+    setMatchResults((prev) => {
+      const mr = { ...(prev[matchId] || {}) };
+      if (field.startsWith('set')) {
+        const [setIdxStr, key] = field.split('.');
+        const idx = parseInt(setIdxStr.replace('set', ''), 10);
+        mr.sets = Array.isArray(mr.sets) ? [...mr.sets] : [];
+        if (!mr.sets[idx]) {
+          mr.sets[idx] = { player1: '', player2: '', tiebreak1: '', tiebreak2: '' };
+        }
+        mr.sets[idx][key] = value;
+      } else if (field.startsWith('matchTiebreak')) {
+        const key = field.split('.')[1];
+        mr.matchTiebreak = { ...(mr.matchTiebreak || { player1: '', player2: '' }) };
+        mr.matchTiebreak[key] = value;
+      } else if (field === 'winner' || field === 'runnerUp') {
+        mr[field] = value;
+      }
       mr.saved = false;
       return { ...prev, [matchId]: mr };
     });
+    setMatchErrors((prev) => ({ ...prev, [matchId]: {} }));
   }, []);
 
   const onSaveResult = useCallback(
     async (matchId, result) => {
-      try {
-        const isKO = tournament?.rounds?.some(r =>
-          r.matches.some(m => m._id === matchId)
-        );
-        await api.put(
-          `/tournaments/${tournamentId}/matches/${matchId}/result`,
-          {
-            sets: result.sets,
-            winner: result.winner,
-            runnerUp: result.runnerUp,
-            isKnockout: isKO,
-            matchTiebreak1: result.matchTiebreak.player1,
-            matchTiebreak2: result.matchTiebreak.player2
-          }
-        );
-        setMatchResults(prev => ({
+      const validationErrors = validateMatchResult({
+        sets: result.sets,
+        matchTiebreak1: result.matchTiebreak.player1,
+        matchTiebreak2: result.matchTiebreak.player2,
+      });
+      if (Object.keys(validationErrors).length > 0) {
+        setMatchErrors((prev) => ({
           ...prev,
-          [matchId]: { ...result, saved: true }
+          [matchId]: validationErrors,
         }));
+        return validationErrors;
+      }
+
+      const isKO = tournament?.rounds?.some((r) =>
+        r.matches.some((m) => m._id === matchId)
+      );
+      try {
+        await api.put(`/tournaments/${tournamentId}/matches/${matchId}/result`, {
+          sets: result.sets,
+          winner: result.winner,
+          runnerUp: result.runnerUp,
+          isKnockout: isKO,
+          matchTiebreak1: result.matchTiebreak.player1,
+          matchTiebreak2: result.matchTiebreak.player2,
+        });
+
+        setMatchResults((prev) => ({
+          ...prev,
+          [matchId]: { ...result, saved: true },
+        }));
+        await fetchTournament();
         return null;
       } catch (err) {
-        const errs = (err.response?.data?.errors || []).reduce((acc, e) => {
+        const backendErrors = (err.response?.data?.errors || []).reduce((acc, e) => {
           acc[e.param] = e.msg;
           return acc;
         }, {});
-        setMatchErrors(prev => ({ ...prev, [matchId]: errs }));
-        return errs;
+        setMatchErrors((prev) => ({
+          ...prev,
+          [matchId]: backendErrors,
+        }));
+        return backendErrors;
       }
     },
-    [tournament, tournamentId]
+    [tournament, tournamentId, fetchTournament]
   );
-
-  const generateKnockoutPhase = useCallback(async () => {
-    if (!tournamentId) return;
-    await api.put(`/tournaments/${tournamentId}`, { draft: false, status: 'En curso' });
-    await fetchTournament();
-  }, [tournamentId, fetchTournament]);
-
-  const advanceEliminationRound = useCallback(async () => {
-    await fetchTournament();
-  }, [fetchTournament]);
 
   return {
     tournament,
     matchResults,
     matchErrors,
-    loading,
-    error,
-    fetchTournament,
     onResultChange,
     onSaveResult,
-    generateKnockoutPhase,
-    advanceEliminationRound,
-    standings: useMemo(() => tournament?.standings || [], [tournament])
+    refetch: fetchTournament,
   };
 }
