@@ -1,10 +1,12 @@
+// src/App.jsx
 import React, { useEffect, useMemo, Suspense, lazy } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
-  useNavigate
+  useNavigate,
+  useParams
 } from 'react-router-dom';
 import { Provider as ReduxProvider } from 'react-redux';
 import { ThemeProvider, CssBaseline, CircularProgress, Box } from '@mui/material';
@@ -101,10 +103,12 @@ function MainApp() {
             element={user ? <TournamentInProgress /> : <Navigate to="/login" replace />}
           />
 
-          {/* Redirige ruta antigua singular */}
+          {/* Redirige ruta antigua singular, usando useParams inline */}
           <Route
             path="/tournament/:id"
-            element={<Navigate to="/tournaments/:id" replace />}
+            element={
+              <RouteWrapperRedirect />
+            }
           />
 
           {/* Catch-all */}
@@ -116,6 +120,13 @@ function MainApp() {
       </Suspense>
     </>
   );
+}
+
+// Este pequeño componente inline se usa sólo dentro de App.jsx,
+// para leer el :id y redirigir a /tournaments/${id}
+function RouteWrapperRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/tournaments/${id}`} replace />;
 }
 
 export default function App() {
