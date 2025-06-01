@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Button, Grid, Typography } from '@mui/material';
 import MatchCard from './MatchCard';
 import { resetMatchResults, setMatchResult } from '../store/store';
-import useTournament from './useTournament';
+import useTournament from '../hooks/useTournament';
 
 const TournamentBracket = ({ tournamentId, canEdit }) => {
   const dispatch = useDispatch();
