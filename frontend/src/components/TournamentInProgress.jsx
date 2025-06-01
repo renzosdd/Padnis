@@ -188,7 +188,67 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
         .filter((m) => m.result?.winner?.player1 || m.result?.winner?.player2).length
     : 0;
 
-  // Define pestañas antes de los callbacks
+  // Generar fase eliminatoria
+  const handleGenerateKnockout = useCallback(async () => {
+    try {
+      await generateKnockoutPhase();
+      setSnackbar({
+        open: true,
+        message: 'Fase eliminatoria generada',
+        severity: 'success',
+      });
+      // Cambiar automáticamente a la pestaña “Llave”
+      const idxLlave = tabs.findIndex((t) => t.label === 'Llave');
+      if (idxLlave >= 0) {
+        setActiveTab(idxLlave);
+        sessionStorage.setItem(STORAGE_KEY, idxLlave.toString());
+      }
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || err.message || 'Error generando llave',
+        severity: 'error',
+      });
+    }
+  }, [generateKnockoutPhase]);
+
+  // Avanzar ronda eliminatoria
+  const handleAdvanceRound = useCallback(async () => {
+    try {
+      await advanceEliminationRound();
+      setSnackbar({
+        open: true,
+        message: 'Siguiente ronda generada',
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || err.message || 'Error avanzando ronda',
+        severity: 'error',
+      });
+    }
+  }, [advanceEliminationRound]);
+
+  // Finalizar torneo
+  const handleFinishTournament = useCallback(async () => {
+    try {
+      await finishTournament();
+      setSnackbar({
+        open: true,
+        message: 'Torneo finalizado correctamente',
+        severity: 'success',
+      });
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.response?.data?.message || err.message || 'Error al finalizar torneo',
+        severity: 'error',
+      });
+    }
+  }, [finishTournament]);
+
+  // Construcción dinámica de pestañas
   const tabs = [
     {
       label: 'Detalles',
@@ -220,7 +280,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
                     <Button
                       variant="contained"
                       color="primary"
-                      onClick={() => handleGenerateKnockout()}
+                      onClick={handleGenerateKnockout}
                       disabled={isGeneratingKnockout}
                       startIcon={<CheckIcon />}
                       aria-label="Generar fase eliminatoria"
@@ -305,7 +365,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
                       <Button
                         variant="contained"
                         color="secondary"
-                        onClick={() => handleAdvanceRound()}
+                        onClick={handleAdvanceRound}
                         disabled={isAdvancingRound}
                         startIcon={<CheckIcon />}
                         sx={{ ml: 1 }}
@@ -332,66 +392,6 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
         ]
       : []),
   ];
-
-  // Generar fase eliminatoria
-  const handleGenerateKnockout = useCallback(async () => {
-    try {
-      await generateKnockoutPhase();
-      setSnackbar({
-        open: true,
-        message: 'Fase eliminatoria generada',
-        severity: 'success',
-      });
-      // Cambiar automáticamente a la pestaña “Llave”
-      const idxLlave = tabs.findIndex((t) => t.label === 'Llave');
-      if (idxLlave >= 0) {
-        setActiveTab(idxLlave);
-        sessionStorage.setItem(STORAGE_KEY, idxLlave.toString());
-      }
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err.response?.data?.message || err.message || 'Error generando llave',
-        severity: 'error',
-      });
-    }
-  }, [generateKnockoutPhase, tabs]);
-
-  // Avanzar ronda eliminatoria
-  const handleAdvanceRound = useCallback(async () => {
-    try {
-      await advanceEliminationRound();
-      setSnackbar({
-        open: true,
-        message: 'Siguiente ronda generada',
-        severity: 'success',
-      });
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err.response?.data?.message || err.message || 'Error avanzando ronda',
-        severity: 'error',
-      });
-    }
-  }, [advanceEliminationRound]);
-
-  // Finalizar torneo
-  const handleFinishTournament = useCallback(async () => {
-    try {
-      await finishTournament();
-      setSnackbar({
-        open: true,
-        message: 'Torneo finalizado correctamente',
-        severity: 'success',
-      });
-    } catch (err) {
-      setSnackbar({
-        open: true,
-        message: err.response?.data?.message || err.message || 'Error al finalizar torneo',
-        severity: 'error',
-      });
-    }
-  }, [finishTournament]);
 
   // Guardar pestaña activa en sessionStorage
   useEffect(() => {
@@ -423,7 +423,7 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
             <Button
               variant="outlined"
               color="error"
-              onClick={() => handleFinishTournament()}
+              onClick={handleFinishTournament}
               disabled={isFinishingTournament}
               startIcon={<FinishIcon />}
               aria-label="Finalizar torneo"
@@ -439,7 +439,9 @@ const TournamentInProgress = memo(({ onFinishTournament }) => {
       {/* Pestañas de navegación */}
       <Tabs
         value={activeTab}
-        onChange={handleTabChange}
+        onChange={(_, newIndex) => {
+          setActiveTab(newIndex);
+        }}
         variant="scrollable"
         scrollButtons="auto"
         aria-label="Navegación de pestañas del torneo"
