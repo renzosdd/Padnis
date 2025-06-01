@@ -9,22 +9,26 @@ export default function useTournament(tournamentId) {
   const [error, setError] = useState(null);
 
   const fetchTournament = useCallback(async () => {
+    if (!tournamentId) {
+      // Evita llamadas con ID inválido
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      // <-- Asegúrate de usar siempre la ruta plural
-      const { data: t } = await api.get(`/tournaments/${tournamentId}`);  
-      
-      // Normalizar arrays
+      const { data: t } = await api.get(`/tournaments/${tournamentId}`);
+      // Normalizar grupos y rondas a arrays
       t.groups = Array.isArray(t.groups) ? t.groups : [];
-      t.groups.forEach(g => { g.matches = Array.isArray(g.matches) ? g.matches : []; });
-
+      t.groups.forEach(g => {
+        g.matches = Array.isArray(g.matches) ? g.matches : [];
+      });
       t.rounds = Array.isArray(t.rounds) ? t.rounds : [];
-      t.rounds.forEach(r => { r.matches = Array.isArray(r.matches) ? r.matches : []; });
-
+      t.rounds.forEach(r => {
+        r.matches = Array.isArray(r.matches) ? r.matches : [];
+      });
       setTournament(t);
 
-      // Inicializar matchResults con saved flag
+      // Inicializar matchResults con flag "saved"
       const init = {};
       [...t.groups, ...t.rounds].forEach(section =>
         section.matches.forEach(m => {
@@ -44,16 +48,15 @@ export default function useTournament(tournamentId) {
     }
   }, [tournamentId]);
 
-  // Carga inicial
   useEffect(() => {
-    if (tournamentId) fetchTournament();
+    fetchTournament();
   }, [tournamentId, fetchTournament]);
 
   const onResultChange = useCallback((matchId, field, value) => {
     setMatchResults(prev => {
       const mr = { ...prev[matchId] };
       mr.sets = Array.isArray(mr.sets) ? mr.sets : [];
-      // ... lógica inline sets/tiebreak ...
+      // Aquí iría la lógica de edición inline (sets, tiebreaks)…
       mr.saved = false;
       return { ...prev, [matchId]: mr };
     });
@@ -61,7 +64,6 @@ export default function useTournament(tournamentId) {
 
   const onSaveResult = useCallback(async (matchId, result) => {
     try {
-      // Detectar si es knockout
       const isKO = tournament?.rounds?.some(r =>
         r.matches.some(m => m._id === matchId)
       );

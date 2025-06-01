@@ -31,8 +31,8 @@ function MainApp() {
 
   useEffect(() => {
     if (user) {
-      const p = window.location.pathname;
-      if (p === '/login' || p === '/register') {
+      const path = window.location.pathname;
+      if (path === '/login' || path === '/register') {
         navigate('/', { replace: true });
       }
     } else {
@@ -67,7 +67,7 @@ function MainApp() {
             }
           />
 
-          {/* Rutas privadas */}
+          {/* Rutas protegidas */}
           <Route
             path="/"
             element={user ? <TournamentList /> : <Navigate to="/login" replace />}
@@ -77,7 +77,7 @@ function MainApp() {
             element={user ? <TournamentHistory /> : <Navigate to="/login" replace />}
           />
 
-          {/* Crear torneo */}
+          {/* Crear torneo – sólo admins/coaches */}
           <Route
             path="/tournaments/create"
             element={
@@ -93,19 +93,19 @@ function MainApp() {
             }
           />
 
-          {/* Detalle torneo en curso */}
+          {/* Ver detalles de torneo en curso */}
           <Route
             path="/tournaments/:id"
             element={user ? <TournamentInProgress /> : <Navigate to="/login" replace />}
           />
 
-          {/* Redirigir ruta singular antigua */}
+          {/* Redirigir ruta singular antigua a plural */}
           <Route
             path="/tournament/:id"
             element={<Navigate to="/tournaments/:id" replace />}
           />
 
-          {/* Catch-all */}
+          {/* Catch‐all */}
           <Route
             path="*"
             element={<Navigate to={user ? "/" : "/login"} replace />}
