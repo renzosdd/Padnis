@@ -43,11 +43,13 @@ function MainApp() {
   return (
     <>
       <NavBar />
-      <Suspense fallback={
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
-      }>
+      <Suspense
+        fallback={
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        }
+      >
         <Routes>
           {/* Rutas públicas */}
           <Route
@@ -77,7 +79,7 @@ function MainApp() {
             element={user ? <TournamentHistory /> : <Navigate to="/login" replace />}
           />
 
-          {/* Crear torneo – sólo admins/coaches */}
+          {/* Crear torneo – sólo admin/coach */}
           <Route
             path="/tournaments/create"
             element={
@@ -93,19 +95,19 @@ function MainApp() {
             }
           />
 
-          {/* Ver detalles de torneo en curso */}
+          {/* Detalle (y edición) de un torneo en curso */}
           <Route
             path="/tournaments/:id"
             element={user ? <TournamentInProgress /> : <Navigate to="/login" replace />}
           />
 
-          {/* Redirigir ruta singular antigua a plural */}
+          {/* Redirige ruta antigua singular */}
           <Route
             path="/tournament/:id"
             element={<Navigate to="/tournaments/:id" replace />}
           />
 
-          {/* Catch‐all */}
+          {/* Catch-all */}
           <Route
             path="*"
             element={<Navigate to={user ? "/" : "/login"} replace />}
