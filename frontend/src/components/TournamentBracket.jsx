@@ -2,7 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Button, Grid, Typography } from '@mui/material';
 import MatchCard from './MatchCard';
-import { resetMatchResults, setMatchResult } from './store';
+import { resetMatchResults, setMatchResult } from '../store/store';
 import useTournament from './useTournament';
 
 const TournamentBracket = ({ tournamentId, canEdit }) => {
