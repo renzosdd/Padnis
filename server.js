@@ -34,7 +34,7 @@ const {
   validateMatchResult,
   generateKnockoutRounds,
   advanceEliminationRound,
-} = require('./tournamentUtils');
+} = require('./frontend/src/utils/tournamentUtils');
 
 const app = express();
 const server = http.createServer(app);                              // ── NUEVO ──
