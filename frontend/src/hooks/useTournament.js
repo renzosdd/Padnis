@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import api from './api'; // tu configuración de Axios
+import api from '../api'; // tu configuración de Axios
 import { validateMatchResult } from './tournamentUtils';
 
 export default function useTournament(tournamentId) {
